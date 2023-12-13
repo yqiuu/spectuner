@@ -45,6 +45,23 @@ def load_molfit_info(fname):
     return mol_names, bounds
 
 
+def create_wrapper_from_config(spec_obs, mol_names, config, **kwargs):
+    freq = spec_obs[:, 0].copy()
+    freq_min = freq[0]
+    freq_max = freq[-1]
+    freq_step = freq[1] - freq[0]
+
+    wrapper = XCLASSWrapper(
+        FreqMin=freq_min,
+        FreqMax=freq_max,
+        FreqStep=freq_step,
+        mol_names=mol_names,
+        **config,
+        **kwargs
+    )
+    return wrapper
+
+
 class XCLASSWrapper:
     def __init__(self, FreqMin, FreqMax, FreqStep, TelescopeSize, inter_flag,
                  RestFreq, nH_flag, N_H, kappa_1300, beta_dust, IsoTableFileName,
