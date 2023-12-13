@@ -23,6 +23,8 @@ def create_molfit_file(fname, mol_names, params):
 
 
 def load_molfit_info(fname):
+    # mol_names (N,)
+    # bounds (N, X, 2)
     mol_names = []
     bounds = []
     for line in open(fname).readlines():
@@ -41,7 +43,7 @@ def load_molfit_info(fname):
             ]))
         else:
             mol_names.append(line.split()[0])
-    bounds = np.vstack(bounds)
+    bounds = np.vstack(bounds).reshape(len(mol_names), -1, 2)
     return mol_names, bounds
 
 
