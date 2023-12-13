@@ -65,7 +65,7 @@ def create_wrapper_from_config(spec_obs, mol_names, config, **kwargs):
 class XCLASSWrapper:
     def __init__(self, FreqMin, FreqMax, FreqStep, TelescopeSize, inter_flag,
                  RestFreq, nH_flag, N_H, kappa_1300, beta_dust, IsoTableFileName,
-                 mol_names, prefix_molfit, scaler_mol_params=None,
+                 mol_names, prefix_molfit,
                  t_back_flag=True, tBack=None, tslope=None, vLSR=None):
         xclass_kwargs = {
             "FreqMin": FreqMin,
@@ -100,10 +100,9 @@ class XCLASSWrapper:
         self.params_misc = tuple(params_misc)
 
         self.mol_names = np.asarray(mol_names)
-        n_param_per_mol = 5
-        self.n_mol_param = len(mol_names)*n_param_per_mol
+        self.n_param_per_mol = 5
+        self.n_mol_param = len(mol_names)*self.n_param_per_mol
         self.prefix_molfit = prefix_molfit
-        self.scaler_mol_params = scaler_mol_params
 
     def call(self, params):
         params_dict, params_mol = self.derive_params_dict(params)
@@ -119,8 +118,6 @@ class XCLASSWrapper:
     def derive_params_dict(self, params):
         params_mol = params[:self.n_mol_param]
         params_mol = params_mol.reshape(len(self.mol_names), -1)
-        if self.scaler_mol_params is not None:
-            params_mol = self.scaler_mol_params(params_mol)
 
         params_dict = {}
         for key, val in zip(self.params_misc, params[self.n_mol_param:]):
