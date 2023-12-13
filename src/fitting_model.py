@@ -3,19 +3,20 @@ import numpy as np
 from .xclass_wrapper import create_wrapper_from_config
 
 
-def create_fitting_model(spec_obs, mol_names, bounds, bounds_dict,
+def create_fitting_model(spec_obs, mol_names, bounds,
                          config, vLSR=None, tBack=None):
     kwargs = {}
     if vLSR is not None:
         kwargs["vLSR"] = vLSR
     if tBack is not None:
         kwargs["tBack"] = tBack
-    wrapper = create_wrapper_from_config(spec_obs, mol_names, config["xclass"])
+    wrapper = create_wrapper_from_config(spec_obs, mol_names, config["xclass"], **kwargs)
 
     scaler = Scaler(wrapper.n_mol_param, wrapper.n_param_per_mol)
     bounds_mol = scaler.derive_bounds(bounds)
 
     bounds_misc = []
+    bounds_dict = config["bounds"]
     for key in wrapper.params_misc:
         bounds_misc.append(bounds_dict[key])
     bounds_misc = np.vstack(bounds_misc)
