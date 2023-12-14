@@ -152,8 +152,8 @@ class XCLASSWrapper:
         spectrum, log, trans, tau, job_dir = task_myXCLASS.myXCLASS(
             MolfitsFileName=fname_molfit, **params_dict, **self._xclass_kwargs
         )
-        shutil.rmtree(job_dir)
         if return_full:
             return spectrum, log, trans, tau, job_dir
         else:
+            shutil.rmtree(job_dir)
             return spectrum
