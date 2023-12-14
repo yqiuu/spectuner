@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 from pathlib import Path
+from collections import defaultdict
 
 import numpy as np
 
@@ -62,6 +63,22 @@ def create_wrapper_from_config(spec_obs, mol_names, config, **kwargs):
         **kwargs
     )
     return wrapper
+
+
+def extract_line_frequency(transitions):
+    """Extract line frequency with Doppler-shift.
+
+    Args:
+        transitions (list): Transitions obtained from XCLASS.
+
+    Returns:
+        dict: Each item uses the molecular name as the key and gives a list of
+            transition frequencies and .
+    """
+    trans_dict = defaultdict(list)
+    for item in transitions[1:]:
+        trans_dict[item[-1]].append(float(item[1]))
+    return trans_dict
 
 
 class XCLASSWrapper:
