@@ -36,17 +36,9 @@ def optimize(spec_obs, mol_name, iso_dict, config, pool):
     model = create_fitting_model_extra(spec_obs, [mol_name], iso_dict, config, vLSR=0.)
     opt = ParticleSwarm(model, model.bounds, nswarm=config_opt["n_swarm"], pool=pool)
     opt.swarm(config_opt["n_cycle"])
-
-    params = model.derive_params(opt.pos_global_best)
-    spec_pred, _, trans, *_ = model.func.call_full_output(params)
-    trans_dict = extract_line_frequency(trans)
-    is_accepted = identification_single(
-        spec_obs[:, 1], spec_pred[:, 1], spec_obs[:, 0], trans_dict,
-        config["T_thr"], tol=config["tol"]
-    )
     save_dict = {
         "name": mol_name,
-        "is_accepted": is_accepted,
+        "cost_best": opt.cost_global_best,
         "params_best": opt.pos_global_best
     }
     save_dir = Path(config["save_dir"])
