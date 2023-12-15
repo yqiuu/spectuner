@@ -82,8 +82,9 @@ def derive_normal_form(mol_name):
 
 
 def identification_single(T_obs, T_pred, freq, trans_dict, T_thr, tol=.1, return_full=False):
-    for _, line_freq in trans_dict.items():
-        break
+    line_freq = []
+    for _, freq_list in trans_dict.items():
+        line_freq.extend(freq_list)
 
     info = []
     freq_min = freq[0]
