@@ -12,6 +12,7 @@ if path is None:
     raise ValueError("Set environment variable 'XCLASSRootDir'.")
 sys.path.append(str(Path(path)/Path("build_tasks")))
 import task_myXCLASS
+import task_ListDatabase
 
 
 def create_molfit_file(fname, mol_names, params):
