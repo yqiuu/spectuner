@@ -201,6 +201,8 @@ class ParameterManager:
         #
         self.mol_names = mol_names
         self.iso_dict = iso_dict
+        self.n_mol_param = n_mol_param
+        self.n_iso_param = n_iso_param
         self.n_param_per_mol = n_param_per_mol
 
         self.idx_den = idx_den
