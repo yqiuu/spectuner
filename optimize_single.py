@@ -6,8 +6,8 @@ from multiprocessing import Pool
 import numpy as np
 from swing import ParticleSwarm
 
-from src.xclass_wrapper import load_molfit_info
-from src.fitting_model import create_fitting_model
+from src.fitting_model import create_fitting_model_extra
+from src.algorithms import select_molecules
 
 
 def main(config):
@@ -15,14 +15,23 @@ def main(config):
     spec_obs = spec_obs[::-1] # Make freq ascending
 
     pool = Pool(config["opt_single"]["n_process"])
-    mol_names, bounds = load_molfit_info(config["file_molfit"])
-    for idx in range(len(mol_names)):
-        optimize(spec_obs, mol_names[idx], bounds[idx], config, pool)
+    FreqMin = spec_obs[0, 0]
+    FreqMax = spec_obs[-1, 0]
+    ElowMin = 0
+    ElowMax = 2000.
+    mol_names, iso_dict = select_molecules(
+        FreqMin, FreqMax, ElowMin, ElowMax, config["elements"]
+    )
+    for name in mol_names:
+        iso_dict_sub = {}
+        if name in iso_dict:
+            iso_dict_sub[name] = iso_dict[name]
+        optimize(spec_obs, name, iso_dict_sub, config, pool)
 
 
-def optimize(spec_obs, mol_names, bounds, config, pool):
+def optimize(spec_obs, mol_names, iso_dict, config, pool):
     config_opt = config["opt_single"]
-    model = create_fitting_model(spec_obs, [mol_names], bounds, config, vLSR=0.)
+    model = create_fitting_model_extra(spec_obs, [mol_names], iso_dict, config, vLSR=0.)
     opt = ParticleSwarm(model, model.bounds, nswarm=config_opt["n_swarm"], pool=pool)
     opt.swarm(config_opt["n_cycle"])
 

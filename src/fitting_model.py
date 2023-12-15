@@ -32,6 +32,30 @@ def create_fitting_model(spec_obs, mol_names, bounds,
     return FittingModel(wrapper, bounds, scaler, spec_obs[:, 1], loss_fn)
 
 
+def create_fitting_model_extra(spec_obs, mol_names, iso_dict, config, vLSR=None, tBack=None):
+    kwargs = {}
+    if vLSR is not None:
+        kwargs["vLSR"] = vLSR
+    if tBack is not None:
+        kwargs["tBack"] = tBack
+    wrapper = create_wrapper_from_config(
+        spec_obs, mol_names, config["xclass"], iso_dict=iso_dict, **kwargs
+    )
+
+    scaler = ScalerExtra(wrapper.pm)
+    bounds = scaler.derive_bounds(
+        config["bounds_mol"], config["bounds_iso"], config["bounds_misc"]
+    )
+
+    if config["loss_fn"] == "l1":
+        loss_fn = l1_loss
+    elif config["loss_fn"] == "l2":
+        loss_fn = l2_loss
+    else:
+        raise ValueError("Unknown loss function.")
+    return FittingModel(wrapper, bounds, scaler, spec_obs[:, 1], loss_fn)
+
+
 def l1_loss(y_pred, y_obs):
     return np.sum(np.abs(y_pred - y_obs))
 
@@ -76,6 +100,41 @@ class Scaler:
         params_mol = params_mol.reshape(-1, self.n_param_per_mol)
         params_misc = params[self.n_mol_param:]
         return params_mol, params_misc
+
+
+class ScalerExtra:
+    def __init__(self, pm):
+        self.pm = pm
+
+    def call(self, params):
+        params_mol, params_iso, params_misc = self.split_params(params)
+        params_mol = params_mol.copy()
+        params_mol[:, :3] = 10**params_mol[:, :3]
+        params_iso = 10**params_iso
+        params_new = np.concatenate([np.ravel(params_mol), params_iso, params_misc])
+        return params_new
+
+    def derive_bounds(self, bounds_mol, bounds_iso, bounds_misc):
+        # bounds_mol (5, 2)
+        # bounds_iso (2,)
+        # bounds_misc (dict)
+        bounds_mol = np.tile(bounds_mol, (len(self.pm.mol_names), 1))
+        bounds_iso = np.tile(bounds_iso, (self.pm.n_iso_param, 1))
+
+        bounds_misc_ = []
+        for key in self.pm.misc_names:
+            bounds_misc_.append(bounds_misc[key])
+        bounds_misc = np.vstack(bounds_misc_)
+
+        bounds = np.vstack([bounds_mol, bounds_iso, bounds_misc])
+        return bounds
+
+    def split_params(self, params):
+        params_mol = params[self.pm.inds_mol_param]
+        params_mol = params_mol.reshape(-1, self.pm.n_param_per_mol)
+        params_iso = params[self.pm.inds_iso_param]
+        params_misc = params[self.pm.inds_misc_param]
+        return params_mol, params_iso, params_misc
 
 
 class FittingModel:
