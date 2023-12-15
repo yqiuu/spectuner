@@ -84,7 +84,7 @@ def extract_line_frequency(transitions):
 class XCLASSWrapper:
     def __init__(self, FreqMin, FreqMax, FreqStep, TelescopeSize, inter_flag,
                  RestFreq, nH_flag, N_H, kappa_1300, beta_dust, IsoTableFileName,
-                 mol_names, prefix_molfit,
+                 mol_names, iso_dict, prefix_molfit,
                  t_back_flag=True, tBack=None, tslope=None, vLSR=None):
         xclass_kwargs = {
             "FreqMin": FreqMin,
@@ -106,46 +106,47 @@ class XCLASSWrapper:
         xclass_kwargs["IsoTableFileName"] = IsoTableFileName
         self._xclass_kwargs = xclass_kwargs
 
-        params_misc = []
+        misc_names = []
         def set_misc_var(var, var_name):
             if var is None:
-                params_misc.append(var_name)
+                misc_names.append(var_name)
             else:
                 xclass_kwargs[var_name] = var
 
         set_misc_var(tBack, "tBack")
         set_misc_var(tslope, "tslope")
         set_misc_var(vLSR, "vLSR")
-        self.params_misc = tuple(params_misc)
 
-        self.mol_names = np.asarray(mol_names)
-        self.n_param_per_mol = 5
-        self.n_mol_param = len(mol_names)*self.n_param_per_mol
+        n_param_per_mol = 5
+        idx_den = 2
+        self.pm = ParameterManager(
+            mol_names, iso_dict,
+            n_param_per_mol, idx_den, misc_names
+        )
         self.prefix_molfit = prefix_molfit
 
     def call(self, params):
-        params_dict, params_mol = self.derive_params_dict(params)
-        spectrum = self.call_check_params_dict(params_dict, params_mol)
+        mol_names, params_mol, params_dict = self.pm.derive_params(params)
+        spectrum = self.call_check_params_dict(mol_names, params_mol, params_dict)
         if spectrum is not None:
             spectrum = spectrum[:, 1]
         return spectrum
 
     def call_full_output(self, params):
-        params_dict, params_mol = self.derive_params_dict(params)
-        return self.call_params_dict(params_dict, params_mol, self.mol_names, return_full=True)
+        mol_names, params_mol, params_dict = self.pm.derive_params(params)
+        return self.call_params_dict(mol_names, params_mol, params_dict, return_full=True)
 
-    def derive_params_dict(self, params):
-        params_mol = params[:self.n_mol_param]
-        params_mol = params_mol.reshape(len(self.mol_names), -1)
+    #def derive_params_dict(self, params):
+    #    params_mol = params[:self.n_mol_param]
+    #    params_mol = params_mol.reshape(len(self.mol_names), -1)
+    #
+    #    params_dict = {}
+    #    for key, val in zip(self.params_misc, params[self.n_mol_param:]):
+    #        params_dict[key] = val
+    #    return params_dict, params_mol
 
-        params_dict = {}
-        for key, val in zip(self.params_misc, params[self.n_mol_param:]):
-            params_dict[key] = val
-        return params_dict, params_mol
-
-    def call_check_params_dict(self, params_dict, params_mol):
-        mol_names = self.mol_names
-        spectrum = self.call_params_dict(params_dict, params_mol, mol_names)
+    def call_check_params_dict(self, mol_names, params_mol, params_dict):
+        spectrum = self.call_params_dict(mol_names, params_mol, params_dict)
         if len(spectrum) != 0:
             return spectrum
 
@@ -162,7 +163,7 @@ class XCLASSWrapper:
             params_dict, params_mol[inds_include], mol_names[inds_include])
         return spectrum
 
-    def call_params_dict(self, params_dict, params_mol, mol_names, return_full=False):
+    def call_params_dict(self, mol_names, params_mol, params_dict, return_full=False):
         fname_molfit = "{}_{}.molfit".format(self.prefix_molfit, os.getpid())
         create_molfit_file(fname_molfit, mol_names, params_mol)
 
@@ -174,3 +175,65 @@ class XCLASSWrapper:
         else:
             shutil.rmtree(job_dir)
             return spectrum
+
+
+class ParameterManager:
+    def __init__(self, mol_names, iso_dict, n_param_per_mol, idx_den, misc_names):
+        #
+        iso_dict = {key: val for key, val in iso_dict.items() if key in mol_names}
+
+        # Set indices
+        idx = 0
+        n_mol_param = len(mol_names)*n_param_per_mol
+        self.inds_mol_param = slice(idx, n_mol_param)
+        idx += n_mol_param
+
+        n_iso_param = 0
+        for names in iso_dict.values():
+            n_iso_param += len(names)
+        self.inds_iso_param = slice(idx, idx + n_iso_param)
+        idx += n_iso_param
+
+        self.inds_misc_param = slice(idx, idx + len(misc_names))
+        self.n_tot_param = idx + len(misc_names)
+
+        #
+        self.mol_names = mol_names
+        self.iso_dict = iso_dict
+        self.n_param_per_mol = n_param_per_mol
+
+        self.idx_den = idx_den
+        self.misc_names = misc_names
+
+    def derive_params(self, params):
+        if len(params) != self.n_tot_param:
+            raise ValueError(f"Total number of parameters should be {self.n_tot_param}.")
+
+        mol_names, params_mol = self.derive_mol_params(params)
+        params_misc = params[self.inds_misc_param]
+        params_dict = {}
+        for key, val in zip(self.misc_names, params_misc):
+            params_dict[key] = val
+        return mol_names, params_mol, params_dict
+
+    def derive_mol_params(self, params):
+        # params (N,)
+        params_mol = params[self.inds_mol_param].reshape(-1, self.n_param_per_mol)
+        params_iso = params[self.inds_iso_param]
+
+        mol_names = []
+        params_mol_ret = []
+        for idx, name in enumerate(self.mol_names):
+            mol_names.append(name)
+            params_mol_ret.append(params_mol[idx])
+            if name not in self.iso_dict:
+                continue
+            idx_iso = 0
+            for name_iso in self.iso_dict[name]:
+                mol_names.append(name_iso)
+                params_tmp = params_mol[idx].copy()
+                params_tmp[self.idx_den] *= params_iso[idx_iso]
+                params_mol_ret.append(params_tmp)
+                idx_iso += 1
+        params_mol_ret = np.vstack(params_mol_ret)
+        return mol_names, params_mol_ret
