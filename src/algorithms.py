@@ -81,7 +81,7 @@ def derive_normal_form(mol_name):
     return fm, atom_set
 
 
-def identification_single(T_obs, T_pred, freq, trans_dict, T_thr, tol=.1, return_full=False):
+def identify_single(T_obs, T_pred, freq, trans_dict, T_thr, tol=.1, return_full=False):
     line_freq = []
     for _, freq_list in trans_dict.items():
         line_freq.extend(freq_list)
