@@ -60,7 +60,7 @@ def main(config):
     pickle.dump(model_info, open(save_dir/Path("model_info.pickle"), "wb"))
 
     #
-    opt = ArtificialBeeColony(
+    opt = ParticleSwarm(
         model, model.bounds, nswarm=config_opt["n_swarm"],
         pool=pool, initial_pos=initial_pos
     )
