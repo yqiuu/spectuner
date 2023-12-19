@@ -49,6 +49,8 @@ def create_fitting_model_extra(spec_obs, mol_names, iso_dict, config, vLSR=None,
 
     if config["loss_fn"] == "l1":
         loss_fn = l1_loss
+    elif config["loss_fn"] == "l1_max":
+        loss_fn = l1_loss_max
     elif config["loss_fn"] == "l2":
         loss_fn = l2_loss
     else:
@@ -58,6 +60,10 @@ def create_fitting_model_extra(spec_obs, mol_names, iso_dict, config, vLSR=None,
 
 def l1_loss(y_pred, y_obs):
     return np.sum(np.abs(y_pred - y_obs))
+
+
+def l1_loss_max(y_pred, y_obs):
+    return np.mean(np.abs(y_pred - y_obs)) + np.abs(np.max(y_pred) - np.max(y_obs))
 
 
 def l2_loss(y_pred, y_obs):
