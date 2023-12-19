@@ -8,7 +8,7 @@ from .atoms import MolecularDecomposer
 from .xclass_wrapper import task_ListDatabase, extract_line_frequency
 
 
-def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax, elements):
+def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax, molecules, elements):
     contents = task_ListDatabase.ListDatabase(
         FreqMin, FreqMax, ElowMin, ElowMax,
         SelectMolecule=[], OutputDevice="quiet"
@@ -63,10 +63,18 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax, elements):
 
     mol_names = []
     iso_dict = {}
-    for key, val in mol_dict.items():
-        mol_names.append(key)
-        if len(val) > 0:
-            iso_dict[key] = val
+    if molecules is None:
+        for key, val in mol_dict.items():
+            mol_names.append(key)
+            if len(val) > 0:
+                iso_dict[key] = val
+        return mol_names, iso_dict
+
+    for name in molecules:
+        if name in mol_dict:
+            mol_names.append(name)
+            if len(mol_dict[name]) > 0:
+                iso_dict[name] = mol_dict[name]
     return mol_names, iso_dict
 
 

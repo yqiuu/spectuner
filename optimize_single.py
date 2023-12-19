@@ -21,7 +21,8 @@ def main(config):
     ElowMin = 0
     ElowMax = 2000.
     mol_names, iso_dict = select_molecules(
-        FreqMin, FreqMax, ElowMin, ElowMax, config["elements"]
+        FreqMin, FreqMax, ElowMin, ElowMax,
+        config["molecules"], config["elements"]
     )
     for name in mol_names:
         iso_dict_sub = {}
