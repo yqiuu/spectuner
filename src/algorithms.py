@@ -1,10 +1,11 @@
-from collections import defaultdict
 import re
+from pathlib import Path
+from collections import defaultdict
 
 import numpy as np
 
 from .atoms import MolecularDecomposer
-from .xclass_wrapper import task_ListDatabase
+from .xclass_wrapper import task_ListDatabase, extract_line_frequency
 
 
 def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax, elements):
@@ -105,3 +106,42 @@ def identify_single(T_obs, T_pred, freq, trans_dict, T_thr, tol=.1, return_full=
     if return_full:
         return is_accepted, info
     return is_accepted
+
+
+def identify_combine(job_dir, mol_names, iso_dict, spec_obs, T_thr, tol=.1):
+    freq = spec_obs[:, 0]
+    T_obs = spec_obs[:, 1]
+
+    job_dir = Path(job_dir)
+    transitions = open(job_dir/"transition_energies.dat").readlines()[1:]
+    transitions = [line.split() for line in transitions]
+    transitions = extract_line_frequency(transitions)
+
+    # Get background temperature
+    for line in open(job_dir/Path("xclass_spectrum.log")).readlines():
+        if "Background Temperature" in line:
+            temp_back = float(line.split()[-1].replace(r"\n", ""))
+
+    def derive_fname(job_dir, name):
+        name = name.replace("(", "_")
+        name = name.replace(")", "_")
+        name = name.replace(";", '_')
+        return job_dir/Path("intensity__{}__comp__1.dat".format(name))
+
+    mol_dict = {}
+    spec_dict = {"freq": freq}
+    for name in mol_names:
+        fname = derive_fname(job_dir, name)
+        T_pred = np.loadtxt(fname, skiprows=4)[:, 1]
+        trans_dict = {name: transitions[name]}
+        if name in iso_dict:
+            for name_iso in iso_dict[name]:
+                fname = derive_fname(job_dir, name_iso)
+                T_pred += np.loadtxt(fname, skiprows=4)[:, 1]
+                trans_dict[name_iso] = transitions[name_iso]
+        T_pred += temp_back
+        is_accepted = identify_single(T_obs, T_pred, freq, trans_dict, T_thr, tol)
+        if is_accepted:
+            mol_dict[name] = iso_dict.get(name, [])
+            spec_dict[name] = T_pred
+    return mol_dict, spec_dict
