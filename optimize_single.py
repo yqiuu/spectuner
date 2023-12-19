@@ -35,7 +35,10 @@ def main(config):
 
 def optimize(spec_obs, mol_name, iso_dict, config, pool):
     config_opt = config["opt_single"]
-    model = create_fitting_model_extra(spec_obs, [mol_name], iso_dict, config, vLSR=0.)
+    model = create_fitting_model_extra(
+        spec_obs, [mol_name], iso_dict,
+        config["opt_single"]["loss_fn"], config, vLSR=0.
+    )
     opt = ParticleSwarm(model, model.bounds, nswarm=config_opt["n_swarm"], pool=pool)
     opt.swarm(config_opt["n_cycle"])
 

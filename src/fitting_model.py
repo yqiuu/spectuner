@@ -32,7 +32,8 @@ def create_fitting_model(spec_obs, mol_names, bounds,
     return FittingModel(wrapper, bounds, scaler, spec_obs[:, 1], loss_fn)
 
 
-def create_fitting_model_extra(spec_obs, mol_names, iso_dict, config, vLSR=None, tBack=None):
+def create_fitting_model_extra(spec_obs, mol_names, iso_dict,
+                               loss_fn, config, vLSR=None, tBack=None):
     kwargs = {}
     if vLSR is not None:
         kwargs["vLSR"] = vLSR
@@ -47,11 +48,11 @@ def create_fitting_model_extra(spec_obs, mol_names, iso_dict, config, vLSR=None,
         config["bounds_mol"], config["bounds_iso"], config["bounds_misc"]
     )
 
-    if config["loss_fn"] == "l1":
+    if loss_fn == "l1":
         loss_fn = l1_loss
-    elif config["loss_fn"] == "l1_max":
+    elif loss_fn == "l1_max":
         loss_fn = l1_loss_max
-    elif config["loss_fn"] == "l2":
+    elif loss_fn == "l2":
         loss_fn = l2_loss
     else:
         raise ValueError("Unknown loss function.")
@@ -59,17 +60,18 @@ def create_fitting_model_extra(spec_obs, mol_names, iso_dict, config, vLSR=None,
 
 
 def l1_loss(y_pred, y_obs):
-    return np.sum(np.abs(y_pred - y_obs))
+    return np.mean(np.abs(y_pred - y_obs))
 
 
 def l1_loss_max(y_pred, y_obs):
-    return np.mean(np.abs(y_pred - y_obs)) + np.abs(np.max(y_pred) - np.max(y_obs))
+    return np.mean(np.abs(y_pred - y_obs)) \
+        + np.abs(np.percentile(y_pred, q=68) - np.percentile(y_obs, q=68))
 
 
 def l2_loss(y_pred, y_obs):
     # y_pred, (N,)
     # y_obs, (N,)
-    return np.sum(np.square(y_pred - y_obs))
+    return np.mean(np.square(y_pred - y_obs))
 
 
 class Scaler:

@@ -30,7 +30,10 @@ def main(config):
     # Refine
     mol_names, iso_dict, params_mol, params_iso \
         = refine_molecules(spec_obs, mol_names, iso_dict, config)
-    model = create_fitting_model_extra(spec_obs, mol_names, iso_dict, config, vLSR=0.)
+    model = create_fitting_model_extra(
+        spec_obs, mol_names, iso_dict,
+        config["opt_combine"]["loss_fn"], config, vLSR=0.
+    )
     bounds_mol, bounds_iso = shrink_bounds(mol_names, params_mol, params_iso, config)
 
     pm = model.func.pm
@@ -80,7 +83,10 @@ def refine_molecules(spec_obs, mol_names, iso_dict, config):
         iso_dict_sub = {}
         if name in iso_dict:
             iso_dict_sub[name] = iso_dict[name]
-        model = create_fitting_model_extra(spec_obs, [name], iso_dict, config, vLSR=0.)
+        model = create_fitting_model_extra(
+            spec_obs, [name], iso_dict,
+            config["opt_combine"]["loss_fn"], config, vLSR=0.
+        )
 
         is_accepted = identify_single_score(
             spec_obs[:, 1], data["T_pred"], spec_obs[:, 0], data["trans_dict"],
