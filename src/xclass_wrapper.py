@@ -199,6 +199,15 @@ class ParameterManager:
         self.n_tot_param = idx + len(misc_names)
 
         #
+        iso_inds = {}
+        idx_b = 0
+        for name, inds in iso_dict.items():
+            idx_e = idx_b + len(inds)
+            iso_inds[name] = slice(idx_b, idx_e)
+            idx_b = idx_e
+        self.iso_inds = iso_inds
+
+        #
         self.mol_names = mol_names
         self.iso_dict = iso_dict
         self.n_mol_param = n_mol_param
@@ -240,3 +249,11 @@ class ParameterManager:
                 idx_iso += 1
         params_mol_ret = np.vstack(params_mol_ret)
         return mol_names, params_mol_ret
+
+    def get_mol_slice(self, mol_name):
+        idx = self.mol_names.index(mol_name)
+        return slice(idx*self.n_param_per_mol, (idx + 1)*self.n_param_per_mol)
+
+    def get_iso_slice(self, mol_name):
+        if mol_name in self.iso_inds:
+            return self.iso_inds[mol_name]
