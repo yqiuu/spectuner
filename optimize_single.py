@@ -7,9 +7,8 @@ from multiprocessing import Pool
 import numpy as np
 from swing import ParticleSwarm
 
-from src.xclass_wrapper import extract_line_frequency
 from src.fitting_model import create_fitting_model_extra
-from src.algorithms import select_molecules, identification_single
+from src.algorithms import select_molecules
 
 
 def main(config):
