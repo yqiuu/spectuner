@@ -8,9 +8,8 @@ from multiprocessing import Pool
 import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 
-from src.xclass_wrapper import load_molfit_info, extract_line_frequency
 from src.fitting_model import create_fitting_model_extra
-from src.algorithms import select_molecules, identify_single
+from src.algorithms import select_molecules, identify_single_score
 
 
 def main(config):
@@ -24,7 +23,8 @@ def main(config):
     ElowMin = 0
     ElowMax = 2000.
     mol_names, iso_dict = select_molecules(
-        FreqMin, FreqMax, ElowMin, ElowMax, config["elements"]
+        FreqMin, FreqMax, ElowMin, ElowMax,
+        config["molecules"], config["elements"]
     )
 
     # Refine
@@ -75,28 +75,25 @@ def refine_molecules(spec_obs, mol_names, iso_dict, config):
 
     for name in mol_names:
         fname = Path(config["save_dir"])/Path(f"{name}.pickle")
-        params = pickle.load(open(fname, "rb"))["params_best"]
+        data = pickle.load(open(fname, "rb"))
 
         iso_dict_sub = {}
         if name in iso_dict:
             iso_dict_sub[name] = iso_dict[name]
         model = create_fitting_model_extra(spec_obs, [name], iso_dict, config, vLSR=0.)
 
-        spec_pred, _, transitions, _, job_dir \
-            = model.func.call_full_output(model.derive_params(params))
-        trans_dict = extract_line_frequency(transitions)
-        is_accepted = identify_single(
-            spec_obs[:, 1], spec_pred[:, 1], spec_obs[:, 0], trans_dict,
-            config["T_thr"], config["tol"]
+        is_accepted = identify_single_score(
+            spec_obs[:, 1], data["T_pred"], spec_obs[:, 0], data["trans_dict"],
+            config["T_thr"],
         )
         if is_accepted:
             mol_names_new.append(name)
             if name in iso_dict:
                 iso_dict_new[name] = iso_dict[name]
             pm = model.func.pm
+            params = data["params_best"]
             params_mol.append(params[pm.inds_mol_param])
             params_iso.append(params[pm.inds_iso_param])
-        shutil.rmtree(job_dir)
     params_mol = np.concatenate(params_mol)
     params_iso = np.concatenate(params_iso)
 

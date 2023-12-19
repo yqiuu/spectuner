@@ -116,6 +116,29 @@ def identify_single(T_obs, T_pred, freq, trans_dict, T_thr, tol=.1, return_full=
     return is_accepted
 
 
+def identify_single_score(T_obs, T_pred, freq, trans_dict, T_thr):
+    line_freq = []
+    for _, freq_list in trans_dict.items():
+        line_freq.extend(freq_list)
+
+    count = 0
+    freq_min = freq[0]
+    freq_max = freq[-1]
+    for nu in line_freq:
+        if nu < freq_min or nu > freq_max:
+            continue
+
+        idx = np.argmin(np.abs(freq - nu))
+        if T_obs[idx] > T_thr:
+            if T_pred[idx] > T_thr:
+                count += 1
+        else:
+            if T_pred[idx] > T_thr:
+                count -= 1
+    is_accepted = count > 0
+    return is_accepted
+
+
 def identify_combine(job_dir, mol_names, iso_dict, spec_obs, T_thr, tol=.1):
     freq = spec_obs[:, 0]
     T_obs = spec_obs[:, 1]
