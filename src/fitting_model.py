@@ -124,7 +124,10 @@ class ScalerExtra:
         bounds_misc_ = []
         for key in self.pm.misc_names:
             bounds_misc_.append(bounds_misc[key])
-        bounds_misc = np.vstack(bounds_misc_)
+        if len(bounds_misc_) == 0:
+            bounds_misc = np.zeros((0, 2))
+        else:
+            bounds_misc = np.vstack(bounds_misc_)
 
         bounds = np.vstack([bounds_mol, bounds_iso, bounds_misc])
         return bounds
