@@ -109,7 +109,7 @@ def identify_single(T_obs, T_pred, freq, trans_dict, T_thr, tol=.1, return_full=
     return is_accepted
 
 
-def identify_single_score(T_obs, T_pred, freq, trans_dict, T_thr):
+def identify_single_score(T_obs, T_pred, freq, trans_dict, T_thr, tol):
     line_freq = []
     for _, freq_list in trans_dict.items():
         line_freq.extend(freq_list)
@@ -124,7 +124,7 @@ def identify_single_score(T_obs, T_pred, freq, trans_dict, T_thr):
 
         idx = np.argmin(np.abs(freq - nu))
         if T_obs[idx] > T_thr:
-            if T_pred[idx] > T_thr:
+            if np.abs(T_pred[idx] - T_obs[idx])/T_obs[idx] < tol:
                 count_pos += 1
         else:
             if T_pred[idx] > T_thr:

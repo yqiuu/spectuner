@@ -107,7 +107,7 @@ def refine_molecules(spec_obs, mol_dict, config):
 
         is_accepted = identify_single_score(
             spec_obs[:, 1], data["T_pred"], spec_obs[:, 0], data["trans_dict"],
-            config["T_thr"],
+            config["T_thr"], config["tol"]
         )
         if is_accepted:
             mol_dict_new[name] = mol_dict[name]
