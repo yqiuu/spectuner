@@ -138,7 +138,7 @@ def identify_single_score(T_obs, T_pred, freq, trans_dict, T_thr):
     return is_accepted
 
 
-def identify_combine(job_dir, mol_names, iso_dict, spec_obs, T_thr, tol=.1):
+def identify_combine(job_dir, mol_dict, spec_obs, T_thr, tol=.1):
     freq = spec_obs[:, 0]
     T_obs = spec_obs[:, 1]
 
@@ -158,20 +158,21 @@ def identify_combine(job_dir, mol_names, iso_dict, spec_obs, T_thr, tol=.1):
         name = name.replace(";", '_')
         return job_dir/Path("intensity__{}__comp__1.dat".format(name))
 
-    mol_dict = {}
-    spec_dict = {"freq": freq}
-    for name in mol_names:
+    ret_dict = {}
+    for name, iso_list in mol_dict.items():
         fname = derive_fname(job_dir, name)
         T_pred = np.loadtxt(fname, skiprows=4)[:, 1]
         trans_dict = {name: transitions[name]}
-        if name in iso_dict:
-            for name_iso in iso_dict[name]:
-                fname = derive_fname(job_dir, name_iso)
-                T_pred += np.loadtxt(fname, skiprows=4)[:, 1]
-                trans_dict[name_iso] = transitions[name_iso]
+        for name_iso in iso_list:
+            fname = derive_fname(job_dir, name_iso)
+            T_pred += np.loadtxt(fname, skiprows=4)[:, 1]
+            trans_dict[name_iso] = transitions[name_iso]
         T_pred += temp_back
         is_accepted = identify_single(T_obs, T_pred, freq, trans_dict, T_thr, tol)
-        if is_accepted:
-            mol_dict[name] = iso_dict.get(name, [])
-            spec_dict[name] = T_pred
-    return mol_dict, spec_dict
+
+        ret_dict[name] = {
+            "iso": iso_list,
+            "is_accepted": is_accepted,
+            "T_pred": T_pred
+        }
+    return ret_dict
