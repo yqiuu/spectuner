@@ -162,12 +162,15 @@ def identify_combine(job_dir, mol_dict, spec_obs, T_thr, tol=.1):
     for name, iso_list in mol_dict.items():
         fname = derive_fname(job_dir, name)
         T_pred = np.loadtxt(fname, skiprows=4)[:, 1]
+        T_pred -= T_pred.min()
         trans_dict = {name: transitions[name]}
         for name_iso in iso_list:
             fname = derive_fname(job_dir, name_iso)
-            T_pred += np.loadtxt(fname, skiprows=4)[:, 1]
+            tmp = np.loadtxt(fname, skiprows=4)[:, 1]
+            tmp -= tmp.min()
+            T_pred += tmp
             trans_dict[name_iso] = transitions[name_iso]
-        #T_pred += temp_back
+        T_pred += temp_back
         is_accepted = identify_single(T_obs, T_pred, freq, trans_dict, T_thr, tol)
 
         ret_dict[name] = {
