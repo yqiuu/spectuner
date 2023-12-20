@@ -22,21 +22,19 @@ def main(config):
     FreqMax = spec_obs[-1, 0]
     ElowMin = 0
     ElowMax = 2000.
-    mol_names, iso_dict = select_molecules(
+    mol_dict = select_molecules(
         FreqMin, FreqMax, ElowMin, ElowMax,
         config["molecules"], config["elements"]
     )
-    for name in mol_names:
-        iso_dict_sub = {}
-        if name in iso_dict:
-            iso_dict_sub[name] = iso_dict[name]
-        optimize(spec_obs, name, iso_dict_sub, config, pool)
+    for key, val in mol_dict.items():
+        mol_dict_sub = {key: val}
+        optimize(spec_obs, mol_dict_sub, config, pool)
 
 
-def optimize(spec_obs, mol_name, iso_dict, config, pool):
+def optimize(spec_obs, mol_dict, config, pool):
     config_opt = config["opt_single"]
     model = create_fitting_model_extra(
-        spec_obs, [mol_name], iso_dict,
+        spec_obs, mol_dict,
         config["xclass"], config["opt_single"], vLSR=0.
     )
     opt = ParticleSwarm(model, model.bounds, nswarm=config_opt["n_swarm"], pool=pool)
@@ -48,6 +46,9 @@ def optimize(spec_obs, mol_name, iso_dict, config, pool):
     trans_dict = extract_line_frequency(trans)
     shutil.rmtree(job_dir)
 
+    # Get the first item in mol_dict
+    for mol_name in mol_dict:
+        break
     save_dict = {
         "name": mol_name,
         "cost_best": opt.cost_global_best,

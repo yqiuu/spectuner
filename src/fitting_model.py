@@ -32,16 +32,14 @@ def create_fitting_model(spec_obs, mol_names, bounds,
     return FittingModel(wrapper, bounds, scaler, spec_obs[:, 1], loss_fn)
 
 
-def create_fitting_model_extra(spec_obs, mol_names, iso_dict,
-                               config_xclass, config_opt, vLSR=None, tBack=None):
+def create_fitting_model_extra(spec_obs, mol_dict, config_xclass, config_opt,
+                               vLSR=None, tBack=None):
     kwargs = {}
     if vLSR is not None:
         kwargs["vLSR"] = vLSR
     if tBack is not None:
         kwargs["tBack"] = tBack
-    wrapper = create_wrapper_from_config(
-        spec_obs, mol_names, config_xclass, iso_dict=iso_dict, **kwargs
-    )
+    wrapper = create_wrapper_from_config(spec_obs, mol_dict, config_xclass, **kwargs)
 
     scaler = ScalerExtra(wrapper.pm)
     bounds = scaler.derive_bounds(
@@ -128,7 +126,7 @@ class ScalerExtra:
         # bounds_mol (5, 2)
         # bounds_iso (2,)
         # bounds_misc (dict)
-        bounds_mol = np.tile(bounds_mol, (len(self.pm.mol_names), 1))
+        bounds_mol = np.tile(bounds_mol, (self.pm.n_mol, 1))
         bounds_iso = np.tile(bounds_iso, (self.pm.n_iso_param, 1))
 
         bounds_misc_ = []

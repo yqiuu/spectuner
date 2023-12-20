@@ -22,19 +22,19 @@ def main(config):
     FreqMax = spec_obs[-1, 0]
     ElowMin = 0
     ElowMax = 2000.
-    mol_names, iso_dict = select_molecules(
+    mol_dict = select_molecules(
         FreqMin, FreqMax, ElowMin, ElowMax,
         config["molecules"], config["elements"]
     )
 
     # Refine
-    mol_names, iso_dict, params_mol, params_iso \
-        = refine_molecules(spec_obs, mol_names, iso_dict, config)
+    mol_dict, params_mol, params_iso \
+        = refine_molecules(spec_obs, mol_dict, config)
     model = create_fitting_model_extra(
-        spec_obs, mol_names, iso_dict,
-        config["opt_combine"]["loss_fn"], config, vLSR=0.
+        spec_obs, mol_dict,
+        config["xclass"], config["opt_combine"], vLSR=0.
     )
-    bounds_mol, bounds_iso = shrink_bounds(mol_names, params_mol, params_iso, config)
+    bounds_mol, bounds_iso = shrink_bounds(mol_dict.keys(), params_mol, params_iso, config)
 
     pm = model.func.pm
     bounds_misc = model.bounds[pm.inds_misc_param]
@@ -53,8 +53,7 @@ def main(config):
 
     # Save
     model_info = {
-        "mol_names": mol_names,
-        "iso_dict": iso_dict,
+        "mol_dict": mol_dict,
         "bounds": model.bounds
     }
     pickle.dump(model_info, open(save_dir/Path("model_info.pickle"), "wb"))
@@ -70,21 +69,18 @@ def main(config):
         pickle.dump(opt.memo,open(save_dir/Path(f"history_{i_cycle%2}.pickle"), "wb"))
 
 
-def refine_molecules(spec_obs, mol_names, iso_dict, config):
-    mol_names_new = []
-    iso_dict_new = {}
+def refine_molecules(spec_obs, mol_dict, config):
+    mol_dict_new = {}
     params_mol = []
     params_iso = []
 
-    for name in mol_names:
+    for name, iso_list in mol_dict.items():
         fname = Path(config["save_dir"])/Path(f"{name}.pickle")
         data = pickle.load(open(fname, "rb"))
 
-        iso_dict_sub = {}
-        if name in iso_dict:
-            iso_dict_sub[name] = iso_dict[name]
+        mol_dict_sub = {name: iso_list}
         model = create_fitting_model_extra(
-            spec_obs, [name], iso_dict,
+            spec_obs, mol_dict_sub,
             config["xclass"], config["opt_combine"], vLSR=0.
         )
 
@@ -93,9 +89,7 @@ def refine_molecules(spec_obs, mol_names, iso_dict, config):
             config["T_thr"],
         )
         if is_accepted:
-            mol_names_new.append(name)
-            if name in iso_dict:
-                iso_dict_new[name] = iso_dict[name]
+            mol_dict_new[name] = mol_dict[name]
             pm = model.func.pm
             params = data["params_best"]
             params_mol.append(params[pm.inds_mol_param])
@@ -107,7 +101,7 @@ def refine_molecules(spec_obs, mol_names, iso_dict, config):
         params_mol = np.concatenate(params_mol)
         params_iso = np.concatenate(params_iso)
 
-    return mol_names_new, iso_dict_new, params_mol, params_iso
+    return mol_dict_new, params_mol, params_iso
 
 
 def refine(model, config):
