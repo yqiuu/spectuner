@@ -29,8 +29,8 @@ def main(config, config_trail):
     for _ in range(config_trail["n_trail"]):
         results.append(optimize(spec_obs, mol_dict, config, pool))
 
-    save_dir = Path(config["save_dir"])
-    pickle.dump(results, open(save_dir/Path("{}.pickle".format(mol_name))))
+    save_dir = Path(config_trail["save_dir"])
+    pickle.dump(results, open(save_dir/Path("{}.pickle".format(mol_name)), "wb"))
 
 
 if __name__ == "__main__":
