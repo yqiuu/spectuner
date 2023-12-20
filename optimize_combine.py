@@ -34,7 +34,10 @@ def main(config):
         spec_obs, mol_dict,
         config["xclass"], config["opt_combine"], vLSR=0.
     )
-    bounds_mol, bounds_iso = shrink_bounds(mol_dict.keys(), params_mol, params_iso, config)
+    bounds_mol, bounds_iso = shrink_bounds(
+        mol_dict.keys(), params_mol, params_iso,
+        config["opt_combine"], config["refine"]
+    )
 
     pm = model.func.pm
     bounds_misc = model.bounds[pm.inds_misc_param]
@@ -128,18 +131,18 @@ def refine(model, config):
     return initial_pos
 
 
-def shrink_bounds(mol_names, params_mol, params_iso, config):
-    bounds_mol = np.tile(config["bounds_mol"], (len(mol_names), 1))
+def shrink_bounds(mol_names, params_mol, params_iso, config_opt, config_refine):
+    bounds_mol = np.tile(config_opt["bounds_mol"], (len(mol_names), 1))
     bounds_mol_new = np.zeros_like(bounds_mol)
-    delta_mol = np.repeat(config["refine"]["delta_mol"], len(mol_names))
+    delta_mol = np.repeat(config_refine["delta_mol"], len(mol_names))
     # Set lower bounds
     bounds_mol_new[:, 0] = np.maximum(params_mol - .5*delta_mol, bounds_mol[:, 0])
     # Set upper bounds
     bounds_mol_new[:, 1] = np.minimum(params_mol + .5*delta_mol, bounds_mol[:, 1])
 
-    bounds_iso = np.tile(config["bounds_iso"], (len(params_iso), 1))
+    bounds_iso = np.tile(config_opt["bounds_iso"], (len(params_iso), 1))
     bounds_iso_new = np.zeros_like(bounds_iso)
-    delta_iso = np.full(len(params_iso), config["refine"]["delta_iso"])
+    delta_iso = np.full(len(params_iso), config_refine["delta_iso"])
     # Set lower bounds
     bounds_iso_new[:, 0] = np.maximum(params_iso - .5*delta_iso, bounds_iso[:, 0])
     # Set upper bounds
