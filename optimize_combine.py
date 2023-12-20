@@ -47,7 +47,7 @@ def main(config):
 
     args = pm, params_mol, params_iso, bounds_mol, bounds_iso, bounds_misc
     initial_pos = [new_init_pos(*args, n_replace=0)]
-    n_replace = len(pm.mol_names)//2
+    n_replace = pm.n_mol//2
     for _ in range(config["opt_combine"]["n_swarm"] - 1):
         initial_pos.append(new_init_pos(*args, n_replace))
     initial_pos = np.vstack(initial_pos)
@@ -154,7 +154,7 @@ def new_init_pos(pm, params_mol, params_iso, bounds_mol, bounds_iso, bounds_misc
     params_mol = params_mol.copy()
     params_iso = params_iso.copy()
     params_misc = np.random.uniform(bounds_misc[:, 0], bounds_misc[:, 1])
-    mol_names = np.random.choice(pm.mol_names, n_replace, replace=False)
+    mol_names = np.random.choice(pm.n_mol, n_replace, replace=False)
     for name in mol_names:
         inds = pm.get_mol_slice(name)
         params_mol[inds] = np.random.uniform(bounds_mol[inds, 0], bounds_mol[inds, 1])
