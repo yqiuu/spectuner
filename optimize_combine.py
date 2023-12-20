@@ -85,7 +85,7 @@ def refine_molecules(spec_obs, mol_names, iso_dict, config):
             iso_dict_sub[name] = iso_dict[name]
         model = create_fitting_model_extra(
             spec_obs, [name], iso_dict,
-            config["opt_combine"]["loss_fn"], config, vLSR=0.
+            config["xclass"], config["opt_combine"], vLSR=0.
         )
 
         is_accepted = identify_single_score(
@@ -100,8 +100,12 @@ def refine_molecules(spec_obs, mol_names, iso_dict, config):
             params = data["params_best"]
             params_mol.append(params[pm.inds_mol_param])
             params_iso.append(params[pm.inds_iso_param])
-    params_mol = np.concatenate(params_mol)
-    params_iso = np.concatenate(params_iso)
+    if len(params_mol) == 0:
+        params_mol = np.zeros(0)
+        params_iso = np.zeros(0)
+    else:
+        params_mol = np.concatenate(params_mol)
+        params_iso = np.concatenate(params_iso)
 
     return mol_names_new, iso_dict_new, params_mol, params_iso
 

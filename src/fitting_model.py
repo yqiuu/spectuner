@@ -33,26 +33,28 @@ def create_fitting_model(spec_obs, mol_names, bounds,
 
 
 def create_fitting_model_extra(spec_obs, mol_names, iso_dict,
-                               loss_fn, config, vLSR=None, tBack=None):
+                               config_xclass, config_opt, vLSR=None, tBack=None):
     kwargs = {}
     if vLSR is not None:
         kwargs["vLSR"] = vLSR
     if tBack is not None:
         kwargs["tBack"] = tBack
     wrapper = create_wrapper_from_config(
-        spec_obs, mol_names, config["xclass"], iso_dict=iso_dict, **kwargs
+        spec_obs, mol_names, config_xclass, iso_dict=iso_dict, **kwargs
     )
 
     scaler = ScalerExtra(wrapper.pm)
     bounds = scaler.derive_bounds(
-        config["bounds_mol"], config["bounds_iso"], config["bounds_misc"]
+        config_opt["bounds_mol"],
+        config_opt["bounds_iso"],
+        config_opt["bounds_misc"]
     )
 
-    if loss_fn == "l1":
+    if config_opt["loss_fn"] == "l1":
         loss_fn = l1_loss
-    elif loss_fn == "l1_max":
+    elif config_opt["loss_fn"] == "l1_max":
         loss_fn = l1_loss_max
-    elif loss_fn == "l2":
+    elif config_opt["loss_fn"] == "l2":
         loss_fn = l2_loss
     else:
         raise ValueError("Unknown loss function.")
