@@ -125,30 +125,6 @@ def refine_molecules(spec_obs, mol_dict, config):
     return mol_dict_new, params_mol, params_iso
 
 
-def refine(model, config):
-    mol_names = model.func.mol_names
-    n_param_per_mol = model.func.n_param_per_mol
-    n_mol_param = model.func.n_mol_param
-
-    params_combine = load_params_combine(mol_names, config["save_dir"])
-    params_mol = params_combine[:, :n_param_per_mol]
-
-    delta = np.array(config["refine"]["delta"])
-    bounds = model.bounds
-    bounds_mol = bounds[:n_mol_param].reshape(-1, n_param_per_mol, 2)
-    bounds_mol_new = shrink_bounds(params_mol, bounds_mol, delta)
-    bounds_misc = bounds[n_mol_param:]
-    bounds_new = np.vstack([bounds_mol_new.reshape(-1, 2), bounds_misc])
-    model.bounds = bounds_new
-
-    initial_pos = [new_init_pos(params_mol, bounds_mol, bounds_misc, 0)]
-    n_replace = len(params_mol)//2
-    for _ in range(config["opt_combine"]["n_swarm"] - 1):
-        initial_pos.append(new_init_pos(params_mol, bounds_mol, bounds_misc, n_replace))
-    initial_pos = np.vstack(initial_pos)
-    return initial_pos
-
-
 def shrink_bounds(mol_names, params_mol, params_iso, config_opt, config_refine):
     bounds_mol = np.tile(config_opt["bounds_mol"], (len(mol_names), 1))
     bounds_mol_new = np.zeros_like(bounds_mol)
