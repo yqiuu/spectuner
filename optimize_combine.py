@@ -30,6 +30,9 @@ def main(config):
     # Refine
     mol_dict, params_mol, params_iso \
         = refine_molecules(spec_obs, mol_dict, config)
+    if len(mol_dict) == 0:
+        raise ValueError("No molecule is selected.")
+
     model = create_fitting_model_extra(
         spec_obs, mol_dict,
         config["xclass"], config["opt_combine"], vLSR=0.
