@@ -9,7 +9,7 @@ import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 
 from src.fitting_model import create_fitting_model_extra
-from src.algorithms import select_molecules, identify_single_score
+from src.algorithms import select_molecules, identify_single_score, identify_combine
 
 
 def main(config):
@@ -70,6 +70,21 @@ def main(config):
         opt.swarm(1)
         opt.save_checkpoint(save_dir/Path(f"ckpt_{i_cycle%2}.pickle"))
         pickle.dump(opt.memo,open(save_dir/Path(f"history_{i_cycle%2}.pickle"), "wb"))
+
+    params_best = model.derive_params(opt.pos_global_best)
+    spectrum, _, _, _, job_dir = model.func.call_full_output(params_best)
+    shutil.move(job_dir, str(save_dir))
+    job_dir = str(Path(save_dir)/Path(job_dir).name)
+    save_dict = {
+        "cost_best": opt.cost_global_best,
+        "params_best": opt.pos_global_best,
+        "T_pred": spectrum[:, 1],
+        "job_dir": job_dir
+    }
+    pickle.dump(save_dict, open(save_dir/Path("combine.pickle"), "wb"))
+    result = identify_combine(job_dir, mol_dict, spec_obs, **config["identify_combine"])
+    pickle.dump(result, open(save_dir/Path("result.pickle"), "wb"))
+
 
 
 def refine_molecules(spec_obs, mol_dict, config):
