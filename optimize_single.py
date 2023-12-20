@@ -26,9 +26,12 @@ def main(config):
         FreqMin, FreqMax, ElowMin, ElowMax,
         config["molecules"], config["elements"]
     )
-    for key, val in mol_dict.items():
-        mol_dict_sub = {key: val}
-        optimize(spec_obs, mol_dict_sub, config, pool)
+    for name, iso_list in mol_dict.items():
+        mol_dict_sub = {name: iso_list}
+        ret_dict = optimize(spec_obs, mol_dict_sub, config, pool)
+
+        save_dir = Path(config["save_dir"])
+        pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
 
 def optimize(spec_obs, mol_dict, config, pool):
@@ -49,7 +52,7 @@ def optimize(spec_obs, mol_dict, config, pool):
     # Get the first item in mol_dict
     for mol_name in mol_dict:
         break
-    save_dict = {
+    ret_dict = {
         "name": mol_name,
         "cost_best": opt.cost_global_best,
         "params_best": opt.pos_global_best,
@@ -57,9 +60,8 @@ def optimize(spec_obs, mol_dict, config, pool):
         "trans_dict": trans_dict,
     }
     if config_opt["save_history"]:
-        save_dict["history"] = opt.memo
-    save_dir = Path(config["save_dir"])
-    pickle.dump(save_dict, open(save_dir/Path("{}.pickle".format(mol_name)), "wb"))
+        ret_dict["history"] = opt.memo
+    return ret_dict
 
 
 if __name__ == "__main__":
