@@ -167,7 +167,7 @@ def identify_combine(job_dir, mol_dict, spec_obs, T_thr, tol=.1):
             fname = derive_fname(job_dir, name_iso)
             T_pred += np.loadtxt(fname, skiprows=4)[:, 1]
             trans_dict[name_iso] = transitions[name_iso]
-        T_pred += temp_back
+        #T_pred += temp_back
         is_accepted = identify_single(T_obs, T_pred, freq, trans_dict, T_thr, tol)
 
         ret_dict[name] = {
