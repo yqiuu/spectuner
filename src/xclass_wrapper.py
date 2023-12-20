@@ -239,7 +239,7 @@ class ParameterManager:
         return mol_names, params_mol_ret
 
     def get_mol_slice(self, mol_name):
-        idx = self.mol_names.index(mol_name)
+        idx = list(self.mol_dict.keys()).index(mol_name)
         return slice(idx*self.n_param_per_mol, (idx + 1)*self.n_param_per_mol)
 
     def get_iso_slice(self, mol_name):
