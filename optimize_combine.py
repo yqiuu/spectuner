@@ -14,7 +14,8 @@ from src.algorithms import select_molecules, identify_single_score, identify_com
 
 def main(config):
     spec_obs = np.loadtxt(config["file_spec"])
-    spec_obs = spec_obs[::-1] # Make freq ascending
+    if spec_obs[0, 0] > spec_obs[-1, 0]: # Make freq ascending
+        spec_obs = spec_obs[::-1]
 
     config_opt = config["opt_combine"]
     pool = Pool(config_opt["n_process"])
@@ -35,7 +36,7 @@ def main(config):
 
     model = create_fitting_model_extra(
         spec_obs, mol_dict,
-        config["xclass"], config["opt_combine"], vLSR=0.
+        config["xclass"], config["opt_combine"],
     )
     bounds_mol, bounds_iso = shrink_bounds(
         mol_dict.keys(), params_mol, params_iso,

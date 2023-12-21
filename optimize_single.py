@@ -15,7 +15,8 @@ from src.algorithms import select_molecules
 
 def main(config):
     spec_obs = np.loadtxt(config["file_spec"])
-    spec_obs = spec_obs[::-1] # Make freq ascending
+    if spec_obs[0, 0] > spec_obs[-1, 0]: # Make freq ascending
+        spec_obs = spec_obs[::-1]
 
     pool = Pool(config["opt_single"]["n_process"])
     FreqMin = spec_obs[0, 0]
@@ -38,7 +39,7 @@ def optimize(spec_obs, mol_dict, config, pool):
     config_opt = config["opt_single"]
     model = create_fitting_model_extra(
         spec_obs, mol_dict,
-        config["xclass"], config["opt_single"], vLSR=0.
+        config["xclass"], config["opt_single"],
     )
     opt = ParticleSwarm(model, model.bounds, nswarm=config_opt["n_swarm"], pool=pool)
     opt.swarm(config_opt["n_cycle"])
