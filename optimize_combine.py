@@ -6,16 +6,17 @@ from pathlib import Path
 from multiprocessing import Pool
 
 import numpy as np
-from swing import ParticleSwarm, ArtificialBeeColony
+from swing import ParticleSwarm
 
+from src.preprocess import preprocess_spectrum
 from src.fitting_model import create_fitting_model_extra
 from src.algorithms import select_molecules, identify_single_score, identify_combine
 
 
 def main(config):
     spec_obs = np.loadtxt(config["file_spec"])
-    if spec_obs[0, 0] > spec_obs[-1, 0]: # Make freq ascending
-        spec_obs = spec_obs[::-1]
+    temp_back = config["xclass"].get("tBack", 0.)
+    spec_obs = preprocess_spectrum(spec_obs, temp_back)
 
     config_opt = config["opt_combine"]
     pool = Pool(config_opt["n_process"])
