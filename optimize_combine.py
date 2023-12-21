@@ -103,7 +103,7 @@ def refine_molecules(spec_obs, mol_dict, config):
         mol_dict_sub = {name: iso_list}
         model = create_fitting_model_extra(
             spec_obs, mol_dict_sub,
-            config["xclass"], config["opt_combine"], vLSR=0.
+            config["xclass"], config["opt_combine"],
         )
 
         is_accepted = identify_single_score(
