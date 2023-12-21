@@ -51,9 +51,9 @@ def load_molfit_info(fname):
 
 def create_wrapper_from_config(spec_obs, mol_dict, config, **kwargs):
     freq = spec_obs[:, 0].copy()
-    freq_min = freq[0]
-    freq_max = freq[-1]
     freq_step = freq[1] - freq[0]
+    freq_min = freq[0]
+    freq_max = freq[-1] + .1*freq_step
 
     wrapper = XCLASSWrapper(
         FreqMin=freq_min,
