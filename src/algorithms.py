@@ -71,6 +71,24 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax, molecules, elements):
     return mol_dict_ret
 
 
+def select_molecules_multi(obs_data, ElowMin, ElowMax, molecules, elements):
+    mol_dict_list = []
+    for spec in obs_data:
+        mol_dict_list.append(select_molecules(
+            FreqMin=spec[0, 0],
+            FreqMax=spec[-1, 0],
+            ElowMin=ElowMin,
+            ElowMax=ElowMax,
+            molecules=molecules,
+            elements=elements
+        ))
+    segment_dict = defaultdict(list)
+    for idx, mol_dict in enumerate(mol_dict_list):
+        for name in mol_dict:
+            segment_dict[name].append(idx)
+    return mol_dict_list, segment_dict
+
+
 def derive_normal_form(mol_name):
     fm, *_ = mol_name.split(";")
     atom_dict = MolecularDecomposer(fm).ShatterFormula()

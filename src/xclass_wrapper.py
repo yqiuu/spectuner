@@ -44,11 +44,11 @@ def load_molfit_info(fname):
     return mol_names, bounds
 
 
-def create_wrapper_from_config(spec_obs, mol_dict, config, **kwargs):
-    freq = spec_obs[:, 0].copy()
-    freq_step = freq[1] - freq[0]
-    freq_min = freq[0]
-    freq_max = freq[-1] + .1*freq_step
+def create_wrapper_from_config(obs_data, mol_dict, config, **kwargs):
+    if isinstance(obs_data, np.ndarray):
+        freq_min, freq_max, freq_step = derive_freq_range(obs_data)
+    else:
+        freq_min, freq_max, freq_step = 0., 1., .1
 
     wrapper = XCLASSWrapper(
         FreqMin=freq_min,
@@ -59,6 +59,13 @@ def create_wrapper_from_config(spec_obs, mol_dict, config, **kwargs):
         **kwargs
     )
     return wrapper
+
+
+def derive_freq_range(freq):
+    freq_step = freq[1] - freq[0]
+    freq_min = freq[0]
+    freq_max = freq[-1] + .1*freq_step
+    return freq_min, freq_max, freq_step
 
 
 def extract_line_frequency(transitions):
@@ -78,7 +85,9 @@ def extract_line_frequency(transitions):
 
 
 class XCLASSWrapper:
-    def __init__(self, mol_dict, prefix_molfit, IsoTableFileName=None, **xclass_kwargs):
+    def __init__(self, mol_dict, prefix_molfit,
+                 FreqMin=0., FreqMax=1., FreqStep=.1,
+                 IsoTableFileName=None, **xclass_kwargs):
         if IsoTableFileName is None:
             xclass_kwargs["iso_flag"] = False
         else:
@@ -86,6 +95,7 @@ class XCLASSWrapper:
         xclass_kwargs["IsoTableFileName"] = IsoTableFileName
         xclass_kwargs["printFlag"] = True
         self._xclass_kwargs = xclass_kwargs
+        self.update_frequency(FreqMin, FreqMax, FreqStep)
 
         misc_names = []
         def set_misc_var(var, var_name):
@@ -105,35 +115,50 @@ class XCLASSWrapper:
         )
         self.prefix_molfit = prefix_molfit
 
+    def update_frequency(self, freq_min, freq_max, freq_step):
+        self.freq_min = freq_min
+        self.freq_max = freq_max
+        self.freq_step = freq_step
+
     def call(self, params):
         mol_names, params_mol, params_dict = self.pm.derive_params(params)
-        spectrum = self.call_check_params_dict(mol_names, params_mol, params_dict)
-        if spectrum is not None:
-            spectrum = spectrum[:, 1]
-        return spectrum
+        spec = self.call_params_dict(
+            mol_names, params_mol, params_dict, return_full=False
+        )
+        if len(spec) == 0:
+            spec = None
+        else:
+            spec = spec[:, 1]
+        return spec
 
     def call_full_output(self, params):
         mol_names, params_mol, params_dict = self.pm.derive_params(params)
-        return self.call_params_dict(mol_names, params_mol, params_dict, return_full=True)
+        spec, log, trans, tau, job_dir = self.call_params_dict(
+            mol_names, params_mol, params_dict, return_full=True
+        )
+        if len(spec) == 0:
+            spec = None
+        else:
+            spec = spec[:, 1]
+        return spec, log, trans, tau, job_dir
 
-    def call_check_params_dict(self, mol_names, params_mol, params_dict):
-        spectrum = self.call_params_dict(mol_names, params_mol, params_dict)
-        if len(spectrum) != 0:
-            return spectrum
-        return
-
-    def call_params_dict(self, mol_names, params_mol, params_dict, return_full=False):
+    def call_params_dict(self, mol_names, params_mol, params_dict, return_full):
         fname_molfit = "{}_{}.molfit".format(self.prefix_molfit, os.getpid())
         create_molfit_file(fname_molfit, mol_names, params_mol)
 
-        spectrum, log, trans, tau, job_dir = task_myXCLASS.myXCLASSCore(
-            MolfitsFileName=fname_molfit, **params_dict, **self._xclass_kwargs
+        spec, log, trans, tau, job_dir = task_myXCLASS.myXCLASSCore(
+            FreqMin=self.freq_min,
+            FreqMax=self.freq_max,
+            FreqStep=self.freq_step,
+            MolfitsFileName=fname_molfit,
+            **params_dict,
+            **self._xclass_kwargs
         )
         if return_full:
-            return spectrum, log, trans, tau, job_dir
+            return spec, log, trans, tau, job_dir
         else:
             shutil.rmtree(job_dir)
-            return spectrum
+            return spec
 
 
 class ParameterManager:

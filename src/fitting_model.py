@@ -1,6 +1,6 @@
 import numpy as np
 
-from .xclass_wrapper import create_wrapper_from_config
+from .xclass_wrapper import create_wrapper_from_config, derive_freq_range
 
 
 def create_fitting_model(spec_obs, mol_names, bounds,
@@ -32,14 +32,14 @@ def create_fitting_model(spec_obs, mol_names, bounds,
     return FittingModel(wrapper, bounds, scaler, spec_obs[:, 1], loss_fn)
 
 
-def create_fitting_model_extra(spec_obs, mol_dict, config_xclass, config_opt,
+def create_fitting_model_extra(obs_data, mol_dict, config_xclass, config_opt,
                                vLSR=None, tBack=None, loss_fn=None):
     kwargs = {}
     if vLSR is not None:
         kwargs["vLSR"] = vLSR
     if tBack is not None:
         kwargs["tBack"] = tBack
-    wrapper = create_wrapper_from_config(spec_obs, mol_dict, config_xclass, **kwargs)
+    wrapper = create_wrapper_from_config(obs_data, mol_dict, config_xclass, **kwargs)
 
     scaler = ScalerExtra(wrapper.pm)
     bounds = scaler.derive_bounds(
@@ -60,7 +60,7 @@ def create_fitting_model_extra(spec_obs, mol_dict, config_xclass, config_opt,
         loss_fn = l2_loss_log
     else:
         raise ValueError("Unknown loss function.")
-    return FittingModel(wrapper, bounds, scaler, spec_obs[:, 1], loss_fn)
+    return FittingModel(obs_data, wrapper, bounds, scaler, loss_fn)
 
 
 def l1_loss(y_pred, y_obs):
@@ -158,20 +158,56 @@ class ScalerExtra:
 
 
 class FittingModel:
-    def __init__(self, func, bounds, scaler, y_obs, loss_fn):
+    def __init__(self, obs_data, func, bounds, scaler, loss_fn):
+        self.freq_data, self.temp_data = self._preprocess_spectra(obs_data)
         self.func = func
         self.bounds = bounds
         self.scaler = scaler
-        self.y_obs = y_obs
         self.loss_fn = loss_fn
 
+    def _preprocess_spectra(self, obs_data):
+        if isinstance(obs_data, list) or isinstance(obs_data, tuple):
+            freq_data = []
+            temp_data = []
+            for spec in obs_data:
+                freq_data.append(derive_freq_range(spec[:, 0]))
+                temp_data.append(spec[:, 1])
+        elif isinstance(obs_data, np.ndarray):
+            freq_data = [derive_freq_range(obs_data[:, 0])]
+            temp_data = [obs_data[:, 1]]
+        else:
+            raise ValueError("obs_data should be list, tuple or numpy array.")
+        return freq_data, temp_data,
+
     def __call__(self, params):
+        loss = 0.
+        for freq_range, T_obs in zip(self.freq_data, self.temp_data):
+            self.func.update_frequency(*freq_range)
+            loss += self.loss_fn(self._call_single(params, T_obs), T_obs)
+        return loss
+
+    def call_func(self, params):
+        T_pred_data = []
+        trans_data = []
+        job_dir_data = []
+        for freq_range in self.freq_data:
+            self.func.update_frequency(*freq_range)
+            params_tmp = self.derive_params(params)
+            spec, _, trans, _, job_dir = self.func.call_full_output(params_tmp)
+            T_pred_data.append(spec)
+            trans_data.append(trans)
+            job_dir_data.append(job_dir)
+        if len(T_pred_data) == 1:
+            return T_pred_data[0], trans_data[0], job_dir_data[0]
+        return T_pred_data, trans_data, job_dir_data
+
+    def _call_single(self, params, T_obs):
         params = self.derive_params(params)
-        y_pred = self.func.call(params)
+        T_pred = self.func.call(params)
         # TODO Check this in the wrapper
-        if y_pred is None:
-            y_pred = np.zeros_like(self.y_obs)
-        return self.loss_fn(y_pred, self.y_obs)
+        if T_pred is None:
+            T_pred = np.zeros_like(T_obs)
+        return T_pred
 
     def derive_params(self, params):
         if self.scaler is not None:
