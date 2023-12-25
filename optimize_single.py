@@ -26,7 +26,7 @@ def main(config):
         FreqMax = obs_data[-1, 0]
         mol_dict = select_molecules(
             FreqMin, FreqMax, ElowMin, ElowMax,
-            config["molecules"], config["elements"]
+            config["molecules"], config["elements"], config["base_only"]
         )
         segment_dict = None
         mol_list = list(mol_dict.keys())
@@ -35,7 +35,7 @@ def main(config):
         obs_data = [preprocess_spectrum(spec, temp_back) for spec in obs_data]
         mol_dict, segment_dict = select_molecules_multi(
             obs_data, ElowMin, ElowMax,
-            config["molecules"], config["elements"]
+            config["molecules"], config["elements"], config["base_only"]
         )
         mol_list = list(segment_dict.keys())
     pool = Pool(config["opt_single"]["n_process"])

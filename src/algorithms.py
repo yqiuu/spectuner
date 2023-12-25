@@ -8,7 +8,8 @@ from .atoms import MolecularDecomposer
 from .xclass_wrapper import task_ListDatabase, extract_line_frequency
 
 
-def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax, molecules, elements):
+def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
+                     molecules, elements, base_only):
     contents = task_ListDatabase.ListDatabase(
         FreqMin, FreqMax, ElowMin, ElowMax,
         SelectMolecule=[], OutputDevice="quiet"
@@ -54,6 +55,8 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax, molecules, elements):
         elif len(master_name) == 1:
             master_name = master_name[0]
             for name in name_list:
+                if base_only and name.split(";")[1] != "v=0":
+                    continue
                 if name == master_name:
                     mol_dict[master_name]
                 else:
@@ -71,7 +74,8 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax, molecules, elements):
     return mol_dict_ret
 
 
-def select_molecules_multi(obs_data, ElowMin, ElowMax, molecules, elements):
+def select_molecules_multi(obs_data, ElowMin, ElowMax,
+                           molecules, elements, base_only):
     mol_dict_list = []
     for spec in obs_data:
         mol_dict_list.append(select_molecules(
@@ -80,7 +84,8 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax, molecules, elements):
             ElowMin=ElowMin,
             ElowMax=ElowMax,
             molecules=molecules,
-            elements=elements
+            elements=elements,
+            base_only=base_only
         ))
     segment_dict = defaultdict(list)
     for idx, mol_dict in enumerate(mol_dict_list):
