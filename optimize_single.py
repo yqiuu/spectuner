@@ -66,11 +66,8 @@ def optimize(obs_data, mol_dict, config, pool):
     T_pred_data, trans_data, job_dir_data = model.call_func(opt.pos_global_best)
     if isinstance(job_dir_data, str):
         trans_dict = extract_line_frequency(trans_data)
-        shutil.rmtree(job_dir_data)
     else:
         trans_dict = [extract_line_frequency(trans) for trans in trans_data]
-        for job_dir in job_dir_data:
-            shutil.rmtree(job_dir)
 
     # Get the first item in mol_dict
     for mol_name in mol_dict:

@@ -120,21 +120,10 @@ class XCLASSWrapper:
         self.freq_max = freq_max
         self.freq_step = freq_step
 
-    def call(self, params):
-        mol_names, params_mol, params_dict = self.pm.derive_params(params)
-        spec = self.call_params_dict(
-            mol_names, params_mol, params_dict, return_full=False
-        )
-        if len(spec) == 0:
-            spec = None
-        else:
-            spec = spec[:, 1]
-        return spec
-
-    def call_full_output(self, params):
+    def call(self, params, remove_dir=True):
         mol_names, params_mol, params_dict = self.pm.derive_params(params)
         spec, log, trans, tau, job_dir = self.call_params_dict(
-            mol_names, params_mol, params_dict, return_full=True
+            mol_names, params_mol, params_dict, remove_dir
         )
         if len(spec) == 0:
             spec = None
@@ -142,7 +131,7 @@ class XCLASSWrapper:
             spec = spec[:, 1]
         return spec, log, trans, tau, job_dir
 
-    def call_params_dict(self, mol_names, params_mol, params_dict, return_full):
+    def call_params_dict(self, mol_names, params_mol, params_dict, remove_dir):
         fname_molfit = "{}_{}.molfit".format(self.prefix_molfit, os.getpid())
         create_molfit_file(fname_molfit, mol_names, params_mol)
 
@@ -154,11 +143,9 @@ class XCLASSWrapper:
             **params_dict,
             **self._xclass_kwargs
         )
-        if return_full:
-            return spec, log, trans, tau, job_dir
-        else:
+        if remove_dir:
             shutil.rmtree(job_dir)
-            return spec
+        return spec, log, trans, tau, job_dir
 
 
 class ParameterManager:

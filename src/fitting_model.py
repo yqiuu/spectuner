@@ -186,28 +186,28 @@ class FittingModel:
             loss += self.loss_fn(self._call_single(params, T_obs), T_obs)
         return loss
 
-    def call_func(self, params):
+    def _call_single(self, params, T_obs):
+        params = self.derive_params(params)
+        T_pred, *_ = self.func.call(params, remove_dir=False)
+        # TODO Check this in the wrapper
+        if T_pred is None:
+            T_pred = np.zeros_like(T_obs)
+        return T_pred
+
+    def call_func(self, params, remove_dir=True):
         T_pred_data = []
         trans_data = []
         job_dir_data = []
         for freq_range in self.freq_data:
             self.func.update_frequency(*freq_range)
             params_tmp = self.derive_params(params)
-            spec, _, trans, _, job_dir = self.func.call_full_output(params_tmp)
+            spec, _, trans, _, job_dir = self.func.call(params_tmp, remove_dir)
             T_pred_data.append(spec)
             trans_data.append(trans)
             job_dir_data.append(job_dir)
         if len(T_pred_data) == 1:
             return T_pred_data[0], trans_data[0], job_dir_data[0]
         return T_pred_data, trans_data, job_dir_data
-
-    def _call_single(self, params, T_obs):
-        params = self.derive_params(params)
-        T_pred = self.func.call(params)
-        # TODO Check this in the wrapper
-        if T_pred is None:
-            T_pred = np.zeros_like(T_obs)
-        return T_pred
 
     def derive_params(self, params):
         if self.scaler is not None:
