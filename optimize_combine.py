@@ -22,8 +22,8 @@ def main(config):
     pool = Pool(config_opt["n_process"])
     FreqMin = spec_obs[0, 0]
     FreqMax = spec_obs[-1, 0]
-    ElowMin = 0
-    ElowMax = 2000.
+    ElowMin = config["ElowMin"]
+    ElowMax = config["ElowMax"]
     mol_dict = select_molecules(
         FreqMin, FreqMax, ElowMin, ElowMax,
         config["molecules"], config["elements"]

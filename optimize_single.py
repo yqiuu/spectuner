@@ -16,8 +16,8 @@ from src.algorithms import select_molecules, select_molecules_multi
 
 
 def main(config):
-    ElowMin = 0
-    ElowMax = 2000.
+    ElowMin = config["ElowMin"]
+    ElowMax = config["ElowMax"]
     temp_back = config["xclass"].get("tBack", 0.)
     if isinstance(config["file_spec"], str):
         obs_data = np.loadtxt(config["file_spec"])
