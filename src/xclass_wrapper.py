@@ -7,12 +7,7 @@ from collections import defaultdict
 import numpy as np
 
 # Import XCLASS
-path = os.environ.get("XCLASSRootDir")
-if path is None:
-    raise ValueError("Set environment variable 'XCLASSRootDir'.")
-sys.path.append(str(Path(path)/Path("build_tasks")))
-import task_myXCLASS
-import task_ListDatabase
+from xclass import task_myXCLASS, task_ListDatabase
 
 
 def create_molfit_file(fname, mol_names, params):
@@ -83,28 +78,13 @@ def extract_line_frequency(transitions):
 
 
 class XCLASSWrapper:
-    def __init__(self, FreqMin, FreqMax, FreqStep, TelescopeSize, inter_flag,
-                 RestFreq, nH_flag, N_H, kappa_1300, beta_dust, IsoTableFileName,
-                 mol_dict, prefix_molfit,
-                 t_back_flag=True, tBack=None, tslope=None, vLSR=None):
-        xclass_kwargs = {
-            "FreqMin": FreqMin,
-            "FreqMax": FreqMax,
-            "FreqStep": FreqStep,
-            "TelescopeSize": TelescopeSize,
-            "Inter_Flag": inter_flag,
-            "RestFreq": RestFreq,
-            "nH_flag": nH_flag,
-            "N_H": N_H,
-            "kappa_1300": kappa_1300,
-            "beta_dust": beta_dust,
-            "t_back_flag": t_back_flag
-        }
+    def __init__(self, mol_dict, prefix_molfit, IsoTableFileName=None, **xclass_kwargs):
         if IsoTableFileName is None:
             xclass_kwargs["iso_flag"] = False
         else:
             xclass_kwargs["iso_flag"] = True
         xclass_kwargs["IsoTableFileName"] = IsoTableFileName
+        xclass_kwargs["printFlag"] = True
         self._xclass_kwargs = xclass_kwargs
 
         misc_names = []
@@ -114,9 +94,9 @@ class XCLASSWrapper:
             else:
                 xclass_kwargs[var_name] = var
 
-        set_misc_var(tBack, "tBack")
-        set_misc_var(tslope, "tslope")
-        set_misc_var(vLSR, "vLSR")
+        set_misc_var(xclass_kwargs["tBack"], "tBack")
+        set_misc_var(xclass_kwargs["tSlope"], "tSlope")
+        set_misc_var(xclass_kwargs["vLSR"], "vLSR")
 
         n_param_per_mol = 5
         idx_den = 2
@@ -140,25 +120,13 @@ class XCLASSWrapper:
         spectrum = self.call_params_dict(mol_names, params_mol, params_dict)
         if len(spectrum) != 0:
             return spectrum
-
-        inds_include = []
-        for idx in range(len(self.mol_names)):
-            spectrum = self.call_params_dict(
-                params_dict, params_mol[idx : idx+1], mol_names[idx: idx+1])
-            if len(spectrum) != 0:
-                inds_include.append(idx)
-        if len(inds_include) == 0:
-            return
-
-        spectrum = self.call_params_dict(
-            params_dict, params_mol[inds_include], mol_names[inds_include])
-        return spectrum
+        return
 
     def call_params_dict(self, mol_names, params_mol, params_dict, return_full=False):
         fname_molfit = "{}_{}.molfit".format(self.prefix_molfit, os.getpid())
         create_molfit_file(fname_molfit, mol_names, params_mol)
 
-        spectrum, log, trans, tau, job_dir = task_myXCLASS.myXCLASS(
+        spectrum, log, trans, tau, job_dir = task_myXCLASS.myXCLASSCore(
             MolfitsFileName=fname_molfit, **params_dict, **self._xclass_kwargs
         )
         if return_full:
