@@ -126,7 +126,7 @@ class ScalerExtra:
     def call(self, params):
         params_mol, params_iso, params_misc = self.split_params(params)
         params_mol = params_mol.copy()
-        params_mol[:, :3] = 10**params_mol[:, :3]
+        params_mol[:, :4] = 10**params_mol[:, :4]
         params_iso = 10**params_iso
         params_new = np.concatenate([np.ravel(params_mol), params_iso, params_misc])
         return params_new
