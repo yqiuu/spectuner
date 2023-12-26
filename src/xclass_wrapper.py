@@ -94,19 +94,17 @@ class XCLASSWrapper:
             xclass_kwargs["iso_flag"] = True
         xclass_kwargs["IsoTableFileName"] = IsoTableFileName
         xclass_kwargs["printFlag"] = True
-        self._xclass_kwargs = xclass_kwargs
         self.update_frequency(FreqMin, FreqMax, FreqStep)
 
         misc_names = []
-        def set_misc_var(var, var_name):
-            if var is None:
+        def set_misc_var(var_name):
+            if not var_name in xclass_kwargs:
                 misc_names.append(var_name)
-            else:
-                xclass_kwargs[var_name] = var
 
-        set_misc_var(xclass_kwargs["tBack"], "tBack")
-        set_misc_var(xclass_kwargs["tSlope"], "tSlope")
-        set_misc_var(xclass_kwargs["vLSR"], "vLSR")
+        set_misc_var("tBack")
+        set_misc_var("tSlope")
+        set_misc_var("vLSR")
+        self._xclass_kwargs = xclass_kwargs
 
         n_param_per_mol = 5
         idx_den = 2
