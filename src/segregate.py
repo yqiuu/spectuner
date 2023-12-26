@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 
 
-def create_segments(spec_obs, temp_back, n_limit=5, n_samp=50000):
+def create_segments(spec_obs, temp_back, n_limit=5, freq_limit=500., n_samp=50000):
     x_node = spec_obs[:, 0]
     y_node = spec_obs[:, 1] - temp_back
     y_node[y_node < 0.] = 0.
@@ -11,11 +11,11 @@ def create_segments(spec_obs, temp_back, n_limit=5, n_samp=50000):
     d_node = np.append(d_node[0], d_node)
 
     samps = Sampler(x_node, y_node).sample(n_samp)
-    segments = segregate(samps, x_node, d_node, n_limit)
+    segments = segregate(samps, x_node, d_node, n_limit, freq_limit)
     return segments
 
 
-def segregate(samps, x_node, d_node, n_limit):
+def segregate(samps, x_node, d_node, n_limit, freq_limit):
     segments = []
     queue = [samps]
     while len(queue) > 0:
@@ -27,7 +27,8 @@ def segregate(samps, x_node, d_node, n_limit):
 
         samps_1 = samps[labels == 0]
         samps_2 = samps[labels == 1]
-        if _check(samps_1, x_node, d_node, n_limit) \
+        if (x_max - x_min) > freq_limit \
+            and _check(samps_1, x_node, d_node, n_limit) \
             and _check(samps_1, x_node, d_node, n_limit):
             queue.append(samps_1)
             queue.append(samps_2)
