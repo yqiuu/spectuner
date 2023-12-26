@@ -223,3 +223,8 @@ class ParameterManager:
     def get_iso_slice(self, mol_name):
         if mol_name in self.iso_inds:
             return self.iso_inds[mol_name]
+
+    def get_misc_params(self, key, params):
+        params_misc = params[self.inds_misc_param]
+        idx = self.misc_names.index(key)
+        return params_misc[idx]
