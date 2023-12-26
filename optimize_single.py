@@ -1,48 +1,19 @@
 import sys
-import shutil
 import yaml
-import glob
 import pickle
 from pathlib import Path
 from collections import defaultdict
 from multiprocessing import Pool
 
-import numpy as np
 from swing import ParticleSwarm
 
 from src.xclass_wrapper import extract_line_frequency
-from src.preprocess import preprocess_spectrum
+from src.preprocess import load_spectra
 from src.fitting_model import create_fitting_model_extra
-from src.algorithms import select_molecules, select_molecules_multi
 
 
 def main(config):
-    ElowMin = config["ElowMin"]
-    ElowMax = config["ElowMax"]
-    temp_back = config["xclass"].get("tBack", 0.)
-
-    if isinstance(config["file_spec"], str) and config["file_spec"].startswith("glob:"):
-        config["file_spec"] = glob.glob(config["file_spec"].replace("glob:", ""))
-
-    if isinstance(config["file_spec"], str):
-        obs_data = np.loadtxt(config["file_spec"])
-        obs_data = preprocess_spectrum(obs_data, temp_back)
-        FreqMin = obs_data[0, 0]
-        FreqMax = obs_data[-1, 0]
-        mol_dict = select_molecules(
-            FreqMin, FreqMax, ElowMin, ElowMax,
-            config["molecules"], config["elements"], config["base_only"]
-        )
-        segment_dict = None
-        mol_list = list(mol_dict.keys())
-    else:
-        obs_data = [np.loadtxt(fname) for fname in config["file_spec"]]
-        obs_data = [preprocess_spectrum(spec, temp_back) for spec in obs_data]
-        mol_dict, segment_dict = select_molecules_multi(
-            obs_data, ElowMin, ElowMax,
-            config["molecules"], config["elements"], config["base_only"]
-        )
-        mol_list = list(segment_dict.keys())
+    obs_data, mol_dict, mol_list, segment_dict = load_spectra(config)
     pool = Pool(config["opt_single"]["n_process"])
     for name in mol_list:
         if segment_dict is None:
