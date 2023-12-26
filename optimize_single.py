@@ -1,6 +1,7 @@
 import sys
 import shutil
 import yaml
+import glob
 import pickle
 from pathlib import Path
 from collections import defaultdict
@@ -19,6 +20,10 @@ def main(config):
     ElowMin = config["ElowMin"]
     ElowMax = config["ElowMax"]
     temp_back = config["xclass"].get("tBack", 0.)
+
+    if isinstance(config["file_spec"], str) and config["file_spec"].startswith("glob:"):
+        config["file_spec"] = glob.glob(config["file_spec"].replace("glob:", ""))
+
     if isinstance(config["file_spec"], str):
         obs_data = np.loadtxt(config["file_spec"])
         obs_data = preprocess_spectrum(obs_data, temp_back)
@@ -43,18 +48,20 @@ def main(config):
         if segment_dict is None:
             obs_data_sub = obs_data
             mol_dict_sub = {name: mol_dict[name]}
+            segments = None
         else:
             obs_data_sub = []
             mol_dict_sub = defaultdict(list)
             for idx in segment_dict[name]:
                 obs_data_sub.append(obs_data[idx])
                 mol_dict_sub[name].extend(mol_dict[idx][name])
-        ret_dict = optimize(obs_data, mol_dict_sub, config, pool)
+            segments = segment_dict[name]
+        ret_dict = optimize(obs_data_sub, mol_dict_sub, segments, config, pool)
         save_dir = Path(config["save_dir"])
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
 
-def optimize(obs_data, mol_dict, config, pool):
+def optimize(obs_data, mol_dict, segments, config, pool):
     config_opt = config["opt_single"]
     model = create_fitting_model_extra(
         obs_data, mol_dict,
@@ -78,6 +85,7 @@ def optimize(obs_data, mol_dict, config, pool):
         "params_best": opt.pos_global_best,
         "T_pred": T_pred_data,
         "trans_dict": trans_dict,
+        "segments": segments
     }
     if config_opt["save_history"]:
         ret_dict["history"] = opt.memo
