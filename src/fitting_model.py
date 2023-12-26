@@ -188,7 +188,7 @@ class FittingModel:
 
     def _call_single(self, params, T_obs):
         params = self.derive_params(params)
-        T_pred, *_ = self.func.call(params, remove_dir=False)
+        T_pred, *_ = self.func.call(params, remove_dir=True)
         # TODO Check this in the wrapper
         if T_pred is None:
             T_pred = np.zeros_like(T_obs)
