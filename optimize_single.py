@@ -8,12 +8,12 @@ from multiprocessing import Pool
 from swing import ParticleSwarm
 
 from src.xclass_wrapper import extract_line_frequency
-from src.preprocess import load_spectra
+from src.preprocess import load_preprocess_select
 from src.fitting_model import create_fitting_model_extra
 
 
 def main(config):
-    obs_data, mol_dict, mol_list, segment_dict = load_spectra(config)
+    obs_data, mol_dict, mol_list, segment_dict = load_preprocess_select(config)
     pool = Pool(config["opt_single"]["n_process"])
     for name in mol_list:
         if segment_dict is None:
