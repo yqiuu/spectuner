@@ -16,31 +16,32 @@ def main(config):
     obs_data, mol_dict, mol_list, segment_dict = load_preprocess_select(config)
     pool = Pool(config["opt_single"]["n_process"])
     for name in mol_list:
-        if segment_dict is None:
-            obs_data_sub = obs_data
-            mol_dict_sub = {name: mol_dict[name]}
-            segments = None
-        else:
-            obs_data_sub = []
-            mol_dict_sub = defaultdict(list)
-            for idx in segment_dict[name]:
-                obs_data_sub.append(obs_data[idx])
-                mol_dict_sub[name].extend(mol_dict[idx][name])
-            tmp = list(set(mol_dict_sub[name]))
-            tmp.sort()
-            mol_dict_sub[name] = tmp
-            segments = segment_dict[name]
-        ret_dict = optimize(obs_data_sub, mol_dict_sub, segments, config, pool)
+        model = create_model(name, obs_data, mol_dict, segment_dict)
+        segments = segment_dict[name]
+        ret_dict = optimize(model, name, segments, config, pool)
         save_dir = Path(config["save_dir"])
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
 
-def optimize(obs_data, mol_dict, segments, config, pool):
-    config_opt = config["opt_single"]
+def create_model(name, obs_data, mol_dict, segment_dict):
+    obs_data_sub = []
+    mol_dict_sub = defaultdict(list)
+    for idx in segment_dict[name]:
+        obs_data_sub.append(obs_data[idx])
+        mol_dict_sub[name].extend(mol_dict[idx][name])
+    tmp = list(set(mol_dict_sub[name]))
+    tmp.sort()
+    mol_dict_sub[name] = tmp
     model = create_fitting_model_extra(
-        obs_data, mol_dict,
+        obs_data_sub, mol_dict_sub,
         config["xclass"], config["opt_single"],
     )
+    return model
+
+
+def optimize(model, name, segments, config, pool):
+    config_opt = config["opt_single"]
+
     opt = ParticleSwarm(model, model.bounds, nswarm=config_opt["n_swarm"], pool=pool)
     opt.swarm(config_opt["n_cycle"])
 
@@ -51,11 +52,8 @@ def optimize(obs_data, mol_dict, segments, config, pool):
     else:
         trans_dict = [extract_line_frequency(trans) for trans in trans_data]
 
-    # Get the first item in mol_dict
-    for mol_name in mol_dict:
-        break
     ret_dict = {
-        "name": mol_name,
+        "name": name,
         "cost_best": opt.cost_global_best,
         "params_best": opt.pos_global_best,
         "freq": model.freq_data,
