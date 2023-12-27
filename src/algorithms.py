@@ -202,3 +202,110 @@ def identify_combine(job_dir, mol_dict, spec_obs, T_thr, tol=.1):
             "T_pred": T_pred
         }
     return ret_dict
+
+
+def identify_single_v2(obs_data, T_pred_data, trans_data,
+                       n_match=2, tol=.15, frac_cut=.25,
+                       idx_limit=7, lower_frac=.5):
+    T_obs = np.concatenate([spec[:, 1] for spec in obs_data])
+    T_max = T_obs.max()
+    T_median = np.median(T_obs)
+    T_thr = T_median + frac_cut*(T_max - T_median)
+
+    span_data = []
+    T_c_data = []
+    segment_inds = []
+
+    for i_segment, (spec, T_pred, trans_dict) \
+        in enumerate(zip(obs_data, T_pred_data, trans_data)):
+        span_data_sub, T_c_data_sub \
+            = find_peak_span(T_pred, spec[:, 0], trans_dict, idx_limit, lower_frac)
+        span_data.extend(span_data_sub)
+        T_c_data.extend(T_c_data_sub)
+        segment_inds.extend([i_segment]*len(span_data_sub))
+
+    span_data = np.array(span_data, dtype=object)
+    T_c_data = np.array(T_c_data)
+    segment_inds = np.array(segment_inds)
+
+    cond = T_c_data > T_thr
+    span_data = span_data[cond]
+    T_c_data = T_c_data[cond]
+    segment_inds = segment_inds[cond]
+    if len(span_data) == 0:
+        return "reject"
+
+    errors = []
+    errors_2 = []
+    for i_segment, span in zip(segment_inds, span_data):
+        T_pred = T_pred_data[i_segment][span]
+        T_obs = obs_data[i_segment][span, 1]
+        errors.append(np.mean(np.abs(T_obs - T_pred))/np.mean(T_obs))
+        errors_2.append(np.mean(T_obs - T_pred)/np.mean(T_obs))
+    errors = np.array(errors)
+    errors_2 = np.array(errors_2)
+    n_match_ = np.count_nonzero(errors < tol)
+
+    if n_match_ >= n_match:
+        return "accept"
+
+    if np.count_nonzero(errors_2 < -tol) == 0:
+        return "confuse"
+    return "reject"
+
+
+def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
+    freq_min = freq[0]
+    freq_max = freq[-1]
+    freq_data = []
+    for nu_list in trans_dict.values():
+        for nu in nu_list:
+            if nu > freq_min and nu < freq_max:
+                freq_data.append(nu)
+
+    span_data = []
+    T_c_data = []
+    for nu in freq_data:
+        idx_c = np.argmin(np.abs(freq - nu))
+        if idx_c != 0 and T_data[idx_c - 1] > T_data[idx_c]:
+            idx_c = idx_c - 1
+        elif idx_c != len(T_data) - 1 and T_data[idx_c + 1] > T_data[idx_c]:
+            idx_c = idx_c + 1
+
+        T_c = T_data[idx_c]
+        T_limit = lower_frac*T_c
+
+        if idx_c == 0:
+            continue
+        idx_b = idx_c
+        T_prev = T_c
+        i_loop = 0
+        while idx_b > 0 and idx_c - idx_b < idx_limit \
+            and (T_data[idx_b - 1] < T_prev or np.isclose(T_data[idx_b - 1], T_prev)) \
+            and T_data[idx_b - 1] > T_limit:
+            idx_b -= 1
+            T_prev = T_data[idx_b]
+            i_loop += 1
+        if i_loop == 0:
+            continue
+
+        if idx_c == len(freq) - 1:
+            continue
+        idx_e = idx_c
+        T_prev = T_c
+        i_loop = 0
+        while idx_e < len(freq) - 1 and idx_e - idx_c < idx_limit \
+            and (T_data[idx_e + 1] < T_prev or np.isclose(T_data[idx_e + 1], T_prev)) \
+            and T_data[idx_e + 1] > T_limit:
+            idx_e += 1
+            T_prev = T_data[idx_e]
+            i_loop += 1
+        if i_loop == 0:
+            continue
+
+        span = slice(idx_b, idx_e + 1)
+        if span not in span_data:
+            span_data.append(span)
+            T_c_data.append(T_c)
+
+    return span_data, T_c_data,
