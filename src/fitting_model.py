@@ -159,7 +159,8 @@ class ScalerExtra:
 
 class FittingModel:
     def __init__(self, obs_data, func, bounds, scaler, loss_fn):
-        self.freq_data, self.temp_data = self._preprocess_spectra(obs_data)
+        self.freq_range_data, self.freq_data, self.T_obs_data \
+            = self._preprocess_spectra(obs_data)
         self.func = func
         self.bounds = bounds
         self.scaler = scaler
@@ -167,21 +168,24 @@ class FittingModel:
 
     def _preprocess_spectra(self, obs_data):
         if isinstance(obs_data, list) or isinstance(obs_data, tuple):
+            freq_range_data = []
             freq_data = []
-            temp_data = []
+            T_obs_data = []
             for spec in obs_data:
-                freq_data.append(derive_freq_range(spec[:, 0]))
-                temp_data.append(spec[:, 1])
+                freq_range_data.append(derive_freq_range(spec[:, 0]))
+                freq_data.append(spec[:, 0])
+                T_obs_data.append(spec[:, 1])
         elif isinstance(obs_data, np.ndarray):
-            freq_data = [derive_freq_range(obs_data[:, 0])]
-            temp_data = [obs_data[:, 1]]
+            freq_range_data = [derive_freq_range(obs_data[:, 0])]
+            freq_data = [obs_data[:, 0]]
+            T_obs_data = [obs_data[:, 1]]
         else:
             raise ValueError("obs_data should be list, tuple or numpy array.")
-        return freq_data, temp_data,
+        return freq_range_data, freq_data, T_obs_data,
 
     def __call__(self, params):
         loss = 0.
-        for freq_range, T_obs in zip(self.freq_data, self.temp_data):
+        for freq_range, T_obs in zip(self.freq_range_data, self.T_obs_data):
             self.func.update_frequency(*freq_range)
             loss += self.loss_fn(self._call_single(params, T_obs), T_obs)
         return loss
@@ -198,7 +202,7 @@ class FittingModel:
         T_pred_data = []
         trans_data = []
         job_dir_data = []
-        for freq_range in self.freq_data:
+        for freq_range in self.freq_range_data:
             self.func.update_frequency(*freq_range)
             params_tmp = self.derive_params(params)
             spec, _, trans, _, job_dir = self.func.call(params_tmp, remove_dir)

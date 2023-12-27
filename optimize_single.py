@@ -46,7 +46,8 @@ def optimize(obs_data, mol_dict, segments, config, pool):
 
     T_pred_data, trans_data, job_dir_data = model.call_func(opt.pos_global_best)
     if isinstance(job_dir_data, str):
-        trans_dict = extract_line_frequency(trans_data)
+        T_pred_data = [T_pred_data]
+        trans_dict = [extract_line_frequency(trans_data)]
     else:
         trans_dict = [extract_line_frequency(trans) for trans in trans_data]
 
@@ -57,6 +58,7 @@ def optimize(obs_data, mol_dict, segments, config, pool):
         "name": mol_name,
         "cost_best": opt.cost_global_best,
         "params_best": opt.pos_global_best,
+        "freq": model.freq_data,
         "T_pred": T_pred_data,
         "trans_dict": trans_dict,
         "segments": segments
