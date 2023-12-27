@@ -26,6 +26,9 @@ def main(config):
             for idx in segment_dict[name]:
                 obs_data_sub.append(obs_data[idx])
                 mol_dict_sub[name].extend(mol_dict[idx][name])
+            tmp = list(set(mol_dict_sub[name]))
+            tmp.sort()
+            mol_dict_sub[name] = tmp
             segments = segment_dict[name]
         ret_dict = optimize(obs_data_sub, mol_dict_sub, segments, config, pool)
         save_dir = Path(config["save_dir"])
