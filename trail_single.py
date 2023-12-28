@@ -4,30 +4,19 @@ import pickle
 from pathlib import Path
 from multiprocessing import Pool
 
-import numpy as np
-
-from src.algorithms import select_molecules
-from optimize_single import optimize
+from src.preprocess import load_preprocess_select
+from optimize_single import create_model, optimize
 
 
 def main(config, config_trail):
-    spec_obs = np.loadtxt(config["file_spec"])
-    spec_obs = spec_obs[::-1] # Make freq ascending
-
+    obs_data, mol_dict, mol_list, segment_dict = load_preprocess_select(config)
     pool = Pool(config["opt_single"]["n_process"])
-    FreqMin = spec_obs[0, 0]
-    FreqMax = spec_obs[-1, 0]
-    ElowMin = 0
-    ElowMax = 2000.
-    mol_dict = select_molecules(
-        FreqMin, FreqMax, ElowMin, ElowMax,
-        config["molecules"], config["elements"]
-    )
     mol_name = config_trail["mol_name"]
-    mol_dict = {mol_name: mol_dict[mol_name]}
+    model = create_model(mol_name, obs_data, mol_dict, segment_dict, config)
+    segments = segment_dict[mol_name]
     results = []
     for _ in range(config_trail["n_trail"]):
-        results.append(optimize(spec_obs, mol_dict, config, pool))
+        results.append(optimize(model, mol_name, segments, config, pool))
 
     save_dir = Path(config_trail["save_dir"])
     pickle.dump(results, open(save_dir/Path("{}.pickle".format(mol_name)), "wb"))
