@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from collections import defaultdict
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -219,7 +220,7 @@ def identify_combine(job_dir, mol_dict, spec_obs, T_thr, tol=.1):
     return ret_dict
 
 
-def identify_single_v2(obs_data, T_pred_data, trans_data,
+def identify_single_v2(name, obs_data, T_pred_data, trans_data,
                        n_match=2, tol=.15, frac_cut=.25,
                        idx_limit=7, lower_frac=.5):
     T_obs = np.concatenate([spec[:, 1] for spec in obs_data])
@@ -247,26 +248,30 @@ def identify_single_v2(obs_data, T_pred_data, trans_data,
     span_data = span_data[cond]
     T_c_data = T_c_data[cond]
     segment_inds = segment_inds[cond]
-    if len(span_data) == 0:
-        return "reject"
 
     errors = []
-    errors_2 = []
+    errors_neg = []
+    freq_c_data = []
     for i_segment, span in zip(segment_inds, span_data):
         T_pred = T_pred_data[i_segment][span]
         T_obs = obs_data[i_segment][span, 1]
         errors.append(np.mean(np.abs(T_obs - T_pred))/np.mean(T_obs))
-        errors_2.append(np.mean(T_obs - T_pred)/np.mean(T_obs))
+        errors_neg.append(np.mean(T_obs - T_pred)/np.mean(T_obs))
+        freq_c_data.append(obs_data[i_segment][span, 0][np.argmax(T_pred)])
     errors = np.array(errors)
-    errors_2 = np.array(errors_2)
+    errors_neg = np.array(errors_neg)
+    freq_c_data = np.array(freq_c_data)
     n_match_ = np.count_nonzero(errors < tol)
 
-    if n_match_ >= n_match:
-        return "accept"
-
-    if np.count_nonzero(errors_2 < -tol) == 0:
-        return "confuse"
-    return "reject"
+    if len(span_data) == 0:
+        status = "reject"
+    elif n_match_ >= n_match:
+        status = "accept"
+    elif n_match_ >= 1 and np.count_nonzero(errors_neg < -tol) == 0:
+        status = "confuse"
+    else:
+        status = "reject"
+    return IdentifyResult(name, status, n_match_, freq_c_data, errors, errors_neg)
 
 
 def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
@@ -324,3 +329,13 @@ def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
             T_c_data.append(T_c)
 
     return span_data, T_c_data,
+
+
+@dataclass
+class IdentifyResult:
+    name: str
+    status: str
+    n_match: int
+    freq_c_data: np.ndarray
+    errors: np.ndarray
+    errors_neg: np.ndarray
