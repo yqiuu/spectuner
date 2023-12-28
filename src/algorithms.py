@@ -9,7 +9,7 @@ from .xclass_wrapper import task_ListDatabase, extract_line_frequency
 
 
 def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
-                     molecules, elements, base_only):
+                     molecules, elements, base_only, iso_list=None):
     contents = task_ListDatabase.ListDatabase(
         FreqMin, FreqMax, ElowMin, ElowMax,
         SelectMolecule=[], OutputDevice="quiet"
@@ -38,6 +38,13 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
         if len(atom_set - elements) == 0:
             normal_dict[fm_normal].append(name)
 
+    if molecules is None:
+        molecules = []
+        skip = True
+    else:
+        skip = False
+    if iso_list is None:
+        iso_list = []
     mol_dict = defaultdict(list)
     for name_list in normal_dict.values():
         master_name = []
@@ -51,20 +58,28 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
             if is_master:
                 master_name.append(name)
         if len(master_name) == 0:
-            pass
+            master_name = None
+            for name in name_list:
+                if name in molecules:
+                    master_name = name
+                    break
         elif len(master_name) == 1:
             master_name = master_name[0]
-            for name in name_list:
-                if base_only and name.split(";")[1] != "v=0":
-                    continue
-                if name == master_name:
-                    mol_dict[master_name]
-                else:
-                    mol_dict[master_name].append(name)
         else:
             raise ValueError("Multiple master name", master_name)
 
-    if molecules is None:
+        if master_name is None:
+            continue
+        for name in name_list:
+            if base_only and name.split(";")[1] != "v=0" \
+                and name not in molecules and name not in iso_list:
+                continue
+            if name == master_name:
+                mol_dict[master_name]
+            else:
+                mol_dict[master_name].append(name)
+
+    if skip:
         return mol_dict
 
     mol_dict_ret = {}
@@ -75,7 +90,7 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
 
 
 def select_molecules_multi(obs_data, ElowMin, ElowMax,
-                           molecules, elements, base_only):
+                           molecules, elements, base_only, iso_list=None):
     mol_dict_list = []
     for spec in obs_data:
         mol_dict_list.append(select_molecules(
