@@ -14,11 +14,6 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
                      iso_list=None, exclude_list=None):
     if exclude_list is None:
         exclude_list = []
-
-    normal_dict = group_by_normal_form(
-        FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list
-    )
-
     if molecules is None:
         molecules = []
         skip = True
@@ -26,42 +21,13 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
         skip = False
     if iso_list is None:
         iso_list = []
-    mol_dict = defaultdict(list)
-    for name_list in normal_dict.values():
-        name_list.sort()
-        master_name = []
-        for name in name_list:
-            is_master = True
-            pattern = r"-([0-9])([0-9])[-]?"
-            if re.search(pattern, name) is not None:
-                is_master = False
-            if "D" in name:
-                is_master = False
-            if name.split(";")[1] != "v=0":
-                is_master = False
-            if is_master:
-                master_name.append(name)
-        if len(master_name) == 0:
-            if base_only:
-                master_name = None
-            else:
-                master_name = name_list[0]
-        elif len(master_name) == 1:
-            master_name = master_name[0]
-        else:
-            raise ValueError("Multiple master name", master_name)
 
-        if master_name is None:
-            continue
-        for name in name_list:
-            if base_only and name.split(";")[1] != "v=0" \
-                and name not in molecules and name not in iso_list:
-                continue
-            if name == master_name:
-                mol_dict[master_name]
-            else:
-                mol_dict[master_name].append(name)
-
+    normal_dict = group_by_normal_form(
+        FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list
+    )
+    mol_dict, _ = replace_with_master_name(
+        normal_dict, molecules, base_only, iso_list
+    )
     if skip:
         return mol_dict
 
@@ -73,23 +39,50 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
 
 
 def select_molecules_multi(obs_data, ElowMin, ElowMax,
-                           molecules, elements, base_only, iso_list=None):
-    mol_dict_list = []
+                           molecules, elements, base_only,
+                           iso_list=None, exclude_list=None):
+    if exclude_list is None:
+        exclude_list = []
+    if molecules is None:
+        molecules = []
+        skip = True
+    else:
+        skip = False
+    if iso_list is None:
+        iso_list = []
+
+    normal_dict_list = []
     for spec in obs_data:
-        mol_dict_list.append(select_molecules(
+        normal_dict_list.append(group_by_normal_form(
             FreqMin=spec[0, 0],
             FreqMax=spec[-1, 0],
             ElowMin=ElowMin,
             ElowMax=ElowMax,
-            molecules=molecules,
             elements=elements,
-            base_only=base_only
+            exclude_list=exclude_list
         ))
+
+    normal_dict_all = defaultdict(list)
+    for normal_dict in normal_dict_list:
+        for key, name_list in normal_dict.items():
+            normal_dict_all[key].extend(name_list)
+    for key in list(normal_dict_all.keys()):
+        tmp = list(set(normal_dict_all[key]))
+        tmp.sort()
+        normal_dict_all[key] = tmp
+
+    mol_dict, master_name_dict \
+        = replace_with_master_name(normal_dict_all, molecules, base_only, iso_list)
+    if not skip:
+        mol_dict = {name: mol_dict[name] for name in molecules if name in mol_dict}
+
     segment_dict = defaultdict(list)
-    for idx, mol_dict in enumerate(mol_dict_list):
-        for name in mol_dict:
-            segment_dict[name].append(idx)
-    return mol_dict_list, segment_dict
+    for idx, normal_dict in enumerate(normal_dict_list):
+        for name in normal_dict:
+            master_name = master_name_dict[name]
+            if master_name is not None:
+                segment_dict[master_name].append(idx)
+    return mol_dict, segment_dict
 
 
 def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list):
@@ -110,7 +103,7 @@ def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_l
             continue
         tmp = name.split(";")
         # Ingore spin states
-        if len(tmp) > 3:
+        if tmp[-1] == "ortho" or tmp[-1] == "para":
             continue
         mol_dict[";".join(tmp[:-1])].append(tmp[-1])
 
@@ -139,6 +132,51 @@ def derive_normal_form(mol_name):
         fm = fm.replace(pattern, pattern[:-1]*int(pattern[-1]))
     fm = fm.replace("D", "H")
     return fm, atom_set
+
+
+def replace_with_master_name(normal_dict, molecules, base_only, iso_list):
+    mol_dict = defaultdict(list)
+    master_name_dict = {}
+    for normal_name, name_list in normal_dict.items():
+        name_list.sort()
+        master_name = select_master_name(name_list, base_only)
+        master_name_dict[normal_name] = master_name
+        if master_name is None:
+            continue
+        for name in name_list:
+            if base_only and name.split(";")[1] != "v=0" \
+                and name not in molecules and name not in iso_list:
+                continue
+            if name == master_name:
+                mol_dict[master_name]
+            else:
+                mol_dict[master_name].append(name)
+    return mol_dict, master_name_dict
+
+
+def select_master_name(name_list, base_only):
+    master_name_list = []
+    for name in name_list:
+        is_master = True
+        pattern = r"-([0-9])([0-9])[-]?"
+        if re.search(pattern, name) is not None:
+            is_master = False
+        if "D" in name:
+            is_master = False
+        if name.split(";")[1] != "v=0":
+            is_master = False
+        if is_master:
+            master_name_list.append(name)
+    if len(master_name_list) == 0:
+        if base_only:
+            master_name = None
+        else:
+            master_name = name_list[0]
+    elif len(master_name_list) == 1:
+        master_name = master_name_list[0]
+    else:
+        raise ValueError("Multiple master name", master_name_list)
+    return master_name
 
 
 def identify_single(T_obs, T_pred, freq, trans_dict, T_thr, tol=.1, return_full=False):

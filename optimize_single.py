@@ -25,13 +25,9 @@ def main(config):
 
 def create_model(name, obs_data, mol_dict, segment_dict, config):
     obs_data_sub = []
-    mol_dict_sub = defaultdict(list)
     for idx in segment_dict[name]:
         obs_data_sub.append(obs_data[idx])
-        mol_dict_sub[name].extend(mol_dict[idx][name])
-    tmp = list(set(mol_dict_sub[name]))
-    tmp.sort()
-    mol_dict_sub[name] = tmp
+    mol_dict_sub = {name: mol_dict[name]}
     model = create_fitting_model_extra(
         obs_data_sub, mol_dict_sub,
         config["xclass"], config["opt_single"],
