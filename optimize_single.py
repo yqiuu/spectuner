@@ -41,25 +41,44 @@ def optimize(model, name, segments, config, pool):
     opt = ParticleSwarm(model, model.bounds, nswarm=config_opt["n_swarm"], pool=pool)
     opt.swarm(config_opt["n_cycle"])
 
-    T_pred_data, trans_data, job_dir_data = model.call_func(opt.pos_global_best)
+    T_pred_data, trans_data = prepare_pred_data(model, opt.pos_global_best)
+
+    ret_dict = {
+        "name": name,
+        "freq": model.freq_data,
+        "cost_best": opt.cost_global_best,
+        "params_best": opt.pos_global_best,
+        "T_pred": T_pred_data,
+        "trans_dict": trans_data,
+        "segments": segments
+    }
+    if config_opt.get("save_local_best", False):
+        T_pred_data_local = []
+        trans_data_local = []
+        for pos in opt.pos_local_best:
+            T_tmp, trans_tmp = prepare_pred_data(model, pos)
+            T_pred_data_local.append(T_tmp)
+            trans_data_local.append(trans_tmp)
+        local_best = {
+            "cost_best": opt.cost_local_best,
+            "params_best": opt.pos_local_best,
+            "T_pred": T_pred_data_local,
+            "trans_dict": trans_data_local,
+        }
+        ret_dict["local_best"] = local_best
+    if config_opt.get("save_history", False):
+        ret_dict["history"] = opt.memo
+    return ret_dict
+
+
+def prepare_pred_data(model, pos):
+    T_pred_data, trans_data, job_dir_data = model.call_func(pos)
     if isinstance(job_dir_data, str):
         T_pred_data = [T_pred_data]
         trans_dict = [extract_line_frequency(trans_data)]
     else:
         trans_dict = [extract_line_frequency(trans) for trans in trans_data]
-
-    ret_dict = {
-        "name": name,
-        "cost_best": opt.cost_global_best,
-        "params_best": opt.pos_global_best,
-        "freq": model.freq_data,
-        "T_pred": T_pred_data,
-        "trans_dict": trans_dict,
-        "segments": segments
-    }
-    if config_opt["save_history"]:
-        ret_dict["history"] = opt.memo
-    return ret_dict
+    return T_pred_data, trans_dict
 
 
 if __name__ == "__main__":
