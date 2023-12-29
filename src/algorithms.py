@@ -82,7 +82,17 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
             master_name = master_name_dict[name]
             if master_name is not None:
                 segment_dict[master_name].append(idx)
-    return mol_dict, segment_dict
+
+    if skip:
+        return mol_dict, segment_dict
+
+    mol_dict_ret = {}
+    segment_dict_ret = {}
+    for name in molecules:
+        if name in mol_dict:
+            mol_dict_ret[name] = mol_dict[name]
+            segment_dict_ret[name] = segment_dict[name]
+    return mol_dict_ret, segment_dict_ret
 
 
 def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list):
