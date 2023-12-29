@@ -10,34 +10,14 @@ from .xclass_wrapper import task_ListDatabase, extract_line_frequency
 
 
 def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
-                     molecules, elements, base_only, iso_list=None):
-    contents = task_ListDatabase.ListDatabase(
-        FreqMin, FreqMax, ElowMin, ElowMax,
-        SelectMolecule=[], OutputDevice="quiet"
+                     molecules, elements, base_only,
+                     iso_list=None, exclude_list=None):
+    if exclude_list is None:
+        exclude_list = []
+
+    normal_dict = group_by_normal_form(
+        FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list
     )
-
-    mol_names = set()
-    for item in contents:
-        mol_names.add(item.split()[0])
-    mol_names = list(mol_names)
-    mol_names.sort()
-
-    mol_dict = defaultdict(list)
-    for name in mol_names:
-        tmp = name.split(";")
-        mol_dict[";".join(tmp[:-1])].append(tmp[-1])
-
-    mol_names = []
-    for key, val in mol_dict.items():
-        mol_names.append(";".join([key, val[0]]))
-
-    # Filter elements
-    elements = set(elements)
-    normal_dict = defaultdict(list)
-    for name in mol_names:
-        fm_normal, atom_set = derive_normal_form(name)
-        if len(atom_set - elements) == 0:
-            normal_dict[fm_normal].append(name)
 
     if molecules is None:
         molecules = []
@@ -48,22 +28,24 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
         iso_list = []
     mol_dict = defaultdict(list)
     for name_list in normal_dict.values():
+        name_list.sort()
         master_name = []
         for name in name_list:
             is_master = True
             pattern = r"-([0-9])([0-9])[-]?"
             if re.search(pattern, name) is not None:
                 is_master = False
+            if "D" in name:
+                is_master = False
             if name.split(";")[1] != "v=0":
                 is_master = False
             if is_master:
                 master_name.append(name)
         if len(master_name) == 0:
-            master_name = None
-            for name in name_list:
-                if name in molecules:
-                    master_name = name
-                    break
+            if base_only:
+                master_name = None
+            else:
+                master_name = name_list[0]
         elif len(master_name) == 1:
             master_name = master_name[0]
         else:
@@ -110,6 +92,42 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
     return mol_dict_list, segment_dict
 
 
+def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list):
+    contents = task_ListDatabase.ListDatabase(
+        FreqMin, FreqMax, ElowMin, ElowMax,
+        SelectMolecule=[], OutputDevice="quiet"
+    )
+
+    mol_names = set()
+    for item in contents:
+        mol_names.add(item.split()[0])
+    mol_names = list(mol_names)
+    mol_names.sort()
+
+    mol_dict = defaultdict(list)
+    for name in mol_names:
+        if name in exclude_list:
+            continue
+        tmp = name.split(";")
+        # Ingore spin states
+        if len(tmp) > 3:
+            continue
+        mol_dict[";".join(tmp[:-1])].append(tmp[-1])
+
+    mol_names = []
+    for key, val in mol_dict.items():
+        mol_names.append(";".join([key, val[0]]))
+
+    # Filter elements
+    elements = set(elements)
+    normal_dict = defaultdict(list)
+    for name in mol_names:
+        fm_normal, atom_set = derive_normal_form(name)
+        if len(atom_set - elements) == 0:
+            normal_dict[fm_normal].append(name)
+    return normal_dict
+
+
 def derive_normal_form(mol_name):
     fm, *_ = mol_name.split(";")
     atom_dict = MolecularDecomposer(fm).ShatterFormula()
@@ -119,6 +137,7 @@ def derive_normal_form(mol_name):
     fm = re.sub(pattern, "", fm)
     for pattern in re.findall("[A-Z][a-z]?\d", fm):
         fm = fm.replace(pattern, pattern[:-1]*int(pattern[-1]))
+    fm = fm.replace("D", "H")
     return fm, atom_set
 
 
