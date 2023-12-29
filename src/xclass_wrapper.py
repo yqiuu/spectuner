@@ -93,7 +93,6 @@ class XCLASSWrapper:
         else:
             xclass_kwargs["iso_flag"] = True
         xclass_kwargs["IsoTableFileName"] = IsoTableFileName
-        xclass_kwargs["printFlag"] = True
         self.update_frequency(FreqMin, FreqMax, FreqStep)
 
         misc_names = []
