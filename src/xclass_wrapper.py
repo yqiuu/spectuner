@@ -209,7 +209,7 @@ class ParameterManager:
             for name_iso in iso_list:
                 mol_names.append(name_iso)
                 params_tmp = params_mol[idx].copy()
-                params_tmp[self.idx_den] *= params_iso[idx_iso]
+                params_tmp[self.idx_den] = params_iso[idx_iso]
                 params_mol_ret.append(params_tmp)
                 idx_iso += 1
         params_mol_ret = np.vstack(params_mol_ret)
