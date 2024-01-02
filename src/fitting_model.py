@@ -61,7 +61,10 @@ def create_fitting_model_extra(obs_data, mol_dict, include_list,
         loss_fn = l2_loss_log
     else:
         raise ValueError("Unknown loss function.")
-    return FittingModel(obs_data, wrapper, include_list, bounds, scaler, loss_fn)
+    return FittingModel(
+        obs_data, wrapper, include_list, bounds, scaler, loss_fn,
+        kwargs_reg=config_opt.get("kwargs_reg", None)
+    )
 
 
 def l1_loss(y_pred, y_obs):
@@ -159,7 +162,7 @@ class ScalerExtra:
 
 
 class FittingModel:
-    def __init__(self, obs_data, func, include_list, bounds, scaler, loss_fn):
+    def __init__(self, obs_data, func, include_list, bounds, scaler, loss_fn, kwargs_reg=None):
         self.freq_range_data, self.freq_data, self.T_obs_data \
             = self._preprocess_spectra(obs_data)
         self.include_list = include_list
@@ -167,6 +170,9 @@ class FittingModel:
         self.bounds = bounds
         self.scaler = scaler
         self.loss_fn = loss_fn
+        if kwargs_reg is None:
+            kwargs_reg = {}
+        self.regularizer = ThresholdRegularizer(obs_data, **kwargs_reg)
 
     def _preprocess_spectra(self, obs_data):
         if isinstance(obs_data, list) or isinstance(obs_data, tuple):
@@ -186,11 +192,16 @@ class FittingModel:
         return freq_range_data, freq_data, T_obs_data,
 
     def __call__(self, params):
-        loss = 0.
-        for i_segment in range(len(self.T_obs_data)):
+        n_segment = len(self.T_obs_data)
+        loss = [None]*n_segment
+        T_pred_max = [None]*n_segment
+        for i_segment in range(n_segment):
             T_obs = self.T_obs_data[i_segment]
             T_pred = self._call_single(i_segment, params, remove_dir=True)[0]
-            loss += self.loss_fn(T_pred, T_obs)
+            loss[i_segment] = self.loss_fn(T_pred, T_obs)
+            T_pred_max[i_segment] = T_pred.max()
+        loss = np.mean(loss)
+        loss += self.regularizer(max(T_pred_max))
         return loss
 
     def _call_single(self, i_segment, params, remove_dir):
@@ -221,3 +232,15 @@ class FittingModel:
         if self.scaler is not None:
             params = self.scaler.call(params)
         return params
+
+
+class ThresholdRegularizer:
+    def __init__(self, obs_data, frac_cut=.25, alpha=0.01):
+        T_obs = np.concatenate([spec[:, 1] for spec in obs_data])
+        T_max = T_obs.max()
+        T_median = np.median(T_obs)
+        self.T_thr = T_median + frac_cut*(T_max - T_median)
+        self.alpha = alpha
+
+    def __call__(self, T_pred_max):
+        return np.maximum(self.alpha*(self.T_thr - T_pred_max), 0.)
