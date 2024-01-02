@@ -9,10 +9,10 @@ from optimize_single import create_model, optimize
 
 
 def main(config, config_trail):
-    obs_data, mol_dict, mol_list, segment_dict = load_preprocess_select(config)
+    obs_data, mol_dict, segment_dict, include_dict = load_preprocess_select(config)
     pool = Pool(config["opt_single"]["n_process"])
     mol_name = config_trail["mol_name"]
-    model = create_model(mol_name, obs_data, mol_dict, segment_dict, config)
+    model = create_model(mol_name, obs_data, mol_dict, segment_dict, include_dict, config)
     segments = segment_dict[mol_name]
     results = []
     for _ in range(config_trail["n_trail"]):
