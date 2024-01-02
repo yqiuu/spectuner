@@ -51,7 +51,9 @@ def optimize(model, name, segments, config, pool):
         "params_best": opt.pos_global_best,
         "T_pred": T_pred_data,
         "trans_dict": trans_data,
-        "segments": segments
+        "segments": segments,
+        "mol_dict": model.func.pm.mol_dict,
+        "include_list": model.include_list,
     }
     if config_opt.get("save_local_best", False):
         T_pred_data_local = []
