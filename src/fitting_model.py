@@ -32,7 +32,8 @@ def create_fitting_model(spec_obs, mol_names, bounds,
     return FittingModel(wrapper, bounds, scaler, spec_obs[:, 1], loss_fn)
 
 
-def create_fitting_model_extra(obs_data, mol_dict, config_xclass, config_opt,
+def create_fitting_model_extra(obs_data, mol_dict, include_list,
+                               config_xclass, config_opt,
                                vLSR=None, tBack=None, loss_fn=None):
     kwargs = {}
     if vLSR is not None:
@@ -60,7 +61,7 @@ def create_fitting_model_extra(obs_data, mol_dict, config_xclass, config_opt,
         loss_fn = l2_loss_log
     else:
         raise ValueError("Unknown loss function.")
-    return FittingModel(obs_data, wrapper, bounds, scaler, loss_fn)
+    return FittingModel(obs_data, wrapper, include_list, bounds, scaler, loss_fn)
 
 
 def l1_loss(y_pred, y_obs):
@@ -158,9 +159,10 @@ class ScalerExtra:
 
 
 class FittingModel:
-    def __init__(self, obs_data, func, bounds, scaler, loss_fn):
+    def __init__(self, obs_data, func, include_list, bounds, scaler, loss_fn):
         self.freq_range_data, self.freq_data, self.T_obs_data \
             = self._preprocess_spectra(obs_data)
+        self.include_list = include_list
         self.func = func
         self.bounds = bounds
         self.scaler = scaler
@@ -185,28 +187,30 @@ class FittingModel:
 
     def __call__(self, params):
         loss = 0.
-        for freq_range, T_obs in zip(self.freq_range_data, self.T_obs_data):
-            self.func.update_frequency(*freq_range)
-            loss += self.loss_fn(self._call_single(params, T_obs), T_obs)
+        for i_segment in range(len(self.T_obs_data)):
+            T_obs = self.T_obs_data[i_segment]
+            T_pred = self._call_single(i_segment, params, remove_dir=True)[0]
+            loss += self.loss_fn(T_pred, T_obs)
         return loss
 
-    def _call_single(self, params, T_obs):
+    def _call_single(self, i_segment, params, remove_dir):
+        T_obs = self.T_obs_data[i_segment]
+        self.func.update_frequency(*self.freq_range_data[i_segment])
+        self.func.update_include_list(self.include_list[i_segment])
         params = self.derive_params(params)
-        T_pred, *_ = self.func.call(params, remove_dir=True)
+        T_pred, _, trans, _, job_dir = self.func.call(params, remove_dir=remove_dir)
         # TODO Check this in the wrapper
         if T_pred is None:
             T_pred = np.zeros_like(T_obs)
-        return T_pred
+        return T_pred, trans, job_dir
 
     def call_func(self, params, remove_dir=True):
         T_pred_data = []
         trans_data = []
         job_dir_data = []
-        for freq_range in self.freq_range_data:
-            self.func.update_frequency(*freq_range)
-            params_tmp = self.derive_params(params)
-            spec, _, trans, _, job_dir = self.func.call(params_tmp, remove_dir)
-            T_pred_data.append(spec)
+        for i_segment in range(len(self.T_obs_data)):
+            T_pred, trans, job_dir = self._call_single(i_segment, params, remove_dir)
+            T_pred_data.append(T_pred)
             trans_data.append(trans)
             job_dir_data.append(job_dir)
         if len(T_pred_data) == 1:

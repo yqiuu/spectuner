@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass
+from copy import deepcopy
 
 import numpy as np
 
@@ -62,10 +63,12 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
             exclude_list=exclude_list
         ))
 
+    # Merge all normal dict from different segment
     normal_dict_all = defaultdict(list)
     for normal_dict in normal_dict_list:
         for key, name_list in normal_dict.items():
             normal_dict_all[key].extend(name_list)
+    # Remove duplicated moleclues in the normal dict
     for key in list(normal_dict_all.keys()):
         tmp = list(set(normal_dict_all[key]))
         tmp.sort()
@@ -76,6 +79,13 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
     if not skip:
         mol_dict = {name: mol_dict[name] for name in molecules if name in mol_dict}
 
+    incldue_dict = defaultdict(list)
+    for normal_dict in normal_dict_list:
+        for name, mol_list in normal_dict.items():
+            master_name = master_name_dict[name]
+            if master_name is not None:
+                incldue_dict[master_name].append(deepcopy(mol_list))
+
     segment_dict = defaultdict(list)
     for idx, normal_dict in enumerate(normal_dict_list):
         for name in normal_dict:
@@ -84,15 +94,17 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
                 segment_dict[master_name].append(idx)
 
     if skip:
-        return mol_dict, segment_dict
+        return mol_dict, segment_dict, incldue_dict
 
     mol_dict_ret = {}
     segment_dict_ret = {}
+    incldue_dict_ret = {}
     for name in molecules:
         if name in mol_dict:
             mol_dict_ret[name] = mol_dict[name]
             segment_dict_ret[name] = segment_dict[name]
-    return mol_dict_ret, segment_dict_ret
+            incldue_dict_ret[name] = incldue_dict[name]
+    return mol_dict_ret, segment_dict_ret, incldue_dict_ret
 
 
 def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list):

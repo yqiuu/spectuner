@@ -10,12 +10,13 @@ import numpy as np
 from xclass import task_myXCLASS, task_ListDatabase
 
 
-def create_molfit_file(fname, mol_names, params):
+def create_molfit_file(fname, mol_names, params, include_list):
     text = f"""% name of molecule		number of components
 	% source size [arcsec]:    T_rot [K]:    N_tot [cm-2]:    velocity width [km/s]: velocity offset [km/s]:    CFflag:\n"""
     for name, (source_size, T_rot, N_tot, vel_width, vel_offset) in zip(mol_names, params):
-        text += f"{name}   1\n"
-        text += f"{source_size}    {T_rot}     {N_tot}     {vel_width}     {vel_offset}   c\n"
+        if include_list is None or name in include_list:
+            text += f"{name}   1\n"
+            text += f"{source_size}    {T_rot}     {N_tot}     {vel_width}     {vel_offset}   c\n"
     open(fname, mode='w').write(text)
 
 
@@ -111,11 +112,15 @@ class XCLASSWrapper:
             mol_dict, n_param_per_mol, idx_den, misc_names
         )
         self.prefix_molfit = prefix_molfit
+        self.include_list = None
 
     def update_frequency(self, freq_min, freq_max, freq_step):
         self.freq_min = freq_min
         self.freq_max = freq_max
         self.freq_step = freq_step
+
+    def update_include_list(self, include_list):
+        self.include_list = include_list
 
     def call(self, params, remove_dir=True):
         mol_names, params_mol, params_dict = self.pm.derive_params(params)
@@ -130,7 +135,7 @@ class XCLASSWrapper:
 
     def call_params_dict(self, mol_names, params_mol, params_dict, remove_dir):
         fname_molfit = "{}_{}.molfit".format(self.prefix_molfit, os.getpid())
-        create_molfit_file(fname_molfit, mol_names, params_mol)
+        create_molfit_file(fname_molfit, mol_names, params_mol, self.include_list)
 
         spec, log, trans, tau, job_dir = task_myXCLASS.myXCLASSCore(
             FreqMin=self.freq_min,

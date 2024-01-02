@@ -10,14 +10,13 @@ def load_preprocess_select(config):
     ElowMax = config["ElowMax"]
     T_back = config["xclass"].get("tBack", 0.)
     obs_data = load_preprocess(file_spec, T_back)
-    mol_dict, segment_dict = select_molecules_multi(
+    mol_dict, segment_dict, include_dict = select_molecules_multi(
         obs_data, ElowMin, ElowMax,
         config["molecules"], config["elements"],
         config["base_only"], config["iso_list"],
         config["exclude_list"]
     )
-    mol_list = list(segment_dict.keys())
-    return obs_data, mol_dict, mol_list, segment_dict
+    return obs_data, mol_dict, segment_dict, include_dict
 
 
 def load_preprocess(file_spec, T_back):
