@@ -427,3 +427,7 @@ class IdentifyResult:
     freq_c_data: np.ndarray
     errors: np.ndarray
     errors_neg: np.ndarray
+
+    def __repr__(self):
+        return "name: {}\nstatus: {}\nn_match: {}".format(
+            self.name, self.status, self.n_match)
