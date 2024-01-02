@@ -309,23 +309,27 @@ def identify_single_v2(name, obs_data, T_pred_data, trans_data,
 
     span_data = []
     T_c_data = []
+    name_list = []
     segment_inds = []
 
     for i_segment, (spec, T_pred, trans_dict) \
         in enumerate(zip(obs_data, T_pred_data, trans_data)):
-        span_data_sub, T_c_data_sub \
+        span_data_sub, T_c_data_sub, name_list_sub \
             = find_peak_span(T_pred, spec[:, 0], trans_dict, idx_limit, lower_frac)
         span_data.extend(span_data_sub)
         T_c_data.extend(T_c_data_sub)
+        name_list.extend(name_list_sub)
         segment_inds.extend([i_segment]*len(span_data_sub))
 
     span_data = np.array(span_data, dtype=object)
     T_c_data = np.array(T_c_data)
+    name_list = np.array(name_list)
     segment_inds = np.array(segment_inds)
 
     cond = T_c_data > T_thr
     span_data = span_data[cond]
     T_c_data = T_c_data[cond]
+    name_list = name_list[cond]
     segment_inds = segment_inds[cond]
 
     errors = []
@@ -350,21 +354,24 @@ def identify_single_v2(name, obs_data, T_pred_data, trans_data,
         status = "confuse"
     else:
         status = "reject"
-    return IdentifyResult(name, status, n_match_, freq_c_data, errors, errors_neg)
+    return IdentifyResult(name, status, n_match_, name_list, freq_c_data, errors, errors_neg)
 
 
 def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
     freq_min = freq[0]
     freq_max = freq[-1]
     freq_data = []
-    for nu_list in trans_dict.values():
+    name_list = []
+    for name, nu_list in trans_dict.items():
         for nu in nu_list:
             if nu > freq_min and nu < freq_max:
                 freq_data.append(nu)
+                name_list.append(name)
 
     span_data = []
     T_c_data = []
-    for nu in freq_data:
+    name_list_ret = []
+    for nu, name in zip(freq_data, name_list):
         idx_c = np.argmin(np.abs(freq - nu))
         if idx_c != 0 and T_data[idx_c - 1] > T_data[idx_c]:
             idx_c = idx_c - 1
@@ -406,8 +413,9 @@ def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
         if span not in span_data:
             span_data.append(span)
             T_c_data.append(T_c)
+            name_list_ret.append(name)
 
-    return span_data, T_c_data,
+    return span_data, T_c_data, name_list_ret
 
 
 @dataclass
@@ -415,6 +423,7 @@ class IdentifyResult:
     name: str
     status: str
     n_match: int
+    name_list: np.ndarray
     freq_c_data: np.ndarray
     errors: np.ndarray
     errors_neg: np.ndarray
