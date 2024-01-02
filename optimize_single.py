@@ -2,10 +2,9 @@ import sys
 import yaml
 import pickle
 from pathlib import Path
-from collections import defaultdict
 from multiprocessing import Pool
 
-from swing import ParticleSwarm
+from swing import ParticleSwarm, ArtificialBeeColony
 
 from src.xclass_wrapper import extract_line_frequency
 from src.preprocess import load_preprocess_select
@@ -39,7 +38,15 @@ def create_model(name, obs_data, mol_dict, segment_dict, include_dict, config):
 def optimize(model, name, segments, config, pool):
     config_opt = config["opt_single"]
 
-    opt = ParticleSwarm(model, model.bounds, nswarm=config_opt["n_swarm"], pool=pool)
+    opt_name = config_opt["optimizer"]
+    if opt_name == "pso":
+        cls_opt = ParticleSwarm
+    elif opt_name == "abc":
+        cls_opt = ArtificialBeeColony
+    else:
+        raise ValueError("Unknown optimizer: {}.".format(cls_opt))
+    kwargs_opt = config_opt.get("kwargs_opt", {})
+    opt = cls_opt(model, model.bounds, pool=pool, **kwargs_opt)
     opt.swarm(config_opt["n_cycle"])
 
     T_pred_data, trans_data = prepare_pred_data(model, opt.pos_global_best)
