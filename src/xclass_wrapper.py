@@ -149,6 +149,10 @@ class XCLASSWrapper:
             shutil.rmtree(job_dir)
         return spec, log, trans, tau, job_dir
 
+    def create_molfit_file(self, fname, params):
+        mol_names, params_mol, _ = self.pm.derive_params(params)
+        create_molfit_file(fname, mol_names, params_mol, self.include_list)
+
 
 class ParameterManager:
     def __init__(self, mol_dict, n_param_per_mol, idx_den, misc_names):
