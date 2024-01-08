@@ -4,6 +4,7 @@ import pickle
 from pathlib import Path
 from multiprocessing import Pool
 
+import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 
 from src.xclass_wrapper import extract_line_frequency
@@ -47,7 +48,18 @@ def optimize(model, name, segments, config, pool):
         raise ValueError("Unknown optimizer: {}.".format(cls_opt))
     kwargs_opt = config_opt.get("kwargs_opt", {})
     opt = cls_opt(model, model.bounds, pool=pool, **kwargs_opt)
-    opt.swarm(config_opt["n_cycle"])
+    save_all = config_opt.get("save_all", False)
+    if save_all:
+        pos_all = []
+        cost_all = []
+        for _ in range(config_opt["n_cycle"]):
+            for data in opt.swarm(niter=1).values():
+                pos_all.append(data["pos"])
+                cost_all.append(data["cost"])
+        pos_all = np.vstack(pos_all)
+        cost_all = np.concatenate(cost_all)
+    else:
+        opt.swarm(config_opt["n_cycle"])
 
     T_pred_data, trans_data = prepare_pred_data(model, opt.pos_global_best)
 
@@ -78,6 +90,9 @@ def optimize(model, name, segments, config, pool):
         ret_dict["local_best"] = local_best
     if config_opt.get("save_history", False):
         ret_dict["history"] = opt.memo
+    if save_all:
+        ret_dict["pos_all"] = pos_all
+        ret_dict["cost_all"] = cost_all
     return ret_dict
 
 
