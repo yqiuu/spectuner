@@ -104,6 +104,7 @@ class XCLASSWrapper:
         set_misc_var("tBack")
         set_misc_var("tSlope")
         set_misc_var("vLSR")
+        self.T_back = xclass_kwargs.get("tBack", None)
         self._xclass_kwargs = xclass_kwargs
 
         n_param_per_mol = 5
@@ -152,6 +153,11 @@ class XCLASSWrapper:
     def create_molfit_file(self, fname, params):
         mol_names, params_mol, _ = self.pm.derive_params(params)
         create_molfit_file(fname, mol_names, params_mol, self.include_list)
+
+    def get_T_back(self, params):
+        if self.T_back is None:
+            return self.pm.get_misc_params("tBack", params)
+        return self.T_back
 
 
 class ParameterManager:
