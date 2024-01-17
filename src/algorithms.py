@@ -413,9 +413,7 @@ def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
                 freq_data.append(nu)
                 name_list.append(name)
 
-    span_data = []
-    T_c_data = []
-    name_list_ret = []
+    peaks = []
     for nu, name in zip(freq_data, name_list):
         idx_c = np.argmin(np.abs(freq - nu))
         if idx_c != 0 and T_data[idx_c - 1] > T_data[idx_c]:
@@ -455,12 +453,27 @@ def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
             continue
 
         span = slice(idx_b, idx_e + 1)
-        if span not in span_data:
-            span_data.append(span)
-            T_c_data.append(T_c)
-            name_list_ret.append(name)
+        peaks.append((span, T_c, name))
 
-    return span_data, T_c_data, name_list_ret
+    # Merge peaks
+    peaks.sort(key=lambda x: x[0].start)
+    peaks_new = []
+    for item in peaks:
+        if len(peaks_new) == 0 or peaks_new[-1][0].stop - 1 <= item[0].start:
+            peaks_new.append(item)
+        else:
+            span = peaks_new[-1][0]
+            span_new = slice(span.start, max(span.stop, item[0].stop))
+            item_new = (span_new, *peaks_new[-1][1:])
+            peaks_new[-1] = item_new
+
+    if len(peaks_new) == 0:
+        span_data = []
+        T_c_data = []
+        name_list = []
+    else:
+        span_data, T_c_data, name_list = tuple(zip(*peaks_new))
+    return span_data, T_c_data, name_list
 
 
 def derive_median_T_obs(obs_data):
