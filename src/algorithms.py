@@ -357,6 +357,51 @@ def identify_single_v2(name, obs_data, T_pred_data, trans_data,
     return IdentifyResult(name, status, n_match_, name_list, freq_c_data, errors, errors_neg)
 
 
+def identify_single_v3(name, obs_data, T_pred_data, trans_data, T_thr,
+                       idx_limit=7, lower_frac=.5, upper_cut=1., error_factor=1.):
+    span_data = []
+    T_c_data = []
+    name_list = []
+    segment_inds = []
+    for i_segment, (spec, T_pred, trans_dict) \
+        in enumerate(zip(obs_data, T_pred_data, trans_data)):
+        span_data_sub, T_c_data_sub, name_list_sub \
+            = find_peak_span(T_pred, spec[:, 0], trans_dict, idx_limit, lower_frac)
+        span_data.extend(span_data_sub)
+        T_c_data.extend(T_c_data_sub)
+        name_list.extend(name_list_sub)
+        segment_inds.extend([i_segment]*len(span_data_sub))
+    span_data = np.array(span_data, dtype=object)
+    T_c_data = np.array(T_c_data)
+    name_list = np.array(name_list)
+    segment_inds = np.array(segment_inds)
+
+    errors = []
+    freq_c_data = []
+    for i_segment, span in zip(segment_inds, span_data):
+        T_pred = T_pred_data[i_segment][span]
+        T_back = T_pred_data[i_segment].min()
+        T_obs = np.maximum(obs_data[i_segment][span, 1], T_back)
+        norm = np.mean(T_pred - T_back)
+        if norm == 0.:
+            err = 1
+        else:
+            err = np.mean(np.abs(T_obs - T_pred))/norm
+        errors.append(err)
+        freq_c_data.append(obs_data[i_segment][span, 0][np.argmax(T_pred)])
+    errors = np.array(errors)
+    freq_c_data = np.array(freq_c_data, dtype=object)
+
+    cond = T_c_data > T_thr
+    errors = errors[cond]
+    name_list = name_list[cond]
+    freq_c_data = freq_c_data[cond]
+    score = np.count_nonzero(cond) - error_factor*np.sum(np.minimum(upper_cut, errors))
+    return IdentifyResult(
+        name, "", score, name_list, freq_c_data, errors, None
+    )
+
+
 def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
     freq_min = freq[0]
     freq_max = freq[-1]
@@ -416,6 +461,12 @@ def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
             name_list_ret.append(name)
 
     return span_data, T_c_data, name_list_ret
+
+
+def derive_median_T_obs(obs_data):
+    T_obs = np.concatenate([spec[:, 1] for spec in obs_data])
+    T_median = np.median(T_obs)
+    return T_median
 
 
 @dataclass
