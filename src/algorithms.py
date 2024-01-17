@@ -358,7 +358,7 @@ def identify_single_v2(name, obs_data, T_pred_data, trans_data,
 
 
 def identify_single_v3(name, obs_data, T_pred_data, trans_data, T_thr,
-                       idx_limit=7, lower_frac=.5, upper_cut=1., error_factor=1.):
+                       idx_limit=7, lower_frac=.5, upper_cut=1., f_1=1., f_2=0.):
     span_data = []
     T_c_data = []
     name_list = []
@@ -377,6 +377,7 @@ def identify_single_v3(name, obs_data, T_pred_data, trans_data, T_thr,
     segment_inds = np.array(segment_inds)
 
     errors = []
+    errors_2 = []
     freq_c_data = []
     for i_segment, span in zip(segment_inds, span_data):
         T_pred = T_pred_data[i_segment][span]
@@ -388,17 +389,23 @@ def identify_single_v3(name, obs_data, T_pred_data, trans_data, T_thr,
         else:
             err = np.mean(np.abs(T_obs - T_pred))/norm
         errors.append(err)
+
+        err = np.mean(np.abs(np.minimum(0, T_obs - T_pred)))/norm
+        errors_2.append(err)
         freq_c_data.append(obs_data[i_segment][span, 0][np.argmax(T_pred)])
     errors = np.array(errors)
+    errors_2 = np.array(errors_2)
     freq_c_data = np.array(freq_c_data, dtype=object)
 
     cond = T_c_data > T_thr
     errors = errors[cond]
+    errors_2 = errors_2[cond]
     name_list = name_list[cond]
     freq_c_data = freq_c_data[cond]
-    score = np.count_nonzero(cond) - error_factor*np.sum(np.minimum(upper_cut, errors))
+    score = np.count_nonzero(cond) - f_1*np.sum(np.minimum(upper_cut, errors)) \
+        - f_2*np.sum(np.minimum(upper_cut, errors_2))
     return IdentifyResult(
-        name, "", score, name_list, freq_c_data, errors, None
+        name, "", score, name_list, freq_c_data, errors, errors_2
     )
 
 
@@ -424,32 +431,37 @@ def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
         T_c = T_data[idx_c]
         T_limit = lower_frac*T_c
 
-        if idx_c == 0:
-            continue
-        idx_b = idx_c
-        T_prev = T_c
-        i_loop = 0
-        while idx_b > 0 and idx_c - idx_b < idx_limit \
-            and (T_data[idx_b - 1] < T_prev or np.isclose(T_data[idx_b - 1], T_prev)) \
-            and T_data[idx_b - 1] > T_limit:
-            idx_b -= 1
-            T_prev = T_data[idx_b]
-            i_loop += 1
-        if i_loop == 0:
+        if idx_c == 0 or idx_c == len(freq) - 1:
             continue
 
-        if idx_c == len(freq) - 1:
+        idx_b = idx_c
+        T_prev = T_c
+        is_left_low = False
+        while idx_b > 0 and idx_c - idx_b < idx_limit:
+            if T_data[idx_b - 1] < T_prev:
+                is_left_low = True
+            if (T_data[idx_b - 1] < T_prev or T_data[idx_b - 1] == T_prev) \
+                and T_data[idx_b - 1] > T_limit:
+                idx_b -= 1
+                T_prev = T_data[idx_b]
+            else:
+                break
+        if not is_left_low:
             continue
+
         idx_e = idx_c
         T_prev = T_c
-        i_loop = 0
-        while idx_e < len(freq) - 1 and idx_e - idx_c < idx_limit \
-            and (T_data[idx_e + 1] < T_prev or np.isclose(T_data[idx_e + 1], T_prev)) \
-            and T_data[idx_e + 1] > T_limit:
-            idx_e += 1
-            T_prev = T_data[idx_e]
-            i_loop += 1
-        if i_loop == 0:
+        is_right_low = False
+        while idx_e < len(freq) - 1 and idx_e - idx_c < idx_limit:
+            if T_data[idx_e + 1] < T_prev:
+                is_right_low = True
+            if (T_data[idx_e + 1] < T_prev or np.isclose(T_data[idx_e + 1], T_prev)) \
+                and T_data[idx_e + 1] > T_limit:
+                idx_e += 1
+                T_prev = T_data[idx_e]
+            else:
+                break
+        if not is_right_low:
             continue
 
         span = slice(idx_b, idx_e + 1)
@@ -459,7 +471,8 @@ def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
     peaks.sort(key=lambda x: x[0].start)
     peaks_new = []
     for item in peaks:
-        if len(peaks_new) == 0 or peaks_new[-1][0].stop - 1 <= item[0].start:
+        if len(peaks_new) == 0 or (peaks_new[-1][0].stop - 1 <= item[0].start and
+                                   peaks_new[-1][0] != item[0]):
             peaks_new.append(item)
         else:
             span = peaks_new[-1][0]
