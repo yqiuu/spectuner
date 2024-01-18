@@ -93,6 +93,8 @@ def optimize(model, name, segments, config, pool):
     if save_all:
         ret_dict["pos_all"] = pos_all
         ret_dict["cost_all"] = cost_all
+    if config_opt.get("save_T_target", False):
+        ret_dict["T_target"] = model.T_obs_data
     return ret_dict
 
 
