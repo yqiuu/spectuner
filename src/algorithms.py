@@ -12,9 +12,7 @@ from .xclass_wrapper import task_ListDatabase, extract_line_frequency
 
 def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
                      molecules, elements, base_only,
-                     iso_list=None, exclude_list=None):
-    if exclude_list is None:
-        exclude_list = []
+                     iso_list=None, exclude_list=None, rename_dict=None):
     if molecules is None:
         molecules = []
         skip = True
@@ -24,7 +22,7 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
         iso_list = []
 
     normal_dict = group_by_normal_form(
-        FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list
+        FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list, rename_dict
     )
     mol_dict, _ = replace_with_master_name(
         normal_dict, molecules, base_only, iso_list
@@ -41,9 +39,7 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
 
 def select_molecules_multi(obs_data, ElowMin, ElowMax,
                            molecules, elements, base_only,
-                           iso_list=None, exclude_list=None):
-    if exclude_list is None:
-        exclude_list = []
+                           iso_list=None, exclude_list=None, rename_dict=None):
     if molecules is None:
         molecules = []
         skip = True
@@ -60,7 +56,8 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
             ElowMin=ElowMin,
             ElowMax=ElowMax,
             elements=elements,
-            exclude_list=exclude_list
+            exclude_list=exclude_list,
+            rename_dict=rename_dict
         ))
 
     # Merge all normal dict from different segment
@@ -107,7 +104,12 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
     return mol_dict_ret, segment_dict_ret, incldue_dict_ret
 
 
-def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list):
+def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list, rename_dict):
+    if exclude_list is None:
+        exclude_list = []
+    if rename_dict is None:
+        rename_dict = {}
+
     contents = task_ListDatabase.ListDatabase(
         FreqMin, FreqMax, ElowMin, ElowMax,
         SelectMolecule=[], OutputDevice="quiet"
@@ -137,14 +139,17 @@ def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_l
     elements = set(elements)
     normal_dict = defaultdict(list)
     for name in mol_names:
-        fm_normal, atom_set = derive_normal_form(name)
+        fm_normal, atom_set = derive_normal_form(name, rename_dict)
         if len(atom_set - elements) == 0:
             normal_dict[fm_normal].append(name)
     return normal_dict
 
 
-def derive_normal_form(mol_name):
+def derive_normal_form(mol_name, rename_dict):
     fm, *_ = mol_name.split(";")
+    if fm in rename_dict:
+        fm = rename_dict[fm]
+
     atom_dict = MolecularDecomposer(fm).ShatterFormula()
     atom_set = set(atom_dict.keys())
 

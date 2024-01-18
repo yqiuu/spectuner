@@ -14,7 +14,7 @@ def load_preprocess_select(config):
         obs_data, ElowMin, ElowMax,
         config["molecules"], config["elements"],
         config["base_only"], config["iso_list"],
-        config["exclude_list"]
+        config["exclude_list"], config["rename_dict"]
     )
     return obs_data, mol_dict, segment_dict, include_dict
 
