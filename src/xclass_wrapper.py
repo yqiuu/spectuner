@@ -208,8 +208,8 @@ class ParameterManager:
 
     def derive_mol_params(self, params):
         # params (N,)
-        params_mol = params[self.inds_mol_param].reshape(-1, self.n_param_per_mol)
-        params_iso = params[self.inds_iso_param]
+        params_mol = self.get_all_mol_params(params).reshape(-1, self.n_param_per_mol)
+        params_iso = self.get_all_iso_params(params)
 
         mol_names = []
         params_mol_ret = []
@@ -233,6 +233,12 @@ class ParameterManager:
     def get_iso_slice(self, mol_name):
         if mol_name in self.iso_inds:
             return self.iso_inds[mol_name]
+
+    def get_all_mol_params(self, params):
+        return params[self.inds_mol_param]
+
+    def get_all_iso_params(self, params):
+        return params[self.inds_iso_param]
 
     def get_misc_params(self, key, params):
         params_misc = params[self.inds_misc_param]
