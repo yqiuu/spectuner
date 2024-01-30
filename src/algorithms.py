@@ -7,7 +7,11 @@ from copy import deepcopy
 import numpy as np
 
 from .atoms import MolecularDecomposer
-from .xclass_wrapper import task_ListDatabase, extract_line_frequency
+from .xclass_wrapper import (
+    task_ListDatabase,
+    extract_line_frequency,
+    create_wrapper_from_config
+)
 
 
 def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
@@ -498,6 +502,24 @@ def derive_median_T_obs(obs_data):
     T_obs = np.concatenate([spec[:, 1] for spec in obs_data])
     T_median = np.median(T_obs)
     return T_median
+
+
+def refine_molecules(params_list, mol_dict_list, include_list_list, config_xclass):
+    params_mol = []
+    params_iso = []
+    mol_dict_ret = {}
+    include_list_ret = [[] for _ in range(len(include_list_list[0]))]
+    for params, mol_dict, include_list in zip(params_list, mol_dict_list, include_list_list):
+        wrapper = create_wrapper_from_config(None, mol_dict, config_xclass)
+        params_mol.append(wrapper.pm.get_all_mol_params(params))
+        params_iso.append(wrapper.pm.get_all_iso_params(params))
+        mol_dict_ret.update(mol_dict)
+        for list_ret, list_new in zip(include_list_ret, include_list):
+            list_ret.extend(list_new)
+    params_mol = np.concatenate(params_mol)
+    params_iso = np.concatenate(params_iso)
+    params = np.append(params_mol, params_iso)
+    return params, mol_dict_ret, include_list_ret
 
 
 @dataclass
