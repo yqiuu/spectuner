@@ -1,7 +1,5 @@
 import os
-import sys
 import shutil
-from pathlib import Path
 from collections import defaultdict
 
 import numpy as np
@@ -51,11 +49,16 @@ def create_wrapper_from_config(obs_data, mol_dict, config, **kwargs):
     else:
         freq_min, freq_max, freq_step = 0., 1., .1
 
+    n_param_per_mol = 5
+    idx_den = 2
+    pm = ParameterManager(
+        mol_dict, n_param_per_mol, idx_den, config
+    )
     wrapper = XCLASSWrapper(
+        pm=pm,
         FreqMin=freq_min,
         FreqMax=freq_max,
         FreqStep=freq_step,
-        mol_dict=mol_dict,
         **config,
         **kwargs
     )
@@ -86,9 +89,10 @@ def extract_line_frequency(transitions):
 
 
 class XCLASSWrapper:
-    def __init__(self, mol_dict, prefix_molfit,
+    def __init__(self, pm, prefix_molfit,
                  FreqMin=0., FreqMax=1., FreqStep=.1,
                  IsoTableFileName=None, **xclass_kwargs):
+        self.pm = pm
         if IsoTableFileName is None:
             xclass_kwargs["iso_flag"] = False
         else:
@@ -96,22 +100,9 @@ class XCLASSWrapper:
         xclass_kwargs["IsoTableFileName"] = IsoTableFileName
         self.update_frequency(FreqMin, FreqMax, FreqStep)
 
-        misc_names = []
-        def set_misc_var(var_name):
-            if not var_name in xclass_kwargs:
-                misc_names.append(var_name)
-
-        set_misc_var("tBack")
-        set_misc_var("tSlope")
-        set_misc_var("vLSR")
         self.T_back = xclass_kwargs.get("tBack", None)
-        self._xclass_kwargs = xclass_kwargs
 
-        n_param_per_mol = 5
-        idx_den = 2
-        self.pm = ParameterManager(
-            mol_dict, n_param_per_mol, idx_den, misc_names
-        )
+        self._xclass_kwargs = xclass_kwargs
         self.prefix_molfit = prefix_molfit
         self.include_list = None
 
@@ -161,7 +152,12 @@ class XCLASSWrapper:
 
 
 class ParameterManager:
-    def __init__(self, mol_dict, n_param_per_mol, idx_den, misc_names):
+    def __init__(self, mol_dict, n_param_per_mol, idx_den, xclass_kwargs):
+        misc_names = []
+        for var_name in ["tBack", "tSlope", "vLSR"]:
+            if not var_name in xclass_kwargs:
+                misc_names.append(var_name)
+
         # Set indices
         idx = 0
         n_mol_param = len(mol_dict)*n_param_per_mol
