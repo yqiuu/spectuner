@@ -213,10 +213,10 @@ class ParameterManager:
 
         mol_names = []
         params_mol_ret = []
+        idx_iso = 0
         for idx, (name, iso_list) in enumerate(self.mol_dict.items()):
             mol_names.append(name)
             params_mol_ret.append(params_mol[idx])
-            idx_iso = 0
             for name_iso in iso_list:
                 mol_names.append(name_iso)
                 params_tmp = params_mol[idx].copy()
