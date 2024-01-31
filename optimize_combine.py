@@ -1,173 +1,97 @@
 import sys
-import shutil
 import yaml
 import pickle
 from pathlib import Path
 from multiprocessing import Pool
 
 import numpy as np
-from swing import ParticleSwarm
 
-from src.preprocess import preprocess_spectrum
+from src.preprocess import load_preprocess
 from src.fitting_model import create_fitting_model_extra
-from src.algorithms import select_molecules, identify_single_score, identify_combine
+from src.xclass_wrapper import create_wrapper_from_config
+from src.algorithms import identify_single_v3, filter_moleclues
+from src.optimize import refine_molecules, shrink_bounds, random_mutation
+from optimize_single import optimize
 
 
 def main(config):
-    spec_obs = np.loadtxt(config["file_spec"])
-    temp_back = config["xclass"].get("tBack", 0.)
-    spec_obs = preprocess_spectrum(spec_obs, temp_back)
+    T_back = config["xclass"].get("tBack", 0.)
+    obs_data = load_preprocess(config["file_spec"], T_back)
 
     config_opt = config["opt_combine"]
     pool = Pool(config_opt["n_process"])
-    FreqMin = spec_obs[0, 0]
-    FreqMax = spec_obs[-1, 0]
-    ElowMin = config["ElowMin"]
-    ElowMax = config["ElowMax"]
-    mol_dict = select_molecules(
-        FreqMin, FreqMax, ElowMin, ElowMax,
-        config["molecules"], config["elements"]
+
+    save_dir = config["save_dir"]
+    model, params_0, segments = create_model(
+        obs_data, save_dir, config["xclass"], config_opt
     )
-
-    # Refine
-    mol_dict, params_mol, params_iso \
-        = refine_molecules(spec_obs, mol_dict, config)
-    if len(mol_dict) == 0:
-        raise ValueError("No molecule is selected.")
-
-    model = create_fitting_model_extra(
-        spec_obs, mol_dict,
-        config["xclass"], config["opt_combine"],
+    name = "combine"
+    initial_pos = derive_initial_pos(
+        params_0, model.bounds,
+        n_swarm=config_opt["kwargs_opt"]["nswarm"],
+        prob=config_opt["prob_mutation"]
     )
-    bounds_mol, bounds_iso = shrink_bounds(
-        mol_dict.keys(), params_mol, params_iso,
-        config["opt_combine"], config["refine"]
-    )
-
-    pm = model.func.pm
-    bounds_misc = model.bounds[pm.inds_misc_param]
-
-    bounds = np.vstack([bounds_mol, bounds_iso, bounds_misc])
-    model.bounds = bounds
-
-    args = pm, params_mol, params_iso, bounds_mol, bounds_iso, bounds_misc
-    initial_pos = [new_init_pos(*args, n_replace=0)]
-    n_replace = pm.n_mol//2
-    for _ in range(config["opt_combine"]["n_swarm"] - 1):
-        initial_pos.append(new_init_pos(*args, n_replace))
-    initial_pos = np.vstack(initial_pos)
-
-    save_dir = Path(config_opt["save_dir"])
-
-    # Save
-    model_info = {
-        "mol_dict": mol_dict,
-        "bounds": model.bounds
-    }
-    pickle.dump(model_info, open(save_dir/Path("model_info.pickle"), "wb"))
-
-    #
-    opt = ParticleSwarm(
-        model, model.bounds, nswarm=config_opt["n_swarm"],
-        pool=pool, initial_pos=initial_pos
-    )
-    for i_cycle in range(config_opt["n_cycle"]):
-        opt.swarm(1)
-        opt.save_checkpoint(save_dir/Path(f"ckpt_{i_cycle%2}.pickle"))
-        pickle.dump(opt.memo,open(save_dir/Path(f"history_{i_cycle%2}.pickle"), "wb"))
-
-    params_best = model.derive_params(opt.pos_global_best)
-    spectrum, _, _, _, job_dir = model.func.call_full_output(params_best)
-    shutil.move(job_dir, str(save_dir))
-    job_dir = str(Path(save_dir)/Path(job_dir).name)
-    save_dict = {
-        "cost_best": opt.cost_global_best,
-        "params_best": opt.pos_global_best,
-        "T_pred": spectrum[:, 1],
-        "job_dir": job_dir
-    }
-    pickle.dump(save_dict, open(save_dir/Path("combine.pickle"), "wb"))
-    result = identify_combine(job_dir, mol_dict, spec_obs, **config["identify_combine"])
-    pickle.dump(result, open(save_dir/Path("result.pickle"), "wb"))
+    config_opt["kwargs_opt"]["initial_pos"] = initial_pos
+    ret_dict = optimize(model, name, segments, config_opt, pool)
+    pickle.dump(ret_dict, open(Path(save_dir)/Path("{}.pickle".format(name)), "wb"))
 
 
+def create_model(obs_data, save_dir, config_xclass, config_opt):
+    params_list = []
+    mol_dict_list = []
+    segments_list = []
+    include_list_list = []
+    for fname in Path(save_dir).glob("*.pickle"):
+        if str(fname.name).startswith("combine"):
+            continue
 
-def refine_molecules(spec_obs, mol_dict, config):
-    mol_dict_new = {}
-    params_mol = []
-    params_iso = []
-
-    for name, iso_list in mol_dict.items():
-        fname = Path(config["save_dir"])/Path(f"{name}.pickle")
         data = pickle.load(open(fname, "rb"))
-
-        mol_dict_sub = {name: iso_list}
-        model = create_fitting_model_extra(
-            spec_obs, mol_dict_sub,
-            config["xclass"], config["opt_combine"],
+        res = identify_single_v3(
+            data["name"], obs_data, data["T_pred"], data["trans_dict"],
+            **config_opt["identify"]
+        )
+        wrapper = create_wrapper_from_config(None, data["mol_dict"], config_xclass)
+        mol_dict, params, include_list = filter_moleclues(
+            res, wrapper.pm, data["params_best"], data["include_list"]
         )
 
-        is_accepted = identify_single_score(
-            spec_obs[:, 1], data["T_pred"], spec_obs[:, 0], data["trans_dict"],
-            config["T_thr"], config["tol"]
-        )
-        if is_accepted:
-            mol_dict_new[name] = mol_dict[name]
-            pm = model.func.pm
-            params = data["params_best"]
-            params_mol.append(params[pm.inds_mol_param])
-            params_iso.append(params[pm.inds_iso_param])
-    if len(params_mol) == 0:
-        params_mol = np.zeros(0)
-        params_iso = np.zeros(0)
-    else:
-        params_mol = np.concatenate(params_mol)
-        params_iso = np.concatenate(params_iso)
+        params_list.append(params)
+        mol_dict_list.append(mol_dict)
+        segments_list.append(data["segments"])
+        include_list_list.append(include_list)
 
-    return mol_dict_new, params_mol, params_iso
-
-
-def shrink_bounds(mol_names, params_mol, params_iso, config_opt, config_refine):
-    bounds_mol = np.tile(config_opt["bounds_mol"], (len(mol_names), 1))
-    bounds_mol_new = np.zeros_like(bounds_mol)
-    delta_mol = np.repeat(config_refine["delta_mol"], len(mol_names))
-    # Set lower bounds
-    bounds_mol_new[:, 0] = np.maximum(params_mol - .5*delta_mol, bounds_mol[:, 0])
-    # Set upper bounds
-    bounds_mol_new[:, 1] = np.minimum(params_mol + .5*delta_mol, bounds_mol[:, 1])
-
-    bounds_iso = np.tile(config_opt["bounds_iso"], (len(params_iso), 1))
-    bounds_iso_new = np.zeros_like(bounds_iso)
-    delta_iso = np.full(len(params_iso), config_refine["delta_iso"])
-    # Set lower bounds
-    bounds_iso_new[:, 0] = np.maximum(params_iso - .5*delta_iso, bounds_iso[:, 0])
-    # Set upper bounds
-    bounds_iso_new[:, 1] = np.minimum(params_iso + .5*delta_iso, bounds_iso[:, 1])
-    return bounds_mol_new, bounds_iso_new
+    params_new, mol_dict_new, segments_new, include_list_new = refine_molecules(
+        params_list, mol_dict_list, segments_list, include_list_list, config_xclass
+    )
+    model = create_fitting_model_extra(
+        obs_data=obs_data,
+        mol_dict=mol_dict_new,
+        include_list=include_list_new,
+        config_xclass=config_xclass,
+        config_opt=config_opt,
+    )
+    bounds_new = shrink_bounds(
+        pm=model.func.pm,
+        params=params_new,
+        bounds_mol=config_opt["bounds_mol"],
+        delta_mol=config_opt["delta_mol"],
+        bounds_iso=config_opt["bounds_iso"],
+        delta_iso=config_opt["delta_iso"],
+        bounds_misc=config_opt.get("bounds_misc", None)
+    )
+    model.bounds = bounds_new
+    return model, params_new, segments_new
 
 
-def new_init_pos(pm, params_mol, params_iso, bounds_mol, bounds_iso, bounds_misc, n_replace):
-    params_mol = params_mol.copy()
-    params_iso = params_iso.copy()
-    params_misc = np.random.uniform(bounds_misc[:, 0], bounds_misc[:, 1])
-    mol_names = np.random.choice(list(pm.mol_dict.keys()), n_replace, replace=False)
-    for name in mol_names:
-        inds = pm.get_mol_slice(name)
-        params_mol[inds] = np.random.uniform(bounds_mol[inds, 0], bounds_mol[inds, 1])
-        inds = pm.get_iso_slice(name)
-        if inds is not None:
-            params_iso[inds] = np.random.uniform(bounds_iso[inds, 0], bounds_iso[inds, 1])
-    params_new = np.concatenate([params_mol, params_iso, params_misc])
-    return params_new
+def derive_initial_pos(params, bounds, n_swarm, prob):
+    assert n_swarm >= 2
 
-
-def load_params_combine(mol_names, dirname):
-    params = []
-    for name in mol_names:
-        fname = Path(dirname)/Path("{}.npy".format(name))
-        params.append(np.load(fname))
-    params = np.vstack(params)
-    return params
+    initial_pos = [params]
+    initial_pos.append(random_mutation(params, bounds, prob=1.))
+    for _ in range(n_swarm - 2):
+        initial_pos.append(random_mutation(params, bounds, prob))
+    initial_pos = np.vstack(initial_pos)
+    return initial_pos
 
 
 if __name__ == "__main__":

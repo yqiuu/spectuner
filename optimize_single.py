@@ -18,7 +18,7 @@ def main(config):
     for name in mol_dict:
         model = create_model(name, obs_data, mol_dict, segment_dict, include_dict, config)
         segments = segment_dict[name]
-        ret_dict = optimize(model, name, segments, config, pool)
+        ret_dict = optimize(model, name, segments, config["opt_single"], pool)
         save_dir = Path(config["save_dir"])
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
@@ -36,9 +36,7 @@ def create_model(name, obs_data, mol_dict, segment_dict, include_dict, config):
     return model
 
 
-def optimize(model, name, segments, config, pool):
-    config_opt = config["opt_single"]
-
+def optimize(model, name, segments, config_opt, pool):
     opt_name = config_opt["optimizer"]
     if opt_name == "pso":
         cls_opt = ParticleSwarm
