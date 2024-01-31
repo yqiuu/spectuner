@@ -128,7 +128,7 @@ class ScalerExtra:
         self.pm = pm
 
     def call(self, params):
-        params_mol, params_iso, params_misc = self.split_params(params)
+        params_mol, params_iso, params_misc = self.pm.split_params(params)
         params_mol = params_mol.copy()
         params_mol[:, :4] = 10**params_mol[:, :4]
         params_iso = 10**params_iso
@@ -152,13 +152,6 @@ class ScalerExtra:
 
         bounds = np.vstack([bounds_mol, bounds_iso, bounds_misc])
         return bounds
-
-    def split_params(self, params):
-        params_mol = params[self.pm.inds_mol_param]
-        params_mol = params_mol.reshape(-1, self.pm.n_param_per_mol)
-        params_iso = params[self.pm.inds_iso_param]
-        params_misc = params[self.pm.inds_misc_param]
-        return params_mol, params_iso, params_misc
 
 
 class FittingModel:

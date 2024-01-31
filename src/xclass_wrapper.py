@@ -226,6 +226,13 @@ class ParameterManager:
         params_mol_ret = np.vstack(params_mol_ret)
         return mol_names, params_mol_ret
 
+    def split_params(self, params):
+        params_mol = self.get_all_mol_params(params)
+        params_mol = params_mol.reshape(-1, self.n_param_per_mol)
+        params_iso = self.get_all_iso_params(params)
+        params_misc = self.get_all_misc_params(params)
+        return params_mol, params_iso, params_misc
+
     def get_mol_slice(self, mol_name):
         idx = list(self.mol_dict.keys()).index(mol_name)
         return slice(idx*self.n_param_per_mol, (idx + 1)*self.n_param_per_mol)
@@ -239,6 +246,9 @@ class ParameterManager:
 
     def get_all_iso_params(self, params):
         return params[self.inds_iso_param]
+
+    def get_all_misc_params(self, params):
+        return params[self.inds_misc_param]
 
     def get_misc_params(self, key, params):
         params_misc = params[self.inds_misc_param]
