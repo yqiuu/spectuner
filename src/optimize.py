@@ -47,3 +47,17 @@ def shrink_bounds(pm, params, bounds_mol, delta_mol, bounds_iso, delta_iso, boun
     if pm.n_misc_param > 0:
         bounds_new = np.vstack([bounds_new, np.atleast_2d(bounds_misc)])
     return bounds_new
+
+
+def random_mutation(params, bounds, prob, rstate=None):
+    if rstate is None:
+        rstate = np.random
+    params_new = np.zeros_like(params)
+    for i_p in range(len(params)):
+        if rstate.rand() < prob:
+            lower, upper = bounds[i_p]
+            val = lower + (upper - lower)*rstate.rand()
+        else:
+            val = params[i_p]
+        params_new[i_p] = val
+    return params_new
