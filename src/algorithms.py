@@ -503,6 +503,42 @@ def derive_median_T_obs(obs_data):
     return T_median
 
 
+def filter_moleclues(res, pm, params, include_list):
+    """Select molecules that have emission lines.
+
+    Args:
+        res (IdentifyResult): Identification result.
+        pm (ParameterManager): Parameter manager.
+        mol_dict (dict): Mol dict.
+        include_list (list): Include list.
+
+    Returns:
+        _type_: _description_
+    """
+    mols = set(res.name_list)
+    mol_dict_new = {}
+
+    params_mol, params_iso, params_misc = pm.split_params(params)
+
+    params_iso_new = []
+    idx_iso = 0
+    for name, iso_list in pm.mol_dict.items():
+        iso_list_new = []
+        for name_iso in iso_list:
+            if name_iso in mols:
+                iso_list_new.append(name_iso)
+                params_iso_new.append(params_iso[idx_iso])
+            idx_iso += 1
+        mol_dict_new[name] = iso_list_new
+    params_iso_new = np.array(params_iso_new)
+    params_new = np.concatenate([np.ravel(params_mol), params_iso_new, params_misc])
+
+    include_list_new = []
+    for mol_list in include_list:
+        include_list_new.append([name for name in mol_list if name in mols])
+    return mol_dict_new, params_new, include_list_new
+
+
 @dataclass
 class IdentifyResult:
     name: str
