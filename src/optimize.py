@@ -1,5 +1,6 @@
 import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
+from tqdm import trange
 
 from .xclass_wrapper import create_wrapper_from_config, extract_line_frequency
 
@@ -16,17 +17,13 @@ def optimize(model, name, segments, config_opt, pool):
     opt = cls_opt(model, model.bounds, pool=pool, **kwargs_opt)
     save_all = config_opt.get("save_all", False)
     n_cycle = config_opt["n_cycle"] + config_opt["cycle_factor"]*(len(model.bounds) - 5)
-    if save_all:
-        pos_all = []
-        cost_all = []
-        for _ in range(n_cycle):
-            for data in opt.swarm(niter=1).values():
+    pos_all = []
+    cost_all = []
+    for _ in trange(n_cycle):
+        for data in opt.swarm(niter=1, progress_bar=False).values():
+            if save_all:
                 pos_all.append(data["pos"])
                 cost_all.append(data["cost"])
-        pos_all = np.vstack(pos_all)
-        cost_all = np.concatenate(cost_all)
-    else:
-        opt.swarm(n_cycle)
 
     T_pred_data, trans_data = prepare_pred_data(model, opt.pos_global_best)
 
