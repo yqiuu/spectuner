@@ -194,6 +194,7 @@ class ParameterManager:
 
         self.idx_den = idx_den
         self.misc_names = misc_names
+        self.n_misc_param = len(misc_names)
 
     def derive_params(self, params):
         if len(params) != self.n_tot_param:
