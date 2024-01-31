@@ -4,12 +4,9 @@ import pickle
 from pathlib import Path
 from multiprocessing import Pool
 
-import numpy as np
-from swing import ParticleSwarm, ArtificialBeeColony
-
-from src.xclass_wrapper import extract_line_frequency
 from src.preprocess import load_preprocess_select
 from src.fitting_model import create_fitting_model_extra
+from src.optimize import optimize
 
 
 def main(config):
@@ -34,77 +31,6 @@ def create_model(name, obs_data, mol_dict, segment_dict, include_dict, config):
         config["xclass"], config["opt_single"],
     )
     return model
-
-
-def optimize(model, name, segments, config_opt, pool):
-    opt_name = config_opt["optimizer"]
-    if opt_name == "pso":
-        cls_opt = ParticleSwarm
-    elif opt_name == "abc":
-        cls_opt = ArtificialBeeColony
-    else:
-        raise ValueError("Unknown optimizer: {}.".format(cls_opt))
-    kwargs_opt = config_opt.get("kwargs_opt", {})
-    opt = cls_opt(model, model.bounds, pool=pool, **kwargs_opt)
-    save_all = config_opt.get("save_all", False)
-    n_cycle = config_opt["n_cycle"] + config_opt["cycle_factor"]*(len(model.bounds) - 5)
-    if save_all:
-        pos_all = []
-        cost_all = []
-        for _ in range(n_cycle):
-            for data in opt.swarm(niter=1).values():
-                pos_all.append(data["pos"])
-                cost_all.append(data["cost"])
-        pos_all = np.vstack(pos_all)
-        cost_all = np.concatenate(cost_all)
-    else:
-        opt.swarm(n_cycle)
-
-    T_pred_data, trans_data = prepare_pred_data(model, opt.pos_global_best)
-
-    ret_dict = {
-        "name": name,
-        "freq": model.freq_data,
-        "cost_best": opt.cost_global_best,
-        "params_best": opt.pos_global_best,
-        "T_pred": T_pred_data,
-        "trans_dict": trans_data,
-        "segments": segments,
-        "mol_dict": model.func.pm.mol_dict,
-        "include_list": model.include_list,
-    }
-    if config_opt.get("save_local_best", False):
-        T_pred_data_local = []
-        trans_data_local = []
-        for pos in opt.pos_local_best:
-            T_tmp, trans_tmp = prepare_pred_data(model, pos)
-            T_pred_data_local.append(T_tmp)
-            trans_data_local.append(trans_tmp)
-        local_best = {
-            "cost_best": opt.cost_local_best,
-            "params_best": opt.pos_local_best,
-            "T_pred": T_pred_data_local,
-            "trans_dict": trans_data_local,
-        }
-        ret_dict["local_best"] = local_best
-    if config_opt.get("save_history", False):
-        ret_dict["history"] = opt.memo
-    if save_all:
-        ret_dict["pos_all"] = pos_all
-        ret_dict["cost_all"] = cost_all
-    if config_opt.get("save_T_target", False):
-        ret_dict["T_target"] = model.T_obs_data
-    return ret_dict
-
-
-def prepare_pred_data(model, pos):
-    T_pred_data, trans_data, job_dir_data = model.call_func(pos)
-    if isinstance(job_dir_data, str):
-        T_pred_data = [T_pred_data]
-        trans_dict = [extract_line_frequency(trans_data)]
-    else:
-        trans_dict = [extract_line_frequency(trans) for trans in trans_data]
-    return T_pred_data, trans_dict
 
 
 if __name__ == "__main__":

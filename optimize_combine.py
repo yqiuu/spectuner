@@ -10,8 +10,7 @@ from src.preprocess import load_preprocess
 from src.fitting_model import create_fitting_model_extra
 from src.xclass_wrapper import create_wrapper_from_config
 from src.algorithms import identify_single_v3, filter_moleclues
-from src.optimize import refine_molecules, shrink_bounds, random_mutation
-from optimize_single import optimize
+from src.optimize import optimize, refine_molecules, shrink_bounds, random_mutation
 
 
 def main(config):
