@@ -1,6 +1,7 @@
 import numpy as np
 
 from .xclass_wrapper import create_wrapper_from_config, derive_freq_range
+from .algorithms import derive_median_frac_threshold
 
 
 def create_fitting_model(spec_obs, mol_names, bounds,
@@ -228,12 +229,11 @@ class FittingModel:
 
 
 class ThresholdRegularizer:
-    def __init__(self, obs_data, frac_cut=.25, alpha=0.01):
-        T_obs = np.concatenate([spec[:, 1] for spec in obs_data])
-        T_max = T_obs.max()
-        T_median = np.median(T_obs)
-        self.T_thr = T_median + frac_cut*(T_max - T_median)
+    def __init__(self, obs_data, alpha=1., T_thr=None, median_frac=.25):
         self.alpha = alpha
+        if T_thr is None:
+            T_thr = derive_median_frac_threshold(obs_data, median_frac)
+        self.T_thr = T_thr
 
     def __call__(self, T_pred_max):
         return np.maximum(self.alpha*(self.T_thr - T_pred_max), 0.)

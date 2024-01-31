@@ -365,7 +365,8 @@ def identify_single_v2(name, obs_data, T_pred_data, trans_data,
     return IdentifyResult(name, status, n_match_, name_list, freq_c_data, errors, errors_neg)
 
 
-def identify_single_v3(name, obs_data, T_pred_data, trans_data, T_thr,
+def identify_single_v3(name, obs_data, T_pred_data, trans_data,
+                       T_thr=None, median_frac=.25,
                        idx_limit=7, lower_frac=.5, upper_cut=1., f_1=1., f_2=0.):
     span_data = []
     T_c_data = []
@@ -405,6 +406,8 @@ def identify_single_v3(name, obs_data, T_pred_data, trans_data, T_thr,
     errors_2 = np.array(errors_2)
     freq_c_data = np.array(freq_c_data, dtype=object)
 
+    if T_thr is None:
+        T_thr = derive_median_frac_threshold(obs_data, median_frac)
     cond = T_c_data > T_thr
     errors = errors[cond]
     errors_2 = errors_2[cond]
@@ -497,10 +500,12 @@ def find_peak_span(T_data, freq, trans_dict, idx_limit=7, lower_frac=.5):
     return span_data, T_c_data, name_list
 
 
-def derive_median_T_obs(obs_data):
+def derive_median_frac_threshold(obs_data, median_frac):
     T_obs = np.concatenate([spec[:, 1] for spec in obs_data])
+    T_max = T_obs.max()
     T_median = np.median(T_obs)
-    return T_median
+    T_thr = T_median + median_frac*(T_max - T_median)
+    return T_thr
 
 
 def filter_moleclues(res, pm, params, include_list):
