@@ -41,13 +41,8 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
 
 
 def select_molecules_multi(obs_data, ElowMin, ElowMax,
-                           molecules, elements, base_only,
+                           elements, molecules, base_only,
                            iso_list=None, exclude_list=None, rename_dict=None):
-    if molecules is None:
-        molecules = []
-        skip = True
-    else:
-        skip = False
     if iso_list is None:
         iso_list = []
 
@@ -59,6 +54,7 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
             ElowMin=ElowMin,
             ElowMax=ElowMax,
             elements=elements,
+            moleclues=molecules,
             exclude_list=exclude_list,
             rename_dict=rename_dict
         ))
@@ -75,9 +71,7 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
         normal_dict_all[key] = tmp
 
     mol_dict, master_name_dict \
-        = replace_with_master_name(normal_dict_all, molecules, base_only, iso_list)
-    if not skip:
-        mol_dict = {name: mol_dict[name] for name in molecules if name in mol_dict}
+        = replace_with_master_name(normal_dict_all, base_only, iso_list)
 
     incldue_dict = defaultdict(list)
     for normal_dict in normal_dict_list:
@@ -93,21 +87,11 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
             if master_name is not None:
                 segment_dict[master_name].append(idx)
 
-    if skip:
-        return mol_dict, segment_dict, incldue_dict
-
-    mol_dict_ret = {}
-    segment_dict_ret = {}
-    incldue_dict_ret = {}
-    for name in molecules:
-        if name in mol_dict:
-            mol_dict_ret[name] = mol_dict[name]
-            segment_dict_ret[name] = segment_dict[name]
-            incldue_dict_ret[name] = incldue_dict[name]
-    return mol_dict_ret, segment_dict_ret, incldue_dict_ret
+    return mol_dict, segment_dict, incldue_dict
 
 
-def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list, rename_dict):
+def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
+                         elements, moleclues, exclude_list, rename_dict):
     if exclude_list is None:
         exclude_list = []
     if rename_dict is None:
@@ -138,12 +122,15 @@ def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_l
     for key, val in mol_dict.items():
         mol_names.append(";".join([key, val[0]]))
 
-    # Filter elements
+    if moleclues is not None:
+        moleclues = [derive_normal_form(name, rename_dict)[0] for name in moleclues]
+
+    # Filter elements and molecules
     elements = set(elements)
     normal_dict = defaultdict(list)
     for name in mol_names:
         fm_normal, atom_set = derive_normal_form(name, rename_dict)
-        if len(atom_set - elements) == 0:
+        if len(atom_set - elements) == 0 and (moleclues is None or fm_normal in moleclues):
             normal_dict[fm_normal].append(name)
     return normal_dict
 
@@ -164,7 +151,7 @@ def derive_normal_form(mol_name, rename_dict):
     return fm, atom_set
 
 
-def replace_with_master_name(normal_dict, molecules, base_only, iso_list):
+def replace_with_master_name(normal_dict, base_only, iso_list):
     mol_dict = defaultdict(list)
     master_name_dict = {}
     for normal_name, name_list in normal_dict.items():
@@ -175,7 +162,7 @@ def replace_with_master_name(normal_dict, molecules, base_only, iso_list):
             continue
         for name in name_list:
             if base_only and name.split(";")[1] != "v=0" \
-                and name not in molecules and name not in iso_list:
+                and name not in iso_list:
                 continue
             if name == master_name:
                 mol_dict[master_name]

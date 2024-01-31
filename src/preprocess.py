@@ -12,7 +12,7 @@ def load_preprocess_select(config):
     obs_data = load_preprocess(file_spec, T_back)
     mol_dict, segment_dict, include_dict = select_molecules_multi(
         obs_data, ElowMin, ElowMax,
-        config["molecules"], config["elements"],
+        config["elements"], config["molecules"],
         config["base_only"], config["iso_list"],
         config["exclude_list"], config["rename_dict"]
     )
