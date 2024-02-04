@@ -203,24 +203,26 @@ class FittingModel:
         self.func.update_frequency(*self.freq_range_data[i_segment])
         self.func.update_include_list(self.include_list[i_segment])
         params = self.derive_params(params)
-        T_pred, _, trans, _, job_dir = self.func.call(params, remove_dir=remove_dir)
+        T_pred, _, trans, tau, job_dir = self.func.call(params, remove_dir=remove_dir)
         # TODO Check this in the wrapper
         if T_pred is None:
             T_pred = np.zeros_like(T_obs)
-        return T_pred, trans, job_dir
+        return T_pred, trans, tau, job_dir
 
     def call_func(self, params, remove_dir=True):
         T_pred_data = []
         trans_data = []
+        tau_data = []
         job_dir_data = []
         for i_segment in range(len(self.T_obs_data)):
-            T_pred, trans, job_dir = self._call_single(i_segment, params, remove_dir)
+            T_pred, trans, tau, job_dir = self._call_single(i_segment, params, remove_dir)
             T_pred_data.append(T_pred)
             trans_data.append(trans)
+            tau_data.append(tau)
             job_dir_data.append(job_dir)
         if len(T_pred_data) == 1:
             return T_pred_data[0], trans_data[0], job_dir_data[0]
-        return T_pred_data, trans_data, job_dir_data
+        return T_pred_data, trans_data, tau_data, job_dir_data
 
     def derive_params(self, params):
         if self.scaler is not None:

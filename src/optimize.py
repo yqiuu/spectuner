@@ -63,7 +63,7 @@ def optimize(model, name, segments, config_opt, pool):
 
 
 def prepare_pred_data(model, pos):
-    T_pred_data, trans_data, job_dir_data = model.call_func(pos)
+    T_pred_data, trans_data, _, job_dir_data = model.call_func(pos)
     if isinstance(job_dir_data, str):
         T_pred_data = [T_pred_data]
         trans_dict = [extract_line_frequency(trans_data)]
