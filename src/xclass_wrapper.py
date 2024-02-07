@@ -100,8 +100,6 @@ class XCLASSWrapper:
         xclass_kwargs["IsoTableFileName"] = IsoTableFileName
         self.update_frequency(FreqMin, FreqMax, FreqStep)
 
-        self.T_back = xclass_kwargs.get("tBack", None)
-
         self._xclass_kwargs = xclass_kwargs
         self.prefix_molfit = prefix_molfit
         self.include_list = None
@@ -145,11 +143,6 @@ class XCLASSWrapper:
         mol_names, params_mol, _ = self.pm.derive_params(params)
         create_molfit_file(fname, mol_names, params_mol, self.include_list)
 
-    def get_T_back(self, params):
-        if self.T_back is None:
-            return self.pm.get_misc_params("tBack", params)
-        return self.T_back
-
 
 class ParameterManager:
     def __init__(self, mol_dict, n_param_per_mol, idx_den, xclass_kwargs):
@@ -157,6 +150,7 @@ class ParameterManager:
         for var_name in ["tBack", "tSlope", "vLSR"]:
             if not var_name in xclass_kwargs:
                 misc_names.append(var_name)
+        self._T_back = xclass_kwargs.get("tBack", 0.)
 
         # Set indices
         idx = 0
@@ -195,6 +189,10 @@ class ParameterManager:
         self.idx_den = idx_den
         self.misc_names = misc_names
         self.n_misc_param = len(misc_names)
+
+    @property
+    def T_back(self):
+        return self._T_back
 
     def derive_params(self, params):
         if len(params) != self.n_tot_param:

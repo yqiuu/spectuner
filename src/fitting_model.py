@@ -1,7 +1,8 @@
+from typing import Any
 import numpy as np
 
 from .xclass_wrapper import create_wrapper_from_config, derive_freq_range
-from .algorithms import derive_median_frac_threshold
+from .algorithms import derive_median_frac_threshold, PeakMatchingLoss
 
 
 def create_fitting_model(spec_obs, mol_names, bounds,
@@ -64,7 +65,7 @@ def create_fitting_model_extra(obs_data, mol_dict, include_list,
         raise ValueError("Unknown loss function.")
     return FittingModel(
         obs_data, wrapper, include_list, bounds, scaler, loss_fn,
-        kwargs_reg=config_opt.get("kwargs_reg", None)
+        **config_opt.get("kwargs", {})
     )
 
 
@@ -156,7 +157,8 @@ class ScalerExtra:
 
 
 class FittingModel:
-    def __init__(self, obs_data, func, include_list, bounds, scaler, loss_fn, kwargs_reg=None):
+    def __init__(self, obs_data, func, include_list, bounds, scaler, loss_fn,
+                 prominence=None, rel_height=.25, n_eval=7, T_thr=None):
         self.freq_range_data, self.freq_data, self.T_obs_data \
             = self._preprocess_spectra(obs_data)
         self.include_list = include_list
@@ -164,9 +166,15 @@ class FittingModel:
         self.bounds = bounds
         self.scaler = scaler
         self.loss_fn = loss_fn
-        if kwargs_reg is None:
-            kwargs_reg = {}
-        self.regularizer = ThresholdRegularizer(obs_data, **kwargs_reg)
+        T_back = func.pm.T_back
+        if prominence is None:
+            self.pm_loss_fn = None
+        else:
+            self.pm_loss_fn = PeakMatchingLoss(obs_data, T_back, prominence, rel_height, n_eval)
+        if T_thr is None:
+            self.thr_loss_fn = ThresholdRegularizer(obs_data, T_thr=T_thr)
+        else:
+            self.thr_loss_fn = None
 
     def _preprocess_spectra(self, obs_data):
         if isinstance(obs_data, list) or isinstance(obs_data, tuple):
@@ -186,16 +194,19 @@ class FittingModel:
         return freq_range_data, freq_data, T_obs_data,
 
     def __call__(self, params):
+        loss = 0.
+        T_pred_max = -np.inf
         n_segment = len(self.T_obs_data)
-        loss = [None]*n_segment
-        T_pred_max = [None]*n_segment
         for i_segment in range(n_segment):
             T_obs = self.T_obs_data[i_segment]
             T_pred = self._call_single(i_segment, params, remove_dir=True)[0]
-            loss[i_segment] = self.loss_fn(T_pred, T_obs)
-            T_pred_max[i_segment] = T_pred.max()
-        loss = np.mean(loss)
-        loss += self.regularizer(max(T_pred_max))
+            loss += self.loss_fn(T_pred, T_obs)
+            if self.pm_loss_fn is not None:
+                loss += self.pm_loss_fn(i_segment, T_pred)
+            T_pred_max = max(T_pred_max, T_pred.max())
+        loss = loss/n_segment
+        if self.thr_loss_fn is not None:
+            loss += self.thr_loss_fn(T_pred_max)
         return loss
 
     def _call_single(self, i_segment, params, remove_dir):
