@@ -626,88 +626,98 @@ class IdentifyResult:
             self.name, self.status, self.n_match)
 
 
-class PeakStore:
-    def __init__(self, obs_data, height, prominence, rel_height):
+class Identification:
+    def __init__(self, obs_data, T_back, prominence,
+                 rel_height=.25, n_eval=5, T_thr=None, frac_iso=1.):
+        height = T_back + prominence
         freq_data = []
         T_obs_data = []
-        spans_obs = []
-        values_obs = []
+        spans_obs_data = []
         for spec in obs_data:
-            freq, T_obs = spec.T
+            freq = spec[:, 0]
+            T_obs = spec[:, 1]
             freq_data.append(freq)
             T_obs_data.append(T_obs)
-            spans_obs_sub, _ = derive_peaks(freq, T_obs, height, prominence, rel_height)
-            spans_obs.append(spans_obs_sub)
-            values_obs.append(quad_simps(freq, T_obs, spans_obs_sub))
+            spans_obs = derive_peaks(freq, T_obs, height, prominence, rel_height)[0]
+            spans_obs_data.append(spans_obs)
         self.freq_data = freq_data
         self.T_obs_data = T_obs_data
-        self.spans_obs = spans_obs
-        self.values_obs = values_obs
-        #
+        self.spans_obs_data = spans_obs_data
+
+        if T_thr is None:
+            T_thr = max([T_obs.max() for T_obs in T_obs_data])
+
+        self.T_back = T_back
         self.height = height
         self.prominence = prominence
         self.rel_height = rel_height
+        self.n_eval = n_eval
+        self.T_thr = T_thr
+        self.frac_iso = frac_iso
 
-    def compute_scores(self, name, segments, pred_data):
-        scores = []
-        freq_c = []
-        for idx, T_pred in zip(segments, pred_data):
-            scores_sub, freq_c_sub, _ = self._compute_scores_sub(idx, T_pred)
-            scores.append(scores_sub)
-            freq_c.append(freq_c_sub)
-        scores = np.concatenate(scores)
-        freq_c = np.concatenate(freq_c)
-        return IdentifyResult(name, "", np.sum(scores), [], freq_c, scores, None)
+    def compute_scores(self, segments, pred_data):
+        scores_inter = []
+        freq_c_inter = []
+        scores_iso = []
+        freq_c_iso = []
+        for i_segment, T_pred in zip(segments, pred_data):
+            scores_inter_sub, freq_c_inter_sub, scores_iso_sub, freq_c_iso_sub \
+                = self._compute_scores_sub(i_segment, T_pred)
+            scores_inter.append(scores_inter_sub)
+            freq_c_inter.append(freq_c_inter_sub)
+            scores_iso.append(scores_iso_sub)
+            freq_c_iso.append(freq_c_iso_sub)
+        scores_inter = np.concatenate(scores_inter)
+        freq_c_inter = np.concatenate(freq_c_inter)
+        scores_iso = np.concatenate(scores_iso)
+        freq_c_iso = np.concatenate(freq_c_iso)
+        score = np.sum(scores_inter) + np.sum(scores_iso)
+        return {
+            "score": score,
+            "scores_inter": scores_inter,
+            "freq_c_inter": freq_c_inter,
+            "scores_iso": scores_iso,
+            "freq_c_iso": freq_c_iso
+        }
 
+    def _compute_scores_sub(self, i_segment, T_pred):
+        freq = self.freq_data[i_segment]
+        T_obs = self.T_obs_data[i_segment]
+        spans_obs = self.spans_obs_data[i_segment]
 
-    def _compute_scores_sub(self, idx, T_pred):
-        freq = self.freq_data[idx]
-        T_obs = self.T_obs_data[idx]
+        # Set default returns
+        scores_inter = np.zeros(0)
+        freq_c_inter = np.zeros(0)
+        scores_iso = np.zeros(0)
+        freq_c_iso = np.zeros(0)
+
         spans_pred, _ = derive_peaks(
             freq, T_pred, self.height, self.prominence, self.rel_height
         )
         if len(spans_pred) == 0:
-            return np.zeros(0), np.zeros(0), 0
+            return scores_inter, freq_c_inter, scores_iso, freq_c_iso
 
-        spans_obs = self.spans_obs[idx]
-        inds_obs, inds_pred, spans_inter, spans_iso = derive_intersections(spans_obs, spans_pred)
+        spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
+        if len(spans_inter) > 0:
+            values_obs = eval_spans(spans_inter, freq, T_obs, self.n_eval)
+            values_pred = eval_spans(spans_inter, freq, T_pred, self.n_eval)
+            errors = np.mean(np.abs(values_pred - values_obs), axis=1)
+            f_dice = compute_dice_score(spans_inter, spans_pred[inds_pred], spans_pred[inds_pred])
+            f_count = 1./np.maximum(derive_counts(inds_obs), derive_counts(inds_pred))
+            norm = np.maximum(np.mean(values_obs, axis=1) - self.T_back, self.T_thr - self.T_back)
+            scores_inter = np.maximum(0, f_dice*f_count - errors/norm)
+            freq_c_inter = np.mean(spans_inter, axis=1)
+
+        spans_iso = derive_isolations(spans_pred, inds_pred)
         if len(spans_iso) != 0:
-            #values_obs_iso = quad_simps(freq, T_obs, spans_iso)
-            #values_pred_iso = quad_simps(freq, T_pred, spans_iso)
-            values_obs_iso = interp(freq, T_obs, spans_iso)
-            values_pred_iso = interp(freq, T_pred, spans_iso)
+            values_obs_iso = eval_spans(spans_iso, freq, T_obs, self.n_eval)
+            values_pred_iso = eval_spans(spans_iso, freq, T_pred, self.n_eval)
             errors_iso = np.mean(np.maximum(0, values_pred_iso - values_obs_iso), axis=1)
-            scores_iso = -errors_iso/np.mean(values_pred_iso - 20, axis=1)
+            norm_iso = np.maximum(np.mean(values_pred_iso, axis=1) - self.T_back, self.T_thr - self.T_back)
+            scores_iso = -self.frac_iso*errors_iso/norm_iso
             freq_c_iso = np.mean(spans_iso, axis=1)
-        else:
-            errors_iso = np.zeros(0)
-            scores_iso = np.zeros(0)
-            freq_c_iso = np.zeros(0)
 
-        if len(inds_obs) == 0:
-            loss = np.sum(errors_iso)
-            return scores_iso, freq_c_iso, loss
-
-        freq_c = np.mean(spans_inter, axis=1)
-        counts = np.zeros(max(inds_pred) + 1)
-        for i_p in inds_pred:
-            counts[i_p] += 1
-        frac = 1./counts[inds_pred]
-        #values_pred = quad_simps(freq, T_pred, spans_pred[inds_pred])
-        #values_obs = self.values_obs[idx][inds_obs]
-        values_pred = interp(freq, T_pred, spans_inter)
-        values_obs = interp(freq, T_obs, spans_inter)
-        coeffs = 2*np.ravel(np.diff(spans_inter)/(np.diff(spans_obs[inds_obs]) + np.diff(spans_pred[inds_pred])))
-        errors = np.mean(np.abs(values_pred - values_obs), axis=1)
-        norm = np.mean(values_obs, axis=1)
-        #errors = np.abs(values_pred - values_obs)
-
-        scores = frac - errors/norm
-        scores = np.append(scores, scores_iso)
-        freq_c = np.append(freq_c, freq_c_iso)
-        #factor = min(len(errors), len(errors_iso))/max(1, len(errors_iso))
-        loss = np.sum(errors - coeffs*frac*(norm - 20)) + np.sum(errors_iso)
-        return scores, freq_c, loss
+        return scores_inter, freq_c_inter, scores_iso, freq_c_iso
 
 
 class PeakMatchingLoss:
