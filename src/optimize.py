@@ -24,6 +24,9 @@ def optimize(model, name, segments, config_opt, pool):
             if save_all:
                 pos_all.append(data["pos"])
                 cost_all.append(data["cost"])
+    if len(pos_all) != 0:
+        pos_all = np.vstack(pos_all)
+        cost_all = np.concatenate(cost_all)
 
     T_pred_data, trans_data = prepare_pred_data(model, opt.pos_global_best)
 
