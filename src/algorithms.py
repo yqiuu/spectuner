@@ -656,47 +656,60 @@ class Identification:
         self.T_thr = T_thr
         self.frac_iso = frac_iso
 
-    def compute_scores(self, segments, pred_data):
-        scores_inter = []
-        freq_c_inter = []
-        scores_iso = []
-        freq_c_iso = []
-        for i_segment, T_pred in zip(segments, pred_data):
-            scores_inter_sub, freq_c_inter_sub, scores_iso_sub, freq_c_iso_sub \
-                = self._compute_scores_sub(i_segment, T_pred)
-            scores_inter.append(scores_inter_sub)
-            freq_c_inter.append(freq_c_inter_sub)
-            scores_iso.append(scores_iso_sub)
-            freq_c_iso.append(freq_c_iso_sub)
-        scores_inter = np.concatenate(scores_inter)
-        freq_c_inter = np.concatenate(freq_c_inter)
-        scores_iso = np.concatenate(scores_iso)
-        freq_c_iso = np.concatenate(freq_c_iso)
-        score = np.sum(scores_inter) + np.sum(scores_iso)
-        return {
-            "score": score,
-            "scores_inter": scores_inter,
-            "freq_c_inter": freq_c_inter,
-            "scores_iso": scores_iso,
-            "freq_c_iso": freq_c_iso
+    def compute_scores(self, segments, T_pred_data, trans_data):
+        inter_dict = {
+            "scores": [],
+            "freq_c": [],
+            "names": []
+        }
+        iso_dict = {
+            "scores": [],
+            "freq_c": [],
+            "names": []
         }
 
-    def _compute_scores_sub(self, i_segment, T_pred):
+        def update_data_dict(data, data_new):
+            data["scores"].append(data_new["scores"])
+            data["freq_c"].append(data_new["freq_c"])
+            data["names"].extend(data_new["names"])
+
+        for i_segment, T_pred, trans_dict in zip(segments, T_pred_data, trans_data):
+            inter_dict_sub, iso_dict_sub = self._compute_scores_sub(i_segment, T_pred, trans_dict)
+            update_data_dict(inter_dict, inter_dict_sub)
+            update_data_dict(iso_dict, iso_dict_sub)
+        inter_dict["scores"] = np.concatenate(inter_dict["scores"])
+        inter_dict["freq_c"] = np.concatenate(inter_dict["freq_c"])
+        iso_dict["scores"] = np.concatenate(iso_dict["scores"])
+        iso_dict["freq_c"] = np.concatenate(iso_dict["freq_c"])
+        score = np.sum(inter_dict["scores"]) + np.sum(iso_dict["scores"])
+        return {
+            "score": score,
+            "inter_dict": inter_dict,
+            "iso_dict": iso_dict,
+        }
+
+    def _compute_scores_sub(self, i_segment, T_pred, trans_dict):
         freq = self.freq_data[i_segment]
         T_obs = self.T_obs_data[i_segment]
         spans_obs = self.spans_obs_data[i_segment]
 
         # Set default returns
-        scores_inter = np.zeros(0)
-        freq_c_inter = np.zeros(0)
-        scores_iso = np.zeros(0)
-        freq_c_iso = np.zeros(0)
+        inter_dict = {
+            "scores": np.zeros(0),
+            "freq_c": np.zeros(0),
+            "names": np.empty(0, dtype=object)
+        }
+        iso_dict = {
+            "scores": np.zeros(0),
+            "freq_c": np.zeros(0),
+            "names": np.empty(0, dtype=object)
+        }
 
         spans_pred, _ = derive_peaks(
             freq, T_pred, self.height, self.prominence, self.rel_height
         )
         if len(spans_pred) == 0:
-            return scores_inter, freq_c_inter, scores_iso, freq_c_iso
+            return inter_dict, iso_dict
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
@@ -709,8 +722,9 @@ class Identification:
             frac = np.minimum(1, norm/(self.T_thr - self.T_back))
             if not self.use_dice:
                 f_dice = 1.
-            scores_inter = frac*np.maximum(0, f_dice*f_count - errors/norm)
-            freq_c_inter = np.mean(spans_inter, axis=1)
+            inter_dict["scores"] = frac*np.maximum(0, f_dice*f_count - errors/norm)
+            inter_dict["freq_c"] = np.mean(spans_inter, axis=1)
+            inter_dict["names"] = self._derive_name_list(trans_dict, spans_pred, inds_pred)
 
         spans_iso = derive_isolations(spans_pred, inds_pred)
         if len(spans_iso) != 0:
@@ -719,10 +733,44 @@ class Identification:
             errors_iso = np.mean(np.maximum(0, values_pred_iso - values_obs_iso), axis=1)
             norm_iso = np.mean(values_pred_iso, axis=1) - self.T_back
             frac = np.minimum(1, norm_iso/(self.T_thr - self.T_back))
-            scores_iso = -self.frac_iso*frac*errors_iso/norm_iso
-            freq_c_iso = np.mean(spans_iso, axis=1)
+            iso_dict["scores"] = -self.frac_iso*frac*errors_iso/norm_iso
+            iso_dict["freq_c"] = np.mean(spans_iso, axis=1)
+            iso_dict["names"] = self._derive_name_list(trans_dict, spans_iso)
 
-        return scores_inter, freq_c_inter, scores_iso, freq_c_iso
+        return inter_dict, iso_dict
+
+    def _derive_name_list(self, trans_dict, spans, inds=None):
+        if inds is None:
+            spans_uni = spans
+            uni_inverse = None
+        else:
+            inds_uni, uni_inverse = np.unique(inds, return_inverse=True)
+            spans_uni = spans[inds_uni]
+
+        name_list = []
+        freq_list = []
+        for key, freqs in trans_dict.items():
+            name_list.extend([key]*len(freqs))
+            freq_list.extend(freqs)
+        name_list = np.array(name_list)
+        freq_list = np.array(freq_list)
+
+        f_left, f_right = spans_uni.T
+        inds = np.searchsorted(f_left, freq_list) - 1
+        cond_idx = inds >= 0
+        inds[~cond_idx] = 0
+        cond_right = freq_list <= f_right[inds]
+        cond = cond_idx & cond_right
+
+        names_ret = [[] for _ in range(len(spans_uni))]
+        for idx, name in zip(inds[cond], name_list[cond]):
+            names_ret[idx].append(name)
+
+        if uni_inverse is not None:
+            names_ret = np.array(names_ret, dtype=object)[uni_inverse]
+            names_ret = list(names_ret)
+
+        return names_ret
 
 
 class PeakMatchingLoss:
