@@ -225,9 +225,10 @@ class ParameterManager:
         params_mol_ret = np.vstack(params_mol_ret)
         return mol_names, params_mol_ret
 
-    def split_params(self, params):
+    def split_params(self, params, need_reshape):
         params_mol = self.get_all_mol_params(params)
-        params_mol = params_mol.reshape(-1, self.n_param_per_mol)
+        if need_reshape:
+            params_mol = params_mol.reshape(-1, self.n_param_per_mol)
         params_iso = self.get_all_iso_params(params)
         params_misc = self.get_all_misc_params(params)
         return params_mol, params_iso, params_misc

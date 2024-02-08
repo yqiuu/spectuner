@@ -130,7 +130,7 @@ class ScalerExtra:
         self.pm = pm
 
     def call(self, params):
-        params_mol, params_iso, params_misc = self.pm.split_params(params)
+        params_mol, params_iso, params_misc = self.pm.split_params(params, need_reshape=True)
         params_mol = params_mol.copy()
         params_mol[:, :4] = 10**params_mol[:, :4]
         params_iso = 10**params_iso

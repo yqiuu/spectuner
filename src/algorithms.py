@@ -510,7 +510,7 @@ def filter_moleclues(idn, pm, segments, include_list, T_pred_data, trans_data, p
         params_new (array):
     """
     mols = idn.derive_trans_set(segments, T_pred_data, trans_data)
-    params_mol, params_iso, params_misc = pm.split_params(params)
+    params_mol, params_iso, params_misc = pm.split_params(params, need_reshape=False)
     mol_dict_new = {}
     params_iso_new = []
     idx_iso = 0
@@ -523,7 +523,7 @@ def filter_moleclues(idn, pm, segments, include_list, T_pred_data, trans_data, p
             idx_iso += 1
         mol_dict_new[name] = iso_list_new
     params_iso_new = np.array(params_iso_new)
-    params_new = np.concatenate([np.ravel(params_mol), params_iso_new, params_misc])
+    params_new = np.concatenate([params_mol, params_iso_new, params_misc])
 
     include_list_new = []
     for mol_list in include_list:
