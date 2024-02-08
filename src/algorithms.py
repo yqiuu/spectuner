@@ -496,23 +496,22 @@ def derive_median_frac_threshold(obs_data, median_frac):
     return T_thr
 
 
-def filter_moleclues(res, pm, params, include_list):
+def filter_moleclues(idn, pm, segments, include_list, T_pred_data, trans_data, params):
     """Select molecules that have emission lines.
 
     Args:
-        res (IdentifyResult): Identification result.
+        idn (Identification): Optimization result.
         pm (ParameterManager): Parameter manager.
-        mol_dict (dict): Mol dict.
-        include_list (list): Include list.
+        params (array): Parameters.
 
     Returns:
-        _type_: _description_
+        mol_dict_new (dict):
+        include_list_new (list):
+        params_new (array):
     """
-    mols = set(res.name_list)
-    mol_dict_new = {}
-
+    mols = idn.derive_trans_set(segments, T_pred_data, trans_data)
     params_mol, params_iso, params_misc = pm.split_params(params)
-
+    mol_dict_new = {}
     params_iso_new = []
     idx_iso = 0
     for name, iso_list in pm.mol_dict.items():
@@ -529,7 +528,7 @@ def filter_moleclues(res, pm, params, include_list):
     include_list_new = []
     for mol_list in include_list:
         include_list_new.append([name for name in mol_list if name in mols])
-    return mol_dict_new, params_new, include_list_new
+    return mol_dict_new, include_list_new, params_new
 
 
 def derive_intersections(spans_a, spans_b):
@@ -674,6 +673,13 @@ class Identification:
         self.T_thr = T_thr
         self.frac_fp = frac_fp
 
+    def derive_trans_set(self, segments, T_pred_data, trans_data):
+        """Derive the set that includes the name of all transitions."""
+        trans_set = set()
+        for args in zip(segments, T_pred_data, trans_data):
+            trans_set.update(self._derive_trans_set_sub(*args))
+        return trans_set
+
     def compute_scores(self, segments, T_pred_data, trans_data):
         true_pos_dict = {
             "scores": [],
@@ -705,6 +711,25 @@ class Identification:
             "true_positive": true_pos_dict,
             "false_positive": false_pos_dict,
         }
+
+    def _derive_trans_set_sub(self, i_segment, T_pred, trans_dict):
+        """Derive the set that includes the name of all transitions."""
+        trans_set = set()
+
+        freq = self.freq_data[i_segment]
+        spans_obs = self.spans_obs_data[i_segment]
+        spans_pred, _ = derive_peaks(
+            freq, T_pred, self.height, self.prominence, self.rel_height
+        )
+        if len(spans_pred) == 0:
+            return trans_set
+
+        _, _, inds_pred = derive_intersections(spans_obs, spans_pred)
+        if len(inds_pred) > 0:
+            name_list = self._derive_name_list(trans_dict, spans_pred, inds_pred)
+            for names in name_list:
+                trans_set.update(set(names))
+        return trans_set
 
     def _compute_scores_sub(self, i_segment, T_pred, trans_dict):
         freq = self.freq_data[i_segment]

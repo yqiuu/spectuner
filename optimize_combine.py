@@ -9,7 +9,7 @@ import numpy as np
 from src.preprocess import load_preprocess
 from src.fitting_model import create_fitting_model_extra
 from src.xclass_wrapper import create_wrapper_from_config
-from src.algorithms import identify_single_v3, filter_moleclues
+from src.algorithms import filter_moleclues, Identification
 from src.optimize import optimize, refine_molecules, shrink_bounds, random_mutation
 
 
@@ -36,6 +36,14 @@ def main(config):
 
 
 def create_model(obs_data, save_dir, config_xclass, config_opt):
+    T_back = config_xclass.get("tBack", 0.)
+    kwargs = {"prominence": config_opt["kwargs"]["prominence"]}
+    try:
+        kwargs["rel_height"] = config_opt["kwargs"]["rel_height"]
+    except KeyError:
+        pass
+
+    idn = Identification(obs_data, T_back, **kwargs)
     params_list = []
     mol_dict_list = []
     segments_list = []
@@ -45,13 +53,15 @@ def create_model(obs_data, save_dir, config_xclass, config_opt):
             continue
 
         data = pickle.load(open(fname, "rb"))
-        res = identify_single_v3(
-            data["name"], obs_data, data["T_pred"], data["trans_dict"],
-            **config_opt["identify"]
-        )
         wrapper = create_wrapper_from_config(None, data["mol_dict"], config_xclass)
-        mol_dict, params, include_list = filter_moleclues(
-            res, wrapper.pm, data["params_best"], data["include_list"]
+        mol_dict, include_list, params = filter_moleclues(
+            idn=idn,
+            pm=wrapper.pm,
+            segments=data["segments"],
+            include_list=data["include_list"],
+            T_pred_data=data["T_pred"],
+            trans_data=data["trans_dict"],
+            params=data["params_best"]
         )
 
         params_list.append(params)
