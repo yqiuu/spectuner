@@ -715,12 +715,12 @@ class Identification:
         inter_dict = {
             "scores": np.zeros(0),
             "freq_c": np.zeros(0),
-            "names": np.empty(0, dtype=object)
+            "names": []
         }
         iso_dict = {
             "scores": np.zeros(0),
             "freq_c": np.zeros(0),
-            "names": np.empty(0, dtype=object)
+            "names": []
         }
 
         spans_pred, _ = derive_peaks(
