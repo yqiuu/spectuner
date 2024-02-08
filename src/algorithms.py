@@ -559,8 +559,9 @@ def derive_intersections(spans_a, spans_b):
     return spans_ret, inds_a, inds_b
 
 
-def derive_isolations(spans, inds_inter):
-    inds_iso = [idx for idx in range(len(spans)) if idx not in set(inds_inter)]
+def derive_complementary(spans, inds):
+    """Derive spans that are not in the given indices."""
+    inds_iso = [idx for idx in range(len(spans)) if idx not in set(inds)]
     return spans[inds_iso]
 
 
@@ -584,6 +585,23 @@ def derive_peaks(freq, spec, height, prominence, rel_height):
     spans_new = np.interp(np.ravel(spans_new), np.arange(len(freq)), freq).reshape(-1, 2)
     peak_heights_new = np.array(peak_heights_new)
     return spans_new, peak_heights_new
+
+
+def derive_true_postive_props(freq, T_obs, T_pred, spans_obs, spans_pred,
+                              spans_inter, inds_pred, inds_obs, n_eval):
+    """Derive properties used to compute errors of true postive samples."""
+    values_obs = eval_spans(spans_inter, freq, T_obs, n_eval)
+    values_pred = eval_spans(spans_inter, freq, T_pred, n_eval)
+    f_dice = compute_dice_score(spans_inter, spans_obs[inds_obs], spans_pred[inds_pred])
+    f_count = 1./np.maximum(derive_counts(inds_obs), derive_counts(inds_pred))
+    return values_obs, values_pred, f_dice, f_count
+
+
+def derive_false_postive_props(freq, T_obs, T_pred, spans_fp, n_eval):
+    """Derive properties used to compute errors of false postive samples."""
+    values_obs = eval_spans(spans_fp, freq, T_obs, n_eval)
+    values_pred = eval_spans(spans_fp, freq, T_pred, n_eval)
+    return values_obs, values_pred
 
 
 def quad_simps(x, y, spans):
@@ -628,7 +646,7 @@ class IdentifyResult:
 
 class Identification:
     def __init__(self, obs_data, T_back, prominence,
-                 rel_height=.25, n_eval=5, use_dice=False, T_thr=None, frac_iso=1.):
+                 rel_height=.25, n_eval=5, use_dice=False, T_thr=None, frac_fp=1.):
         height = T_back + prominence
         freq_data = []
         T_obs_data = []
@@ -654,7 +672,7 @@ class Identification:
         self.n_eval = n_eval
         self.use_dice = use_dice
         self.T_thr = T_thr
-        self.frac_iso = frac_iso
+        self.frac_fp = frac_fp
 
     def compute_scores(self, segments, T_pred_data, trans_data):
         inter_dict = {
@@ -713,11 +731,11 @@ class Identification:
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
-            values_obs = eval_spans(spans_inter, freq, T_obs, self.n_eval)
-            values_pred = eval_spans(spans_inter, freq, T_pred, self.n_eval)
+            values_obs, values_pred, f_dice, f_count = derive_true_postive_props(
+                freq, T_obs, T_pred, spans_obs, spans_pred,
+                spans_inter, inds_pred, inds_obs, self.n_eval
+            )
             errors = np.mean(np.abs(values_pred - values_obs), axis=1)
-            f_dice = compute_dice_score(spans_inter, spans_pred[inds_pred], spans_pred[inds_pred])
-            f_count = 1./np.maximum(derive_counts(inds_obs), derive_counts(inds_pred))
             norm = np.mean(values_obs, axis=1) - self.T_back
             frac = np.minimum(1, norm/(self.T_thr - self.T_back))
             if not self.use_dice:
@@ -726,16 +744,16 @@ class Identification:
             inter_dict["freq_c"] = np.mean(spans_inter, axis=1)
             inter_dict["names"] = self._derive_name_list(trans_dict, spans_pred, inds_pred)
 
-        spans_iso = derive_isolations(spans_pred, inds_pred)
-        if len(spans_iso) != 0:
-            values_obs_iso = eval_spans(spans_iso, freq, T_obs, self.n_eval)
-            values_pred_iso = eval_spans(spans_iso, freq, T_pred, self.n_eval)
-            errors_iso = np.mean(np.maximum(0, values_pred_iso - values_obs_iso), axis=1)
-            norm_iso = np.mean(values_pred_iso, axis=1) - self.T_back
-            frac = np.minimum(1, norm_iso/(self.T_thr - self.T_back))
-            iso_dict["scores"] = -self.frac_iso*frac*errors_iso/norm_iso
-            iso_dict["freq_c"] = np.mean(spans_iso, axis=1)
-            iso_dict["names"] = self._derive_name_list(trans_dict, spans_iso)
+        spans_fp = derive_complementary(spans_pred, inds_pred)
+        if len(spans_fp) != 0:
+            values_obs_fp, values_pred_fp \
+                = derive_false_postive_props(freq, T_obs, T_pred, spans_fp, self.n_eval)
+            errors_fp = np.mean(np.maximum(0, values_obs_fp - values_pred_fp), axis=1)
+            norm_fp = np.mean(values_pred_fp, axis=1) - self.T_back
+            frac = np.minimum(1, norm_fp/(self.T_thr - self.T_back))
+            iso_dict["scores"] = -self.frac_fp*frac*errors_fp/norm_fp
+            iso_dict["freq_c"] = np.mean(spans_fp, axis=1)
+            iso_dict["names"] = self._derive_name_list(trans_dict, spans_fp)
 
         return inter_dict, iso_dict
 
@@ -810,22 +828,22 @@ class PeakMatchingLoss:
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
-            values_obs = eval_spans(spans_inter, freq, T_obs, self.n_eval)
-            values_pred = eval_spans(spans_inter, freq, T_pred, self.n_eval)
+            values_obs, values_pred, f_dice, f_count = derive_true_postive_props(
+                freq, T_obs, T_pred, spans_obs, spans_pred,
+                spans_inter, inds_pred, inds_obs, self.n_eval
+            )
             errors = np.mean(np.abs(values_pred - values_obs), axis=1)
             norm = np.mean(values_obs, axis=1) - self.T_back
-            f_dice = compute_dice_score(spans_inter, spans_obs[inds_obs], spans_pred[inds_pred])
-            f_count = 1./np.maximum(derive_counts(inds_obs), derive_counts(inds_pred))
             loss = np.sum(errors - f_dice*f_count*norm)
         else:
             loss = 0.
 
-        spans_iso = derive_isolations(spans_pred, inds_pred)
-        if len(spans_iso) != 0:
-            values_obs_iso = eval_spans(spans_iso, freq, T_obs, self.n_eval)
-            values_pred_iso = eval_spans(spans_iso, freq, T_pred, self.n_eval)
-            errors_iso = np.mean(np.maximum(0, values_pred_iso - values_obs_iso), axis=1)
-            loss += np.sum(np.sum(errors_iso))
+        spans_fp = derive_complementary(spans_pred, inds_pred)
+        if len(spans_fp) != 0:
+            values_obs_fp, values_obs_fp \
+                = derive_false_postive_props(freq, T_obs, T_pred, spans_fp, self.n_eval)
+            errors_fp = np.mean(np.maximum(0, values_obs_fp - values_obs_fp), axis=1)
+            loss += np.sum(np.sum(errors_fp))
 
         loss = min(0, loss)
         return loss
