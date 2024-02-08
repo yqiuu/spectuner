@@ -628,7 +628,7 @@ class IdentifyResult:
 
 class Identification:
     def __init__(self, obs_data, T_back, prominence,
-                 rel_height=.25, n_eval=5, T_thr=None, frac_iso=1.):
+                 rel_height=.25, n_eval=5, use_dice=False, T_thr=None, frac_iso=1.):
         height = T_back + prominence
         freq_data = []
         T_obs_data = []
@@ -645,13 +645,14 @@ class Identification:
         self.spans_obs_data = spans_obs_data
 
         if T_thr is None:
-            T_thr = max([T_obs.max() for T_obs in T_obs_data])
+            T_thr = .5*max([T_obs.max() for T_obs in T_obs_data])
 
         self.T_back = T_back
         self.height = height
         self.prominence = prominence
         self.rel_height = rel_height
         self.n_eval = n_eval
+        self.use_dice = use_dice
         self.T_thr = T_thr
         self.frac_iso = frac_iso
 
@@ -704,8 +705,11 @@ class Identification:
             errors = np.mean(np.abs(values_pred - values_obs), axis=1)
             f_dice = compute_dice_score(spans_inter, spans_pred[inds_pred], spans_pred[inds_pred])
             f_count = 1./np.maximum(derive_counts(inds_obs), derive_counts(inds_pred))
-            norm = np.maximum(np.mean(values_obs, axis=1) - self.T_back, self.T_thr - self.T_back)
-            scores_inter = np.maximum(0, f_dice*f_count - errors/norm)
+            norm = np.mean(values_obs, axis=1) - self.T_back
+            frac = np.minimum(1, norm/(self.T_thr - self.T_back))
+            if not self.use_dice:
+                f_dice = 1.
+            scores_inter = frac*np.maximum(0, f_dice*f_count - errors/norm)
             freq_c_inter = np.mean(spans_inter, axis=1)
 
         spans_iso = derive_isolations(spans_pred, inds_pred)
@@ -713,8 +717,9 @@ class Identification:
             values_obs_iso = eval_spans(spans_iso, freq, T_obs, self.n_eval)
             values_pred_iso = eval_spans(spans_iso, freq, T_pred, self.n_eval)
             errors_iso = np.mean(np.maximum(0, values_pred_iso - values_obs_iso), axis=1)
-            norm_iso = np.maximum(np.mean(values_pred_iso, axis=1) - self.T_back, self.T_thr - self.T_back)
-            scores_iso = -self.frac_iso*errors_iso/norm_iso
+            norm_iso = np.mean(values_pred_iso, axis=1) - self.T_back
+            frac = np.minimum(1, norm_iso/(self.T_thr - self.T_back))
+            scores_iso = -self.frac_iso*frac*errors_iso/norm_iso
             freq_c_iso = np.mean(spans_iso, axis=1)
 
         return scores_inter, freq_c_inter, scores_iso, freq_c_iso
