@@ -675,35 +675,35 @@ class Identification:
         self.frac_fp = frac_fp
 
     def compute_scores(self, segments, T_pred_data, trans_data):
-        inter_dict = {
+        true_pos_dict = {
             "scores": [],
-            "freq_c": [],
+            "freqs": [],
             "names": []
         }
-        iso_dict = {
+        false_pos_dict = {
             "scores": [],
-            "freq_c": [],
+            "freqs": [],
             "names": []
         }
 
         def update_data_dict(data, data_new):
             data["scores"].append(data_new["scores"])
-            data["freq_c"].append(data_new["freq_c"])
+            data["freqs"].append(data_new["freqs"])
             data["names"].extend(data_new["names"])
 
         for i_segment, T_pred, trans_dict in zip(segments, T_pred_data, trans_data):
-            inter_dict_sub, iso_dict_sub = self._compute_scores_sub(i_segment, T_pred, trans_dict)
-            update_data_dict(inter_dict, inter_dict_sub)
-            update_data_dict(iso_dict, iso_dict_sub)
-        inter_dict["scores"] = np.concatenate(inter_dict["scores"])
-        inter_dict["freq_c"] = np.concatenate(inter_dict["freq_c"])
-        iso_dict["scores"] = np.concatenate(iso_dict["scores"])
-        iso_dict["freq_c"] = np.concatenate(iso_dict["freq_c"])
-        score = np.sum(inter_dict["scores"]) + np.sum(iso_dict["scores"])
+            true_pos_dict_sub, false_pos_dict_sub = self._compute_scores_sub(i_segment, T_pred, trans_dict)
+            update_data_dict(true_pos_dict, true_pos_dict_sub)
+            update_data_dict(false_pos_dict, false_pos_dict_sub)
+        true_pos_dict["scores"] = np.concatenate(true_pos_dict["scores"])
+        true_pos_dict["freqs"] = np.concatenate(true_pos_dict["freqs"])
+        false_pos_dict["scores"] = np.concatenate(false_pos_dict["scores"])
+        false_pos_dict["freqs"] = np.concatenate(false_pos_dict["freqs"])
+        score = np.sum(true_pos_dict["scores"]) + np.sum(false_pos_dict["scores"])
         return {
             "score": score,
-            "inter_dict": inter_dict,
-            "iso_dict": iso_dict,
+            "true_positive": true_pos_dict,
+            "false_positive": false_pos_dict,
         }
 
     def _compute_scores_sub(self, i_segment, T_pred, trans_dict):
@@ -712,14 +712,14 @@ class Identification:
         spans_obs = self.spans_obs_data[i_segment]
 
         # Set default returns
-        inter_dict = {
+        true_pos_dict = {
             "scores": np.zeros(0),
-            "freq_c": np.zeros(0),
+            "freqs": np.zeros(0),
             "names": []
         }
-        iso_dict = {
+        false_pos_dict = {
             "scores": np.zeros(0),
-            "freq_c": np.zeros(0),
+            "freqs": np.zeros(0),
             "names": []
         }
 
@@ -727,7 +727,7 @@ class Identification:
             freq, T_pred, self.height, self.prominence, self.rel_height
         )
         if len(spans_pred) == 0:
-            return inter_dict, iso_dict
+            return true_pos_dict, false_pos_dict
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
@@ -740,9 +740,9 @@ class Identification:
             frac = np.minimum(1, norm/(self.T_thr - self.T_back))
             if not self.use_dice:
                 f_dice = 1.
-            inter_dict["scores"] = frac*np.maximum(0, f_dice*f_count - errors/norm)
-            inter_dict["freq_c"] = np.mean(spans_inter, axis=1)
-            inter_dict["names"] = self._derive_name_list(trans_dict, spans_pred, inds_pred)
+            true_pos_dict["scores"] = frac*np.maximum(0, f_dice*f_count - errors/norm)
+            true_pos_dict["freqs"] = np.mean(spans_inter, axis=1)
+            true_pos_dict["names"] = self._derive_name_list(trans_dict, spans_pred, inds_pred)
 
         spans_fp = derive_complementary(spans_pred, inds_pred)
         if len(spans_fp) != 0:
@@ -751,11 +751,11 @@ class Identification:
             errors_fp = np.mean(np.maximum(0, values_obs_fp - values_pred_fp), axis=1)
             norm_fp = np.mean(values_pred_fp, axis=1) - self.T_back
             frac = np.minimum(1, norm_fp/(self.T_thr - self.T_back))
-            iso_dict["scores"] = -self.frac_fp*frac*errors_fp/norm_fp
-            iso_dict["freq_c"] = np.mean(spans_fp, axis=1)
-            iso_dict["names"] = self._derive_name_list(trans_dict, spans_fp)
+            false_pos_dict["scores"] = -self.frac_fp*frac*errors_fp/norm_fp
+            false_pos_dict["freqs"] = np.mean(spans_fp, axis=1)
+            false_pos_dict["names"] = self._derive_name_list(trans_dict, spans_fp)
 
-        return inter_dict, iso_dict
+        return true_pos_dict, false_pos_dict
 
     def _derive_name_list(self, trans_dict, spans, inds=None):
         if inds is None:
