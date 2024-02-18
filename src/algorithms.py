@@ -773,7 +773,7 @@ class Identification:
         if len(spans_fp) != 0:
             values_obs_fp, values_pred_fp \
                 = derive_false_postive_props(freq, T_obs, T_pred, spans_fp, self.n_eval)
-            errors_fp = np.mean(np.maximum(0, values_obs_fp - values_pred_fp), axis=1)
+            errors_fp = np.mean(np.maximum(0, values_pred_fp - values_obs_fp), axis=1)
             norm_fp = np.mean(values_pred_fp, axis=1) - self.T_back
             frac = np.minimum(1, norm_fp/(self.T_thr - self.T_back))
             false_pos_dict["scores"] = -self.frac_fp*frac*errors_fp/norm_fp
@@ -865,9 +865,9 @@ class PeakMatchingLoss:
 
         spans_fp = derive_complementary(spans_pred, inds_pred)
         if len(spans_fp) != 0:
-            values_obs_fp, values_obs_fp \
+            values_obs_fp, values_pred_fp \
                 = derive_false_postive_props(freq, T_obs, T_pred, spans_fp, self.n_eval)
-            errors_fp = np.mean(np.maximum(0, values_obs_fp - values_obs_fp), axis=1)
+            errors_fp = np.mean(np.maximum(0, values_pred_fp - values_obs_fp), axis=1)
             loss += np.sum(np.sum(errors_fp))
 
         loss = min(0, loss)
