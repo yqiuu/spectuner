@@ -159,3 +159,28 @@ def random_mutation(params, bounds, prob, rstate=None):
             val = params[i_p]
         params_new[i_p] = val
     return params_new
+
+
+def random_mutation_by_group(pm, params, bounds, frac_rep=.4, rstate=None):
+    """Perturb the parameters by a group of molecules."""
+    if rstate is None:
+        rstate = np.random
+
+    params_mol, params_iso, params_misc = pm.split_params(params, need_reshape=False)
+    lb_mol, lb_iso, _ = pm.split_params(bounds[:, 0], need_reshape=False)
+    ub_mol, ub_iso, _ = pm.split_params(bounds[:, 1], need_reshape=False)
+
+    params_mol = params_mol.copy()
+    params_iso = params_iso.copy()
+    n_replace = int(frac_rep*pm.n_mol)
+    if n_replace == 0 and frac_rep > 0:
+        n_replace = 1
+    mol_names = np.random.choice(list(pm.mol_dict.keys()), n_replace, replace=False)
+    for name in mol_names:
+        inds = pm.get_mol_slice(name)
+        params_mol[inds] = rstate.uniform(lb_mol[inds], ub_mol[inds])
+        inds = pm.get_iso_slice(name)
+        if inds is not None:
+            params_iso[inds] = np.random.uniform(lb_iso[inds], ub_iso[inds])
+    params_new = np.concatenate([params_mol, params_iso, params_misc])
+    return params_new
