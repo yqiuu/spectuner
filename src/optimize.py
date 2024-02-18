@@ -161,8 +161,20 @@ def random_mutation(params, bounds, prob, rstate=None):
     return params_new
 
 
-def random_mutation_by_group(pm, params, bounds, frac_rep=.4, rstate=None):
-    """Perturb the parameters by a group of molecules."""
+def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
+    """Perturb the parameters by a group of molecules.
+
+    Args:
+        pm (ParameterManager): Parameter Manager.
+        params (array): Parameters
+        bounds (array): Bounds
+        prob (float, optional): Mutation probability. The code will perturb at
+            least one group unless the probability is 0. Defaults to 0.4.
+        rstate (RandomState, optional): RNG.
+
+    Returns:
+        _type_: _description_
+    """
     if rstate is None:
         rstate = np.random
 
@@ -172,8 +184,8 @@ def random_mutation_by_group(pm, params, bounds, frac_rep=.4, rstate=None):
 
     params_mol = params_mol.copy()
     params_iso = params_iso.copy()
-    n_replace = int(frac_rep*pm.n_mol)
-    if n_replace == 0 and frac_rep > 0:
+    n_replace = int(prob*pm.n_mol)
+    if n_replace == 0 and prob > 0:
         n_replace = 1
     mol_names = np.random.choice(list(pm.mol_dict.keys()), n_replace, replace=False)
     for name in mol_names:
