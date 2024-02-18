@@ -10,7 +10,10 @@ from src.preprocess import load_preprocess
 from src.fitting_model import create_fitting_model_extra
 from src.xclass_wrapper import create_wrapper_from_config
 from src.algorithms import filter_moleclues, Identification
-from src.optimize import optimize, refine_molecules, shrink_bounds, random_mutation
+from src.optimize import (
+    optimize, refine_molecules,
+    shrink_bounds, random_mutation_by_group
+)
 
 
 def main(config):
@@ -26,7 +29,7 @@ def main(config):
     )
     name = "combine"
     initial_pos = derive_initial_pos(
-        params_0, model.bounds,
+        model.func.pm, params_0, model.bounds,
         n_swarm=config_opt["kwargs_opt"]["nswarm"],
         prob=config_opt["prob_mutation"]
     )
@@ -79,6 +82,7 @@ def create_model(obs_data, save_dir, config_xclass, config_opt):
         config_xclass=config_xclass,
         config_opt=config_opt,
     )
+    """
     bounds_new = shrink_bounds(
         pm=model.func.pm,
         params=params_new,
@@ -89,16 +93,17 @@ def create_model(obs_data, save_dir, config_xclass, config_opt):
         bounds_misc=config_opt.get("bounds_misc", None)
     )
     model.bounds = bounds_new
+    """
     return model, params_new, segments_new
 
 
-def derive_initial_pos(params, bounds, n_swarm, prob):
+def derive_initial_pos(pm, params, bounds, n_swarm, prob):
     assert n_swarm >= 2
 
     initial_pos = [params]
-    initial_pos.append(random_mutation(params, bounds, prob=1.))
+    initial_pos.append(random_mutation_by_group(pm, params, bounds, prob=1.))
     for _ in range(n_swarm - 2):
-        initial_pos.append(random_mutation(params, bounds, prob))
+        initial_pos.append(random_mutation_by_group(pm, params, bounds, prob))
     initial_pos = np.vstack(initial_pos)
     return initial_pos
 
