@@ -592,8 +592,7 @@ def derive_true_postive_props(freq, T_obs, T_pred, spans_obs, spans_pred,
     values_obs = eval_spans(spans_inter, freq, T_obs, n_eval)
     values_pred = eval_spans(spans_inter, freq, T_pred, n_eval)
     f_dice = compute_dice_score(spans_inter, spans_obs[inds_obs], spans_pred[inds_pred])
-    f_count = 1./np.maximum(derive_counts(inds_obs), derive_counts(inds_pred))
-    return values_obs, values_pred, f_dice, f_count
+    return values_obs, values_pred, f_dice
 
 
 def derive_false_postive_props(freq, T_obs, T_pred, spans_fp, n_eval):
@@ -756,7 +755,7 @@ class Identification:
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
-            values_obs, values_pred, f_dice, f_count = derive_true_postive_props(
+            values_obs, values_pred, factor = derive_true_postive_props(
                 freq, T_obs, T_pred, spans_obs, spans_pred,
                 spans_inter, inds_pred, inds_obs, self.n_eval
             )
@@ -764,8 +763,8 @@ class Identification:
             norm = np.mean(values_obs, axis=1) - self.T_back
             frac = np.minimum(1, norm/(self.T_thr - self.T_back))
             if not self.use_dice:
-                f_dice = 1.
-            true_pos_dict["scores"] = frac*np.maximum(0, f_dice*f_count - errors/norm)
+                factor = 1.
+            true_pos_dict["scores"] = frac*np.maximum(0, factor - errors/norm)
             true_pos_dict["freqs"] = np.mean(spans_inter, axis=1)
             true_pos_dict["names"] = self._derive_name_list(trans_dict, spans_pred, inds_pred)
 
@@ -853,13 +852,13 @@ class PeakMatchingLoss:
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
-            values_obs, values_pred, f_dice, f_count = derive_true_postive_props(
+            values_obs, values_pred, factor = derive_true_postive_props(
                 freq, T_obs, T_pred, spans_obs, spans_pred,
                 spans_inter, inds_pred, inds_obs, self.n_eval
             )
             errors = np.mean(np.abs(values_pred - values_obs), axis=1)
             norm = np.mean(values_obs, axis=1) - self.T_back
-            loss = np.sum(errors - f_dice*f_count*norm)
+            loss = np.sum(errors - factor*norm)
         else:
             loss = 0.
 
