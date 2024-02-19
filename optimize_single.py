@@ -27,9 +27,15 @@ def create_model(name, obs_data, mol_list_sub, segment_dict, include_dict, confi
     for idx in segment_dict[name]:
         obs_data_sub.append(obs_data[idx])
     include_list = include_dict[name]
+    fname_base = config.get("fname_base", None)
+    if fname_base is not None:
+        base_data = pickle.load(open(fname_base, "rb"))["T_pred"]
+    else:
+        base_data = None
     model = create_fitting_model_extra(
         obs_data_sub, mol_list_sub, include_list,
         config["xclass"], config["opt_single"],
+        base_data=base_data
     )
     return model
 

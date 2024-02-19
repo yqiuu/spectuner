@@ -36,7 +36,8 @@ def create_fitting_model(spec_obs, mol_names, bounds,
 
 def create_fitting_model_extra(obs_data, mol_dict, include_list,
                                config_xclass, config_opt,
-                               vLSR=None, tBack=None, loss_fn=None):
+                               vLSR=None, tBack=None, loss_fn=None,
+                               base_data=None):
     kwargs = {}
     if vLSR is not None:
         kwargs["vLSR"] = vLSR
@@ -65,7 +66,8 @@ def create_fitting_model_extra(obs_data, mol_dict, include_list,
         raise ValueError("Unknown loss function.")
     return FittingModel(
         obs_data, wrapper, include_list, bounds, scaler, loss_fn,
-        **config_opt.get("kwargs", {})
+        **config_opt.get("kwargs", {}),
+        base_data=base_data
     )
 
 
@@ -158,7 +160,9 @@ class ScalerExtra:
 
 class FittingModel:
     def __init__(self, obs_data, func, include_list, bounds, scaler, loss_fn,
-                 prominence=None, rel_height=.25, n_eval=7, T_thr=None):
+                 prominence=None, rel_height=.25, n_eval=7, T_thr=None, base_data=None):
+        self.T_back = func.pm.T_back
+        obs_data = self._remove_base(obs_data, base_data)
         self.freq_range_data, self.freq_data, self.T_obs_data \
             = self._preprocess_spectra(obs_data)
         self.include_list = include_list
@@ -166,15 +170,24 @@ class FittingModel:
         self.bounds = bounds
         self.scaler = scaler
         self.loss_fn = loss_fn
-        T_back = func.pm.T_back
         if prominence is None:
             self.pm_loss_fn = None
         else:
-            self.pm_loss_fn = PeakMatchingLoss(obs_data, T_back, prominence, rel_height, n_eval)
+            self.pm_loss_fn = PeakMatchingLoss(obs_data, self.T_back, prominence, rel_height, n_eval)
         if T_thr is None:
             self.thr_loss_fn = ThresholdRegularizer(obs_data, T_thr=T_thr)
         else:
             self.thr_loss_fn = None
+
+    def _remove_base(self, obs_data, base_data):
+        if base_data is None:
+            return obs_data
+
+        obs_data_new = []
+        for spec, T_base in zip(obs_data, base_data):
+            spec[:, 1] = spec[:, 1] - T_base + self.T_back
+            obs_data_new.append(spec)
+        return obs_data_new
 
     def _preprocess_spectra(self, obs_data):
         if isinstance(obs_data, list) or isinstance(obs_data, tuple):
