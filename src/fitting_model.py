@@ -216,7 +216,7 @@ class FittingModel:
             tau_data.append(tau)
             job_dir_data.append(job_dir)
         if len(T_pred_data) == 1:
-            return T_pred_data[0], trans_data[0], job_dir_data[0]
+            return T_pred_data[0], trans_data[0], tau_data[0], job_dir_data[0]
         return T_pred_data, trans_data, tau_data, job_dir_data
 
     def derive_params(self, params):
