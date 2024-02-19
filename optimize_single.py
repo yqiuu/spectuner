@@ -5,7 +5,7 @@ from pathlib import Path
 from multiprocessing import Pool
 
 from src.preprocess import load_preprocess_select
-from src.fitting_model import create_fitting_model_extra
+from src.fitting_model import create_fitting_model
 from src.optimize import optimize
 
 
@@ -32,7 +32,7 @@ def create_model(name, obs_data, mol_list_sub, segment_dict, include_dict, confi
         base_data = pickle.load(open(fname_base, "rb"))["T_pred"]
     else:
         base_data = None
-    model = create_fitting_model_extra(
+    model = create_fitting_model(
         obs_data_sub, mol_list_sub, include_list,
         config["xclass"], config["opt_single"],
         base_data=base_data

@@ -5,45 +5,16 @@ from .xclass_wrapper import create_wrapper_from_config, derive_freq_range
 from .algorithms import derive_median_frac_threshold, PeakMatchingLoss
 
 
-def create_fitting_model(spec_obs, mol_names, bounds,
-                         config, vLSR=None, tBack=None):
+def create_fitting_model(obs_data, mol_list, include_list,
+                         config_xclass, config_opt,
+                         vLSR=None, tBack=None, loss_fn=None,
+                         base_data=None):
     kwargs = {}
     if vLSR is not None:
         kwargs["vLSR"] = vLSR
     if tBack is not None:
         kwargs["tBack"] = tBack
-    wrapper = create_wrapper_from_config(spec_obs, mol_names, config["xclass"], **kwargs)
-
-    scaler = Scaler(wrapper.n_mol_param, wrapper.n_param_per_mol)
-    bounds_mol = scaler.derive_bounds(bounds)
-
-    bounds_misc = []
-    bounds_dict = config["bounds"]
-    for key in wrapper.params_misc:
-        bounds_misc.append(bounds_dict[key])
-    bounds_misc = np.vstack(bounds_misc)
-
-    bounds = np.vstack([bounds_mol, bounds_misc])
-
-    if config["loss_fn"] == "l1":
-        loss_fn = l1_loss
-    elif config["loss_fn"] == "l2":
-        loss_fn = l2_loss
-    else:
-        raise ValueError("Unknown loss function.")
-    return FittingModel(wrapper, bounds, scaler, spec_obs[:, 1], loss_fn)
-
-
-def create_fitting_model_extra(obs_data, mol_dict, include_list,
-                               config_xclass, config_opt,
-                               vLSR=None, tBack=None, loss_fn=None,
-                               base_data=None):
-    kwargs = {}
-    if vLSR is not None:
-        kwargs["vLSR"] = vLSR
-    if tBack is not None:
-        kwargs["tBack"] = tBack
-    wrapper = create_wrapper_from_config(obs_data, mol_dict, config_xclass, **kwargs)
+    wrapper = create_wrapper_from_config(obs_data, mol_list, config_xclass, **kwargs)
 
     scaler = ScalerExtra(wrapper.pm)
     bounds = scaler.derive_bounds(

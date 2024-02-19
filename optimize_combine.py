@@ -7,7 +7,7 @@ from multiprocessing import Pool
 import numpy as np
 
 from src.preprocess import load_preprocess
-from src.fitting_model import create_fitting_model_extra
+from src.fitting_model import create_fitting_model
 from src.xclass_wrapper import create_wrapper_from_config
 from src.algorithms import filter_moleclues, Identification
 from src.optimize import (
@@ -72,12 +72,12 @@ def create_model(obs_data, save_dir, config_xclass, config_opt):
         segments_list.append(data["segments"])
         include_list_list.append(include_list)
 
-    params_new, mol_dict_new, segments_new, include_list_new = refine_molecules(
+    params_new, mol_list_new, segments_new, include_list_new = refine_molecules(
         params_list, mol_list_list, segments_list, include_list_list, config_xclass
     )
-    model = create_fitting_model_extra(
+    model = create_fitting_model(
         obs_data=obs_data,
-        mol_dict=mol_dict_new,
+        mol_list=mol_list_new,
         include_list=include_list_new,
         config_xclass=config_xclass,
         config_opt=config_opt,
