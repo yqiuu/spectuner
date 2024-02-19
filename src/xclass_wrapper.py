@@ -145,7 +145,7 @@ class XCLASSWrapper:
 
 
 class ParameterManager:
-    def __init__(self, mol_dict, n_param_per_mol, idx_den, xclass_kwargs):
+    def __init__(self, mol_list, n_param_per_mol, idx_den, xclass_kwargs):
         misc_names = []
         for var_name in ["tBack", "tSlope", "vLSR"]:
             if not var_name in xclass_kwargs:
@@ -154,36 +154,51 @@ class ParameterManager:
 
         # Set indices
         idx = 0
-        n_mol_param = len(mol_dict)*n_param_per_mol
+        n_mol_param = len(mol_list)*(n_param_per_mol - 1)
         self.inds_mol_param = slice(idx, n_mol_param)
         idx += n_mol_param
 
-        n_iso_param = 0
-        for names in mol_dict.values():
-            n_iso_param += len(names)
-        self.inds_iso_param = slice(idx, idx + n_iso_param)
-        idx += n_iso_param
+        n_den_param = 0
+        for item in mol_list:
+            n_den_param += len(item["molecules"])
+        self.inds_den_param = slice(idx, idx + n_den_param)
+        idx += n_den_param
 
         self.inds_misc_param = slice(idx, idx + len(misc_names))
         self.n_tot_param = idx + len(misc_names)
 
-        #
-        iso_inds = {}
+        # Set inds_mp
+        inds_mp = list(range(n_param_per_mol))
+        inds_mp.remove(idx_den)
+        self.inds_mp = inds_mp
+
+        # mol_names
+        mol_names = []
+        for item in mol_list:
+            mol_names.extend(item["molecules"])
+        self.mol_names = mol_names
+
+        # Set id_list
+        self.id_list = [item["id"] for item in mol_list]
+
+        # Set den_inds
+        den_inds = {}
         idx_b = 0
-        for name, inds in mol_dict.items():
-            if len(inds) == 0:
+        for item in mol_list:
+            mols = item["molecules"]
+            if len(mols) == 0:
                 continue
 
-            idx_e = idx_b + len(inds)
-            iso_inds[name] = slice(idx_b, idx_e)
+            idx_e = idx_b + len(mols)
+            den_inds[item["id"]] = slice(idx_b, idx_e)
             idx_b = idx_e
-        self.iso_inds = iso_inds
+        self.den_inds = den_inds
 
-        #/
-        self.mol_dict = mol_dict
-        self.n_mol = len(mol_dict)
+        #
+        self.mol_list = mol_list
+        self.n_mol = len(mol_list)
         self.n_mol_param = n_mol_param
-        self.n_iso_param = n_iso_param
+        self.n_den_param = n_den_param
         self.n_param_per_mol = n_param_per_mol
 
         self.idx_den = idx_den
@@ -198,54 +213,47 @@ class ParameterManager:
         if len(params) != self.n_tot_param:
             raise ValueError(f"Total number of parameters should be {self.n_tot_param}.")
 
-        mol_names, params_mol = self.derive_mol_params(params)
+        params_mol = self.derive_mol_params(params)
         params_misc = params[self.inds_misc_param]
         params_dict = {}
         for key, val in zip(self.misc_names, params_misc):
             params_dict[key] = val
-        return mol_names, params_mol, params_dict
+        return self.mol_names, params_mol, params_dict
 
     def derive_mol_params(self, params):
         # params (N,)
-        params_mol = self.get_all_mol_params(params).reshape(-1, self.n_param_per_mol)
-        params_iso = self.get_all_iso_params(params)
-
-        mol_names = []
-        params_mol_ret = []
-        idx_iso = 0
-        for idx, (name, iso_list) in enumerate(self.mol_dict.items()):
-            mol_names.append(name)
-            params_mol_ret.append(params_mol[idx])
-            for name_iso in iso_list:
-                mol_names.append(name_iso)
-                params_tmp = params_mol[idx].copy()
-                params_tmp[self.idx_den] = params_iso[idx_iso]
-                params_mol_ret.append(params_tmp)
-                idx_iso += 1
-        params_mol_ret = np.vstack(params_mol_ret)
-        return mol_names, params_mol_ret
+        params_mol, params_den, _ = self.split_params(params, need_reshape=True)
+        params_mol_ret = np.zeros([self.n_den_param, self.n_param_per_mol])
+        idx = 0
+        for idx_root, item in enumerate(self.mol_list):
+            n_mol = len(item["molecules"])
+            params_mol_ret[idx : idx+n_mol, self.inds_mp] = params_mol[idx_root]
+            idx += n_mol
+        params_mol_ret[:, self.idx_den] = params_den
+        return params_mol_ret
 
     def split_params(self, params, need_reshape):
         params_mol = self.get_all_mol_params(params)
         if need_reshape:
-            params_mol = params_mol.reshape(-1, self.n_param_per_mol)
-        params_iso = self.get_all_iso_params(params)
+            params_mol = params_mol.reshape(-1, self.n_param_per_mol - 1)
+        params_den = self.get_all_den_params(params)
         params_misc = self.get_all_misc_params(params)
-        return params_mol, params_iso, params_misc
+        return params_mol, params_den, params_misc
 
-    def get_mol_slice(self, mol_name):
-        idx = list(self.mol_dict.keys()).index(mol_name)
-        return slice(idx*self.n_param_per_mol, (idx + 1)*self.n_param_per_mol)
+    def get_mol_slice(self, key):
+        idx = self.id_list.index(key)
+        n_param_per_mol = self.n_param_per_mol - 1
+        return slice(idx*n_param_per_mol, (idx + 1)*n_param_per_mol)
 
-    def get_iso_slice(self, mol_name):
-        if mol_name in self.iso_inds:
-            return self.iso_inds[mol_name]
+    def get_den_slice(self, key):
+        if key in self.den_inds:
+            return self.den_inds[key]
 
     def get_all_mol_params(self, params):
         return params[self.inds_mol_param]
 
-    def get_all_iso_params(self, params):
-        return params[self.inds_iso_param]
+    def get_all_den_params(self, params):
+        return params[self.inds_den_param]
 
     def get_all_misc_params(self, params):
         return params[self.inds_misc_param]

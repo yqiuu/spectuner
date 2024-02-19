@@ -59,7 +59,7 @@ def optimize(model, name, segments, config_opt, pool):
         "T_pred": T_pred_data,
         "trans_dict": trans_data,
         "segments": segments,
-        "mol_dict": model.func.pm.mol_dict,
+        "mol_list": model.func.pm.mol_list,
         "include_list": model.include_list,
     }
     if config_opt.get("save_local_best", False):
@@ -96,18 +96,18 @@ def prepare_pred_data(model, pos):
     return T_pred_data, trans_dict
 
 
-def refine_molecules(params_list, mol_dict_list, segments_list, include_list_list, config_xclass):
+def refine_molecules(params_list, mol_list_list, segments_list, include_list_list, config_xclass):
     params_mol = []
-    params_iso = []
-    mol_dict_ret = {}
-    for params, mol_dict in zip(params_list, mol_dict_list):
-        wrapper = create_wrapper_from_config(None, mol_dict, config_xclass)
+    params_den = []
+    mol_list_ret = []
+    for params, mol_list in zip(params_list, mol_list_list):
+        wrapper = create_wrapper_from_config(None, mol_list, config_xclass)
         params_mol.append(wrapper.pm.get_all_mol_params(params))
-        params_iso.append(wrapper.pm.get_all_iso_params(params))
-        mol_dict_ret.update(mol_dict)
+        params_den.append(wrapper.pm.get_all_den_params(params))
+        mol_list_ret.extend(mol_list)
     params_mol = np.concatenate(params_mol)
-    params_iso = np.concatenate(params_iso)
-    params = np.append(params_mol, params_iso)
+    params_den = np.concatenate(params_den)
+    params = np.append(params_mol, params_den)
 
     segments_ret = []
     for segments in segments_list:
@@ -119,7 +119,7 @@ def refine_molecules(params_list, mol_dict_list, segments_list, include_list_lis
     for segment, include_list in zip(segments_list, include_list_list):
         for i_segment, mol_list in zip(segment, include_list):
             include_list_ret[i_segment].extend(mol_list)
-    return params, mol_dict_ret, segments_ret, include_list_ret
+    return params, mol_list_ret, segments_ret, include_list_ret
 
 
 def shrink_bounds(pm, params, bounds_mol, delta_mol, bounds_iso, delta_iso, bounds_misc):
@@ -178,21 +178,21 @@ def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
     if rstate is None:
         rstate = np.random
 
-    params_mol, params_iso, params_misc = pm.split_params(params, need_reshape=False)
-    lb_mol, lb_iso, _ = pm.split_params(bounds[:, 0], need_reshape=False)
-    ub_mol, ub_iso, _ = pm.split_params(bounds[:, 1], need_reshape=False)
+    params_mol, params_den, params_misc = pm.split_params(params, need_reshape=False)
+    lb_mol, lb_den, _ = pm.split_params(bounds[:, 0], need_reshape=False)
+    ub_mol, ub_den, _ = pm.split_params(bounds[:, 1], need_reshape=False)
 
     params_mol = params_mol.copy()
-    params_iso = params_iso.copy()
+    params_den = params_den.copy()
     n_replace = int(prob*pm.n_mol)
     if n_replace == 0 and prob > 0:
         n_replace = 1
-    mol_names = np.random.choice(list(pm.mol_dict.keys()), n_replace, replace=False)
-    for name in mol_names:
-        inds = pm.get_mol_slice(name)
+    id_list = np.random.choice(pm.id_list, n_replace, replace=False)
+    for key in id_list:
+        inds = pm.get_mol_slice(key)
         params_mol[inds] = rstate.uniform(lb_mol[inds], ub_mol[inds])
-        inds = pm.get_iso_slice(name)
+        inds = pm.get_den_slice(key)
         if inds is not None:
-            params_iso[inds] = np.random.uniform(lb_iso[inds], ub_iso[inds])
-    params_new = np.concatenate([params_mol, params_iso, params_misc])
+            params_den[inds] = np.random.uniform(lb_den[inds], ub_den[inds])
+    params_new = np.concatenate([params_mol, params_den, params_misc])
     return params_new

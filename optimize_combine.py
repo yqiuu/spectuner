@@ -48,7 +48,7 @@ def create_model(obs_data, save_dir, config_xclass, config_opt):
 
     idn = Identification(obs_data, T_back, **kwargs)
     params_list = []
-    mol_dict_list = []
+    mol_list_list = []
     segments_list = []
     include_list_list = []
     for fname in Path(save_dir).glob("*.pickle"):
@@ -56,8 +56,8 @@ def create_model(obs_data, save_dir, config_xclass, config_opt):
             continue
 
         data = pickle.load(open(fname, "rb"))
-        wrapper = create_wrapper_from_config(None, data["mol_dict"], config_xclass)
-        mol_dict, include_list, params = filter_moleclues(
+        wrapper = create_wrapper_from_config(None, data["mol_list"], config_xclass)
+        mol_list, include_list, params = filter_moleclues(
             idn=idn,
             pm=wrapper.pm,
             segments=data["segments"],
@@ -68,12 +68,12 @@ def create_model(obs_data, save_dir, config_xclass, config_opt):
         )
 
         params_list.append(params)
-        mol_dict_list.append(mol_dict)
+        mol_list_list.append(mol_list)
         segments_list.append(data["segments"])
         include_list_list.append(include_list)
 
     params_new, mol_dict_new, segments_new, include_list_new = refine_molecules(
-        params_list, mol_dict_list, segments_list, include_list_list, config_xclass
+        params_list, mol_list_list, segments_list, include_list_list, config_xclass
     )
     model = create_fitting_model_extra(
         obs_data=obs_data,

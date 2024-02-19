@@ -71,15 +71,15 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
         tmp.sort()
         normal_dict_all[key] = tmp
 
-    mol_dict, master_name_dict \
+    mol_list, master_name_dict \
         = replace_with_master_name(normal_dict_all, base_only, iso_list)
 
     incldue_dict = defaultdict(list)
     for normal_dict in normal_dict_list:
-        for name, mol_list in normal_dict.items():
+        for name, iso_list in normal_dict.items():
             master_name = master_name_dict[name]
             if master_name is not None:
-                incldue_dict[master_name].append(deepcopy(mol_list))
+                incldue_dict[master_name].append(deepcopy(iso_list))
 
     segment_dict = defaultdict(list)
     for idx, normal_dict in enumerate(normal_dict_list):
@@ -88,7 +88,7 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
             if master_name is not None:
                 segment_dict[master_name].append(idx)
 
-    return mol_dict, segment_dict, incldue_dict
+    return mol_list, segment_dict, incldue_dict
 
 
 def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
@@ -169,7 +169,14 @@ def replace_with_master_name(normal_dict, base_only, iso_list):
                 mol_dict[master_name]
             else:
                 mol_dict[master_name].append(name)
-    return mol_dict, master_name_dict
+    mol_list = []
+    for idx, (name, mols) in enumerate(mol_dict.items()):
+        item = {"id": idx, "root": name}
+        mols_new = [name]
+        mols_new.extend(mols)
+        item["molecules"] = mols_new
+        mol_list.append(item)
+    return mol_list, master_name_dict
 
 
 def select_master_name(name_list, base_only):
@@ -509,26 +516,27 @@ def filter_moleclues(idn, pm, segments, include_list, T_pred_data, trans_data, p
         include_list_new (list):
         params_new (array):
     """
-    mols = idn.derive_trans_set(segments, T_pred_data, trans_data)
-    params_mol, params_iso, params_misc = pm.split_params(params, need_reshape=False)
-    mol_dict_new = {}
-    params_iso_new = []
+    mols_idn = idn.derive_trans_set(segments, T_pred_data, trans_data)
+    params_mol, params_den, params_misc = pm.split_params(params, need_reshape=False)
+    mol_list_new = []
+    params_den_new = []
     idx_iso = 0
-    for name, iso_list in pm.mol_dict.items():
-        iso_list_new = []
-        for name_iso in iso_list:
-            if name_iso in mols:
-                iso_list_new.append(name_iso)
-                params_iso_new.append(params_iso[idx_iso])
+    for item in pm.mol_list:
+        mols_new = []
+        for mol_name in item["molecules"]:
+            if mol_name in mols_idn:
+                mols_new.append(mol_name)
+                params_den_new.append(params_den[idx_iso])
             idx_iso += 1
-        mol_dict_new[name] = iso_list_new
-    params_iso_new = np.array(params_iso_new)
-    params_new = np.concatenate([params_mol, params_iso_new, params_misc])
+        item["molecules"] = mols_new
+        mol_list_new.append(item)
+    params_den_new = np.array(params_den_new)
+    params_new = np.concatenate([params_mol, params_den_new, params_misc])
 
     include_list_new = []
     for mol_list in include_list:
-        include_list_new.append([name for name in mol_list if name in mols])
-    return mol_dict_new, include_list_new, params_new
+        include_list_new.append([name for name in mol_list if name in mols_idn])
+    return mol_list_new, include_list_new, params_new
 
 
 def derive_intersections(spans_a, spans_b):

@@ -130,19 +130,19 @@ class ScalerExtra:
         self.pm = pm
 
     def call(self, params):
-        params_mol, params_iso, params_misc = self.pm.split_params(params, need_reshape=True)
+        params_mol, params_den, params_misc = self.pm.split_params(params, need_reshape=True)
         params_mol = params_mol.copy()
-        params_mol[:, :4] = 10**params_mol[:, :4]
-        params_iso = 10**params_iso
-        params_new = np.concatenate([np.ravel(params_mol), params_iso, params_misc])
+        params_mol[:, :3] = 10**params_mol[:, :3]
+        params_den = 10**params_den
+        params_new = np.concatenate([np.ravel(params_mol), params_den, params_misc])
         return params_new
 
-    def derive_bounds(self, bounds_mol, bounds_iso, bounds_misc):
+    def derive_bounds(self, bounds_mol, bounds_den, bounds_misc):
         # bounds_mol (5, 2)
-        # bounds_iso (2,)
+        # bounds_den (2,)
         # bounds_misc (dict)
         bounds_mol = np.tile(bounds_mol, (self.pm.n_mol, 1))
-        bounds_iso = np.tile(bounds_iso, (self.pm.n_iso_param, 1))
+        bounds_den = np.tile(bounds_den, (self.pm.n_den_param, 1))
 
         bounds_misc_ = []
         for key in self.pm.misc_names:
@@ -152,7 +152,7 @@ class ScalerExtra:
         else:
             bounds_misc = np.vstack(bounds_misc_)
 
-        bounds = np.vstack([bounds_mol, bounds_iso, bounds_misc])
+        bounds = np.vstack([bounds_mol, bounds_den, bounds_misc])
         return bounds
 
 
