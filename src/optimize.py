@@ -114,6 +114,7 @@ def refine_molecules(params_list, mol_list_list, segments_list, include_list_lis
         for idx in segments:
             if idx not in segments_ret:
                 segments_ret.append(idx)
+    segments_ret.sort()
     n_segment = len(segments_ret)
     include_list_ret = [[] for _ in range(n_segment)]
     for segment, include_list in zip(segments_list, include_list_list):
