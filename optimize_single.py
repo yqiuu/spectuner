@@ -12,7 +12,6 @@ from src.optimize import optimize
 def main(config):
     obs_data, mol_list, segment_dict, include_dict = load_preprocess_select(config)
     pool = Pool(config["opt_single"]["n_process"])
-    print(mol_list)
     for item in mol_list:
         name = item["root"]
         model = create_model(name, obs_data, [item], segment_dict, include_dict, config)
