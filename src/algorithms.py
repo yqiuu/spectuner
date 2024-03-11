@@ -594,6 +594,20 @@ def derive_peaks(freq, spec, height, prominence, rel_height):
     return spans_new, peak_heights_new
 
 
+def derive_peaks_obs_data(obs_data, height, prominence, rel_height):
+    freq_data = []
+    T_obs_data = []
+    spans_obs_data = []
+    for spec in obs_data:
+        freq = spec[:, 0]
+        T_obs = spec[:, 1]
+        freq_data.append(freq)
+        T_obs_data.append(T_obs)
+        spans_obs = derive_peaks(freq, T_obs, height, prominence, rel_height)[0]
+        spans_obs_data.append(spans_obs)
+    return freq_data, T_obs_data, spans_obs_data
+
+
 def derive_true_postive_props(freq, T_obs, T_pred, spans_obs, spans_pred,
                               spans_inter, inds_pred, inds_obs, n_eval):
     """Derive properties used to compute errors of true postive samples."""
@@ -654,22 +668,11 @@ class Identification:
     def __init__(self, obs_data, T_back, prominence,
                  rel_height=.25, n_eval=5, use_dice=False, T_thr=None, frac_fp=1.):
         height = T_back + prominence
-        freq_data = []
-        T_obs_data = []
-        spans_obs_data = []
-        for spec in obs_data:
-            freq = spec[:, 0]
-            T_obs = spec[:, 1]
-            freq_data.append(freq)
-            T_obs_data.append(T_obs)
-            spans_obs = derive_peaks(freq, T_obs, height, prominence, rel_height)[0]
-            spans_obs_data.append(spans_obs)
-        self.freq_data = freq_data
-        self.T_obs_data = T_obs_data
-        self.spans_obs_data = spans_obs_data
+        self.freq_data, self.T_obs_data, self.spans_obs_data \
+            = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
 
         if T_thr is None:
-            T_thr = .5*max([T_obs.max() for T_obs in T_obs_data])
+            T_thr = .5*max([T_obs.max() for T_obs in self.T_obs_data])
 
         self.T_back = T_back
         self.height = height
@@ -826,19 +829,8 @@ class Identification:
 class PeakMatchingLoss:
     def __init__(self, obs_data, T_back, prominence, rel_height, n_eval=5):
         height = T_back + prominence
-        freq_data = []
-        T_obs_data = []
-        spans_obs_data = []
-        for spec in obs_data:
-            freq = spec[:, 0]
-            T_obs = spec[:, 1]
-            freq_data.append(freq)
-            T_obs_data.append(T_obs)
-            spans_obs = derive_peaks(freq, T_obs, height, prominence, rel_height)[0]
-            spans_obs_data.append(spans_obs)
-        self.freq_data = freq_data
-        self.T_obs_data = T_obs_data
-        self.spans_obs_data = spans_obs_data
+        self.freq_data, self.T_obs_data, self.spans_obs_data \
+            = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
 
         self.T_back = T_back
         self.height = height
