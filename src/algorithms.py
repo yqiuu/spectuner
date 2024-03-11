@@ -895,5 +895,4 @@ class PeakMatchingLoss:
             errors_fp = np.mean(np.maximum(0, values_pred_fp - values_obs_fp), axis=1)
             loss += np.sum(np.sum(errors_fp))
 
-        loss = min(0, loss)
         return loss
