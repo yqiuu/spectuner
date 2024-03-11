@@ -684,7 +684,8 @@ class IdentifyResult:
 
 class Identification:
     def __init__(self, obs_data, T_back, prominence,
-                 rel_height=.25, n_eval=5, use_dice=False, T_thr=None, frac_fp=1.):
+                 rel_height=.25, n_eval=5, use_dice=False, is_loss=True,
+                 T_thr=None, frac_fp=1.):
         height = T_back + prominence
         self.freq_data, self.T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
@@ -698,6 +699,7 @@ class Identification:
         self.rel_height = rel_height
         self.n_eval = n_eval
         self.use_dice = use_dice
+        self.is_loss = is_loss
         self.T_thr = T_thr
         self.frac_fp = frac_fp
 
@@ -790,9 +792,13 @@ class Identification:
             )
             errors = np.mean(np.abs(values_pred - values_obs), axis=1)
             norm = np.mean(values_obs, axis=1) - self.T_back
-            if not self.use_dice:
-                factor = 1.
-            true_pos_dict["scores"] = np.maximum(0, factor - errors/norm)
+            if self.is_loss:
+                scores = errors - norm*factor
+            else:
+                if not self.use_dice:
+                    factor = 1.
+                scores = np.maximum(0, factor - errors/norm)
+            true_pos_dict["scores"] = scores
             true_pos_dict["freqs"] = np.mean(spans_inter, axis=1)
             true_pos_dict["names"] = self._derive_name_list(trans_dict, spans_pred, inds_pred)
 
@@ -802,8 +808,11 @@ class Identification:
                 = derive_false_postive_props(freq, T_obs, T_pred, spans_fp, self.n_eval)
             errors_fp = np.mean(np.maximum(0, values_pred_fp - values_obs_fp), axis=1)
             norm_fp = np.mean(values_pred_fp, axis=1) - self.T_back
-            frac = np.minimum(1, norm_fp/(self.T_thr - self.T_back))
-            false_pos_dict["scores"] = -self.frac_fp*frac*errors_fp/norm_fp
+            if self.is_loss:
+                scores = errors_fp
+            else:
+                scores = -self.frac_fp*errors_fp/norm_fp
+            false_pos_dict["scores"] = scores
             false_pos_dict["freqs"] = np.mean(spans_fp, axis=1)
             false_pos_dict["names"] = self._derive_name_list(trans_dict, spans_fp)
 
