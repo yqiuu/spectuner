@@ -608,6 +608,24 @@ def derive_peaks_obs_data(obs_data, height, prominence, rel_height):
     return freq_data, T_obs_data, spans_obs_data
 
 
+def derive_blending_dict(obs_data, pred_data, height, prominence, rel_height):
+    freq_data, _, spans_obs_data = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
+    spans_obs_data = np.vstack(spans_obs_data)
+
+    blending_list = []
+    for p_data in pred_data:
+        spans_pred_data = []
+        for i_segment, T_pred in zip(p_data["segments"], p_data["T_pred"]):
+            spans_pred_data.append(
+                derive_peaks(freq_data[i_segment], T_pred, height, prominence, rel_height)[0])
+        spans_pred_data = np.vstack(spans_pred_data)
+        inds_obs = set(derive_intersections(spans_obs_data, spans_pred_data)[1])
+        blending_list.append((p_data["name"], inds_obs))
+    blending_list.sort(key=lambda item: -len(item[1]))
+
+    return blending_list
+
+
 def derive_true_postive_props(freq, T_obs, T_pred, spans_obs, spans_pred,
                               spans_inter, inds_pred, inds_obs, n_eval):
     """Derive properties used to compute errors of true postive samples."""
@@ -772,7 +790,6 @@ class Identification:
             )
             errors = np.mean(np.abs(values_pred - values_obs), axis=1)
             norm = np.mean(values_obs, axis=1) - self.T_back
-            #frac = np.minimum(1, norm/(self.T_thr - self.T_back))
             if not self.use_dice:
                 factor = 1.
             true_pos_dict["scores"] = np.maximum(0, factor - errors/norm)
