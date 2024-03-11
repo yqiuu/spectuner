@@ -772,10 +772,10 @@ class Identification:
             )
             errors = np.mean(np.abs(values_pred - values_obs), axis=1)
             norm = np.mean(values_obs, axis=1) - self.T_back
-            frac = np.minimum(1, norm/(self.T_thr - self.T_back))
+            #frac = np.minimum(1, norm/(self.T_thr - self.T_back))
             if not self.use_dice:
-                frac = 1.
-            true_pos_dict["scores"] = frac*np.maximum(0, factor - errors/norm)
+                factor = 1.
+            true_pos_dict["scores"] = np.maximum(0, factor - errors/norm)
             true_pos_dict["freqs"] = np.mean(spans_inter, axis=1)
             true_pos_dict["names"] = self._derive_name_list(trans_dict, spans_pred, inds_pred)
 
