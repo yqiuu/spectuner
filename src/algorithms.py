@@ -497,7 +497,8 @@ def derive_median_frac_threshold(obs_data, median_frac):
     return T_thr
 
 
-def filter_moleclues(idn, pm, segments, include_list, T_pred_data, trans_data, params):
+def filter_moleclues(mol_store, config_slm, params, names_pos,
+                     freq_data, T_pred_data, T_back, prominence, rel_height):
     """Select molecules that have emission lines.
 
     Args:
@@ -506,31 +507,17 @@ def filter_moleclues(idn, pm, segments, include_list, T_pred_data, trans_data, p
         params (array): Parameters.
 
     Returns:
-        mol_dict_new (dict):
-        include_list_new (list):
-        params_new (array):
+        mol_store (MoleculeStore):
+        params (array):
     """
-    mols_idn = idn.derive_trans_set(segments, T_pred_data, trans_data)
-    params_mol, params_den, params_misc = pm.split_params(params, need_reshape=False)
-    mol_list_new = []
-    params_den_new = []
-    idx_iso = 0
-    for item in pm.mol_list:
-        mols_new = []
-        for mol_name in item["molecules"]:
-            if mol_name in mols_idn:
-                mols_new.append(mol_name)
-                params_den_new.append(params_den[idx_iso])
-            idx_iso += 1
-        item["molecules"] = mols_new
-        mol_list_new.append(item)
-    params_den_new = np.array(params_den_new)
-    params_new = np.concatenate([params_mol, params_den_new, params_misc])
-
-    include_list_new = []
-    for mol_list in include_list:
-        include_list_new.append([name for name in mol_list if name in mols_idn])
-    return mol_list_new, include_list_new, params_new
+    names_pos = derive_peaks_pred_data(
+        mol_store, config_slm, params, freq_data, T_pred_data,
+        T_back, prominence, rel_height
+    )[-1]
+    mol_store_sub = mol_store.select_subset(names_pos)
+    pm = mol_store_sub.create_parameter_manager(config_slm)
+    params_sub = pm.get_subset_params(names_pos, params)
+    return mol_store_sub, params_sub
 
 
 def derive_intersections(spans_a, spans_b):
