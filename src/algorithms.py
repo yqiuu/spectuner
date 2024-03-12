@@ -619,6 +619,7 @@ def derive_peaks_pred_data(mol_store, config_slm, params,
     height = T_back + prominence
     spans_tot = derive_peaks_multi(freq_data, T_pred_data, height, prominence, rel_height)[0]
     name_list = [[] for _ in range(len(spans_tot))]
+    names_pos = []
 
     pm = mol_store.create_parameter_manager(config_slm)
     for item in mol_store.mol_list:
@@ -635,8 +636,10 @@ def derive_peaks_pred_data(mol_store, config_slm, params,
             inds = derive_intersections(spans_tot, spans_single)[1]
             for idx in inds:
                 name_list[idx].append(mol)
+            if len(inds) > 0:
+                names_pos.append(mol)
 
-    return spans_tot, name_list
+    return spans_tot, name_list, names_pos
 
 
 def derive_blending_list(obs_data, pred_data, T_back, prominence, rel_height):
