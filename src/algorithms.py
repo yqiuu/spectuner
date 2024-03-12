@@ -497,7 +497,7 @@ def derive_median_frac_threshold(obs_data, median_frac):
     return T_thr
 
 
-def filter_moleclues(mol_store, config_slm, params, names_pos,
+def filter_moleclues(mol_store, config_slm, params,
                      freq_data, T_pred_data, T_back, prominence, rel_height):
     """Select molecules that have emission lines.
 
@@ -515,7 +515,7 @@ def filter_moleclues(mol_store, config_slm, params, names_pos,
         T_back, prominence, rel_height
     )[-1]
     mol_store_sub = mol_store.select_subset(names_pos)
-    pm = mol_store_sub.create_parameter_manager(config_slm)
+    pm = mol_store.create_parameter_manager(config_slm)
     params_sub = pm.get_subset_params(names_pos, params)
     return mol_store_sub, params_sub
 
