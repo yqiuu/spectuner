@@ -2,7 +2,9 @@ import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 from tqdm import trange
 
-from .xclass_wrapper import create_wrapper_from_config, extract_line_frequency
+from .xclass_wrapper import (
+    create_wrapper_from_config, extract_line_frequency, MoleculeStore
+)
 
 
 def optimize(model, config_opt, pool):
@@ -99,31 +101,25 @@ def prepare_pred_data(model, pos):
     return T_pred_data, trans_data_ret
 
 
-def refine_molecules(params_list, mol_list_list, segments_list, include_list_list, config_xclass):
+def combine_mol_stores(mol_store_list, params_list, config_slm):
+    mol_list = []
+    include_list = [[] for _ in range(len(mol_store_list[0].include_list))]
+    for mol_store in mol_store_list:
+        mol_list.extend(mol_store.mol_list)
+        for in_list_new, in_list in zip(include_list, mol_store.include_list):
+            in_list_new.extend(in_list)
+    mol_store_new = MoleculeStore(mol_list, include_list, mol_store_list[0].scaler)
+
     params_mol = []
     params_den = []
-    mol_list_ret = []
-    for params, mol_list in zip(params_list, mol_list_list):
-        wrapper = create_wrapper_from_config(None, mol_list, config_xclass)
-        params_mol.append(wrapper.pm.get_all_mol_params(params))
-        params_den.append(wrapper.pm.get_all_den_params(params))
-        mol_list_ret.extend(mol_list)
+    for mol_store, params in zip(mol_store_list, params_list):
+        pm = mol_store.create_parameter_manager(config_slm)
+        params_mol.append(pm.get_all_mol_params(params))
+        params_den.append(pm.get_all_den_params(params))
     params_mol = np.concatenate(params_mol)
     params_den = np.concatenate(params_den)
-    params = np.append(params_mol, params_den)
-
-    segments_ret = []
-    for segments in segments_list:
-        for idx in segments:
-            if idx not in segments_ret:
-                segments_ret.append(idx)
-    segments_ret.sort()
-    n_segment = len(segments_ret)
-    include_list_ret = [[] for _ in range(n_segment)]
-    for segment, include_list in zip(segments_list, include_list_list):
-        for i_segment, mol_list in zip(segment, include_list):
-            include_list_ret[i_segment].extend(mol_list)
-    return params, mol_list_ret, segments_ret, include_list_ret
+    params_new = np.append(params_mol, params_den)
+    return mol_store_new, params_new
 
 
 def shrink_bounds(pm, params, bounds_mol, delta_mol, bounds_iso, delta_iso, bounds_misc):
