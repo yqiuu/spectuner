@@ -8,8 +8,13 @@ import numpy as np
 from xclass import task_myXCLASS, task_ListDatabase
 
 
-def create_molfit_file(fname, mol_names, params, include_list):
-    text = f"""% name of molecule		number of components
+def create_molfit_file(fname, mol_names, params, include_list, MaxElowSQL=None, MingASQL=None):
+    text = ""
+    if MaxElowSQL is not None:
+        text += f"%%MaxElowSQL = {MaxElowSQL}\n"
+    if MingASQL is not None:
+        text += f"%%MingASQL = {MingASQL}\n"
+    text += f"""% name of molecule		number of components
 	% source size [arcsec]:    T_rot [K]:    N_tot [cm-2]:    velocity width [km/s]: velocity offset [km/s]:    CFflag:\n"""
     for name, (source_size, T_rot, N_tot, vel_width, vel_offset) in zip(mol_names, params):
         if include_list is None or name in include_list:
@@ -101,6 +106,8 @@ class XCLASSWrapper:
         self.update_frequency(FreqMin, FreqMax, FreqStep)
 
         self._xclass_kwargs = xclass_kwargs
+        self._MaxElowSQL = xclass_kwargs.pop("MaxElowSQL", None)
+        self._MingASQL = xclass_kwargs.pop("MingASQL", None)
         self.prefix_molfit = prefix_molfit
         self.include_list = None
 
@@ -125,7 +132,10 @@ class XCLASSWrapper:
 
     def call_params_dict(self, mol_names, params_mol, params_dict, remove_dir):
         fname_molfit = "{}_{}.molfit".format(self.prefix_molfit, os.getpid())
-        create_molfit_file(fname_molfit, mol_names, params_mol, self.include_list)
+        create_molfit_file(
+            fname_molfit, mol_names, params_mol,
+            self.include_list, self._MaxElowSQL, self._MingASQL
+        )
 
         spec, log, trans, tau, job_dir = task_myXCLASS.myXCLASSCore(
             FreqMin=self.freq_min,
