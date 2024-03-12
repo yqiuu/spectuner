@@ -1,6 +1,7 @@
 import os
 import shutil
 from collections import defaultdict
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -119,6 +120,12 @@ class XCLASSWrapper:
     def update_include_list(self, include_list):
         self.include_list = include_list
 
+    def call_multi(self, obs_data, include_list, params, remove_dir=True):
+        for spec, in_list in zip(obs_data, include_list):
+            self.update_frequency(*derive_freq_range(spec[:, 0]))
+            self.update_include_list(in_list)
+            yield self.call(params, remove_dir)
+
     def call(self, params, remove_dir=True):
         mol_names, params_mol, params_dict = self.pm.derive_params(params)
         spec, log, trans, tau, job_dir = self.call_params_dict(
@@ -155,7 +162,9 @@ class XCLASSWrapper:
 
 
 class ParameterManager:
-    def __init__(self, mol_list, n_param_per_mol, idx_den, xclass_kwargs):
+    def __init__(self, mol_list, scaler, xclass_kwargs):
+        n_param_per_mol = 5
+        idx_den = 2
         misc_names = []
         for var_name in ["tBack", "tSlope", "vLSR"]:
             if not var_name in xclass_kwargs:
@@ -205,6 +214,7 @@ class ParameterManager:
         self.den_inds = den_inds
 
         #
+        self.scaler = scaler
         self.mol_list = mol_list
         self.n_mol = len(mol_list)
         self.n_mol_param = n_mol_param
@@ -223,6 +233,7 @@ class ParameterManager:
         if len(params) != self.n_tot_param:
             raise ValueError(f"Total number of parameters should be {self.n_tot_param}.")
 
+        params = self.scaler.derive_params(self, params)
         params_mol = self.derive_mol_params(params)
         params_misc = params[self.inds_misc_param]
         params_dict = {}
@@ -272,3 +283,46 @@ class ParameterManager:
         params_misc = params[self.inds_misc_param]
         idx = self.misc_names.index(key)
         return params_misc[idx]
+
+
+class Scaler:
+    def derive_params(self, pm, params):
+        params_mol, params_den, params_misc = pm.split_params(params, need_reshape=True)
+        params_mol = params_mol.copy()
+        params_mol[:, :3] = 10**params_mol[:, :3]
+        params_den = 10**params_den
+        params_new = np.concatenate([np.ravel(params_mol), params_den, params_misc])
+        return params_new
+
+    def derive_bounds(self, pm, bounds_mol, bounds_den, bounds_misc):
+        # bounds_mol (5, 2)
+        # bounds_den (2,)
+        # bounds_misc (dict)
+        bounds_mol = np.tile(bounds_mol, (pm.n_mol, 1))
+        bounds_den = np.tile(bounds_den, (pm.n_den_param, 1))
+
+        bounds_misc_ = []
+        for key in pm.misc_names:
+            bounds_misc_.append(bounds_misc[key])
+        if len(bounds_misc_) == 0:
+            bounds_misc = np.zeros((0, 2))
+        else:
+            bounds_misc = np.vstack(bounds_misc_)
+
+        bounds = np.vstack([bounds_mol, bounds_den, bounds_misc])
+        return bounds
+
+
+@dataclass(frozen=True)
+class MoleculeStore:
+    mol_list: list
+    include_list: list
+    scaler: object
+
+    def create_parameter_manager(self, xclass_kwargs):
+        return ParameterManager(self.mol_list, self.scaler, xclass_kwargs)
+
+    def create_spectral_line_model(self, xclass_kwargs):
+        pm = self.create_parameter_manager(xclass_kwargs)
+        sl_model = XCLASSWrapper(pm, **xclass_kwargs)
+        return sl_model
