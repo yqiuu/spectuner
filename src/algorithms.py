@@ -608,7 +608,8 @@ def derive_peaks_obs_data(obs_data, height, prominence, rel_height):
     return freq_data, T_obs_data, spans_obs_data
 
 
-def derive_blending_dict(obs_data, pred_data, height, prominence, rel_height):
+def derive_blending_list(obs_data, pred_data, T_back, prominence, rel_height):
+    height = T_back + prominence
     freq_data, _, spans_obs_data = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
     spans_obs_data = np.vstack(spans_obs_data)
 
