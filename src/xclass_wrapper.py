@@ -302,6 +302,25 @@ class ParameterManager:
         params_single = np.append(params_mol, [params_den])
         return params_single
 
+    def get_subset_params(self, names, params):
+        inds_id = []
+        inds_mol = []
+        idx_mol = 0
+        for idx_id, item in enumerate(self.mol_list):
+            inds_tmp = []
+            for mol in item["molecules"]:
+                if mol in names:
+                    inds_tmp.append(idx_mol)
+                idx_mol += 1
+            if len(inds_tmp) > 0:
+                inds_id.append(idx_id)
+                inds_mol.extend(inds_tmp)
+        params_mol, params_den, _ = self.split_params(params, need_reshape=True)
+        params_mol = np.ravel(params_mol[inds_id])
+        params_den = params_den[inds_mol]
+        params_subset = np.append(params_mol, params_den)
+        return params_subset
+
 
 class Scaler:
     def derive_params(self, pm, params):
