@@ -579,6 +579,8 @@ def derive_peaks_multi(freq_data, spec_data, height, prominence, rel_height):
     spans_data = []
     heights_data = []
     for freq, spec in zip(freq_data, spec_data):
+        if spec is None:
+            continue
         spans, heights = derive_peaks(freq, spec, height, prominence, rel_height)
         spans_data.append(spans)
         heights_data.append(heights)
