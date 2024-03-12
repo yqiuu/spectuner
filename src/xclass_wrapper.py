@@ -364,3 +364,18 @@ class MoleculeStore:
                 include_list_new.append([])
 
         return MoleculeStore(mol_list_new, include_list_new, self.scaler)
+
+    def select_subset(self, names):
+        mol_list_new = []
+        for item in self.mol_list:
+            mols_new = [mol for mol in item["molecules"] if mol in names]
+            if len(mols_new) > 0:
+                item_new = deepcopy(item)
+                item_new["molecules"] = mols_new
+                mol_list_new.append(item_new)
+        #
+        include_list_new = []
+        for in_list in self.include_list:
+            include_list_new.append([mol for mol in in_list if mol in names])
+
+        return MoleculeStore(mol_list_new, include_list_new, self.scaler)
