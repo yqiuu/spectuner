@@ -74,21 +74,15 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
     mol_list, master_name_dict \
         = replace_with_master_name(normal_dict_all, base_only, iso_list)
 
-    incldue_dict = defaultdict(list)
-    for normal_dict in normal_dict_list:
+    incldue_dict = defaultdict(lambda: [[] for _ in range(len(obs_data))])
+    for i_segment, normal_dict in enumerate(normal_dict_list):
         for name, iso_list in normal_dict.items():
             master_name = master_name_dict[name]
             if master_name is not None:
-                incldue_dict[master_name].append(deepcopy(iso_list))
+                incldue_dict[master_name][i_segment]= deepcopy(iso_list)
+    incldue_dict = dict(incldue_dict)
 
-    segment_dict = defaultdict(list)
-    for idx, normal_dict in enumerate(normal_dict_list):
-        for name in normal_dict:
-            master_name = master_name_dict[name]
-            if master_name is not None:
-                segment_dict[master_name].append(idx)
-
-    return mol_list, segment_dict, incldue_dict
+    return mol_list, incldue_dict
 
 
 def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,

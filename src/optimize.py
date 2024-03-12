@@ -5,7 +5,7 @@ from tqdm import trange
 from .xclass_wrapper import create_wrapper_from_config, extract_line_frequency
 
 
-def optimize(model, name, segments, config_opt, pool):
+def optimize(model, config_opt, pool):
     opt_name = config_opt["optimizer"]
     if opt_name == "pso":
         cls_opt = ParticleSwarm
@@ -52,15 +52,12 @@ def optimize(model, name, segments, config_opt, pool):
     T_pred_data, trans_data = prepare_pred_data(model, opt.pos_global_best)
 
     ret_dict = {
-        "name": name,
+        "mol_store": model.mol_store,
         "freq": model.freq_data,
-        "cost_best": opt.cost_global_best,
-        "params_best": opt.pos_global_best,
         "T_pred": T_pred_data,
         "trans_dict": trans_data,
-        "segments": segments,
-        "mol_list": model.func.pm.mol_list,
-        "include_list": model.include_list,
+        "cost_best": opt.cost_global_best,
+        "params_best": opt.pos_global_best,
     }
     if config_opt.get("save_local_best", False):
         T_pred_data_local = []
@@ -90,10 +87,16 @@ def prepare_pred_data(model, pos):
     T_pred_data, trans_data, _, job_dir_data = model.call_func(pos)
     if isinstance(job_dir_data, str):
         T_pred_data = [T_pred_data]
-        trans_dict = [extract_line_frequency(trans_data)]
-    else:
-        trans_dict = [extract_line_frequency(trans) for trans in trans_data]
-    return T_pred_data, trans_dict
+        trans_data_ret = [extract_line_frequency(trans_data)]
+        return T_pred_data, trans_data_ret
+
+    trans_data_ret = []
+    for trans in trans_data:
+        if trans is None:
+            trans_data_ret.append(None)
+        else:
+            trans_data_ret.append(extract_line_frequency(trans))
+    return T_pred_data, trans_data_ret
 
 
 def refine_molecules(params_list, mol_list_list, segments_list, include_list_list, config_xclass):

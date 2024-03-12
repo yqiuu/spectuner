@@ -98,65 +98,37 @@ class Scaler:
         return params_mol, params_misc
 
 
-class ScalerExtra:
-    def __init__(self, pm):
-        self.pm = pm
-
-    def call(self, params):
-        params_mol, params_den, params_misc = self.pm.split_params(params, need_reshape=True)
-        params_mol = params_mol.copy()
-        params_mol[:, :3] = 10**params_mol[:, :3]
-        params_den = 10**params_den
-        params_new = np.concatenate([np.ravel(params_mol), params_den, params_misc])
-        return params_new
-
-    def derive_bounds(self, bounds_mol, bounds_den, bounds_misc):
-        # bounds_mol (5, 2)
-        # bounds_den (2,)
-        # bounds_misc (dict)
-        bounds_mol = np.tile(bounds_mol, (self.pm.n_mol, 1))
-        bounds_den = np.tile(bounds_den, (self.pm.n_den_param, 1))
-
-        bounds_misc_ = []
-        for key in self.pm.misc_names:
-            bounds_misc_.append(bounds_misc[key])
-        if len(bounds_misc_) == 0:
-            bounds_misc = np.zeros((0, 2))
-        else:
-            bounds_misc = np.vstack(bounds_misc_)
-
-        bounds = np.vstack([bounds_mol, bounds_den, bounds_misc])
-        return bounds
-
-
 class FittingModel:
-    def __init__(self, obs_data, func, include_list, bounds, scaler, loss_fn,
-                 prominence=None, rel_height=.25, n_eval=7, T_thr=None, base_data=None):
-        self.T_back = func.pm.T_back
-        obs_data = self._remove_base(obs_data, base_data)
+    def __init__(self, obs_data, mol_store, bounds, config_slm,
+                 config_pm_loss=None, config_thr_loss=None, base_data=None):
+        self.mol_store = mol_store
+        self.include_list = mol_store.include_list
+        self.sl_model = mol_store.create_spectral_line_model(config_slm)
+        T_back = self.sl_model.pm.T_back
+        obs_data = self._remove_base(obs_data, base_data, T_back)
         self.freq_range_data, self.freq_data, self.T_obs_data \
             = self._preprocess_spectra(obs_data)
-        self.include_list = include_list
-        self.func = func
         self.bounds = bounds
-        self.scaler = scaler
-        self.loss_fn = loss_fn
-        if prominence is None:
+        #
+        self.loss_fn = l1_loss
+        #
+        if config_pm_loss is None:
             self.pm_loss_fn = None
         else:
-            self.pm_loss_fn = PeakMatchingLoss(obs_data, self.T_back, prominence, rel_height, n_eval)
-        if T_thr is None:
-            self.thr_loss_fn = ThresholdRegularizer(obs_data, T_thr=T_thr)
-        else:
+            self.pm_loss_fn = PeakMatchingLoss(obs_data, T_back, **config_pm_loss)
+        #
+        if config_thr_loss is None:
             self.thr_loss_fn = None
+        else:
+            self.thr_loss_fn = ThresholdRegularizer(obs_data, **config_thr_loss)
 
-    def _remove_base(self, obs_data, base_data):
+    def _remove_base(self, obs_data, base_data, T_back):
         if base_data is None:
             return obs_data
 
         obs_data_new = []
         for spec, T_base in zip(obs_data, base_data):
-            spec[:, 1] = spec[:, 1] - T_base + self.T_back
+            spec[:, 1] = spec[:, 1] - T_base + T_back
             obs_data_new.append(spec)
         return obs_data_new
 
@@ -181,9 +153,14 @@ class FittingModel:
         loss = 0.
         T_pred_max = -np.inf
         n_segment = len(self.T_obs_data)
-        for i_segment in range(n_segment):
+        iterator = self.sl_model.call_multi(
+            self.freq_data, self.include_list, params, remove_dir=True
+        )
+        for i_segment, args in enumerate(iterator):
             T_obs = self.T_obs_data[i_segment]
-            T_pred = self._call_single(i_segment, params, remove_dir=True)[0]
+            T_pred = args[0]
+            if T_pred is None:
+                T_pred = np.zeros_like(T_obs)
             loss += self.loss_fn(T_pred, T_obs)
             if self.pm_loss_fn is not None:
                 loss += self.pm_loss_fn(i_segment, T_pred)
@@ -193,24 +170,15 @@ class FittingModel:
             loss += self.thr_loss_fn(T_pred_max)
         return loss
 
-    def _call_single(self, i_segment, params, remove_dir):
-        T_obs = self.T_obs_data[i_segment]
-        self.func.update_frequency(*self.freq_range_data[i_segment])
-        self.func.update_include_list(self.include_list[i_segment])
-        params = self.derive_params(params)
-        T_pred, _, trans, tau, job_dir = self.func.call(params, remove_dir=remove_dir)
-        # TODO Check this in the wrapper
-        if T_pred is None:
-            T_pred = np.zeros_like(T_obs)
-        return T_pred, trans, tau, job_dir
-
     def call_func(self, params, remove_dir=True):
         T_pred_data = []
         trans_data = []
         tau_data = []
         job_dir_data = []
-        for i_segment in range(len(self.T_obs_data)):
-            T_pred, trans, tau, job_dir = self._call_single(i_segment, params, remove_dir)
+        iterator = self.sl_model.call_multi(
+            self.freq_data, self.include_list, params, remove_dir=remove_dir
+        )
+        for T_pred, _, trans, tau, job_dir in iterator:
             T_pred_data.append(T_pred)
             trans_data.append(trans)
             tau_data.append(tau)
@@ -218,11 +186,6 @@ class FittingModel:
         if len(T_pred_data) == 1:
             return T_pred_data[0], trans_data[0], tau_data[0], job_dir_data[0]
         return T_pred_data, trans_data, tau_data, job_dir_data
-
-    def derive_params(self, params):
-        if self.scaler is not None:
-            params = self.scaler.call(params)
-        return params
 
 
 class ThresholdRegularizer:

@@ -120,11 +120,14 @@ class XCLASSWrapper:
     def update_include_list(self, include_list):
         self.include_list = include_list
 
-    def call_multi(self, obs_data, include_list, params, remove_dir=True):
-        for spec, in_list in zip(obs_data, include_list):
-            self.update_frequency(*derive_freq_range(spec[:, 0]))
-            self.update_include_list(in_list)
-            yield self.call(params, remove_dir)
+    def call_multi(self, freq_data, include_list, params, remove_dir=True):
+        for freq, in_list in zip(freq_data, include_list):
+            if len(in_list) == 0:
+                yield None, None, None, None, None
+            else:
+                self.update_frequency(*derive_freq_range(freq))
+                self.update_include_list(in_list)
+                yield self.call(params, remove_dir)
 
     def call(self, params, remove_dir=True):
         mol_names, params_mol, params_dict = self.pm.derive_params(params)
