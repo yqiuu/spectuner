@@ -2,6 +2,7 @@ import os
 import shutil
 from collections import defaultdict
 from dataclasses import dataclass
+from copy import deepcopy
 
 import numpy as np
 
@@ -287,6 +288,20 @@ class ParameterManager:
         idx = self.misc_names.index(key)
         return params_misc[idx]
 
+    def get_single_params(self, name, params):
+        def find_item(name):
+            idx = 0
+            for item in self.mol_list:
+                for mol in item["molecules"]:
+                    if name == mol:
+                        return item, idx
+                    idx += 1
+        item, idx = find_item(name)
+        params_mol = params[self.get_mol_slice(item["id"])]
+        params_den = self.get_all_den_params(params)[idx]
+        params_single = np.append(params_mol, [params_den])
+        return params_single
+
 
 class Scaler:
     def derive_params(self, pm, params):
@@ -329,3 +344,23 @@ class MoleculeStore:
         pm = self.create_parameter_manager(xclass_kwargs)
         sl_model = XCLASSWrapper(pm, **xclass_kwargs)
         return sl_model
+
+    def select_single(self, name):
+        def find_item(name):
+            for item in self.mol_list:
+                for mol in item["molecules"]:
+                    if name == mol:
+                        return item
+        item = deepcopy(find_item(name))
+        item["root"] = name
+        item["molecules"] = [name]
+        mol_list_new = [item]
+        #
+        include_list_new = []
+        for in_list in self.include_list:
+            if name in in_list:
+                include_list_new.append([name])
+            else:
+                include_list_new.append([])
+
+        return MoleculeStore(mol_list_new, include_list_new, self.scaler)

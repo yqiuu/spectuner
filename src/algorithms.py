@@ -588,6 +588,18 @@ def derive_peaks(freq, spec, height, prominence, rel_height):
     return spans_new, peak_heights_new
 
 
+def derive_peaks_multi(freq_data, spec_data, height, prominence, rel_height):
+    spans_data = []
+    heights_data = []
+    for freq, spec in zip(freq_data, spec_data):
+        spans, heights = derive_peaks(freq, spec, height, prominence, rel_height)
+        spans_data.append(spans)
+        heights_data.append(heights)
+    spans_data = np.vstack(spans_data)
+    heights_data = np.concatenate(heights_data)
+    return spans_data, heights_data
+
+
 def derive_peaks_obs_data(obs_data, height, prominence, rel_height):
     freq_data = []
     T_obs_data = []
@@ -600,6 +612,31 @@ def derive_peaks_obs_data(obs_data, height, prominence, rel_height):
         spans_obs = derive_peaks(freq, T_obs, height, prominence, rel_height)[0]
         spans_obs_data.append(spans_obs)
     return freq_data, T_obs_data, spans_obs_data
+
+
+def derive_peaks_pred_data(mol_store, config_slm, params,
+                           freq_data, T_pred_data, T_back, prominence, rel_height):
+    height = T_back + prominence
+    spans_tot = derive_peaks_multi(freq_data, T_pred_data, height, prominence, rel_height)[0]
+    name_list = [[] for _ in range(len(spans_tot))]
+
+    pm = mol_store.create_parameter_manager(config_slm)
+    for item in mol_store.mol_list:
+        for mol in item["molecules"]:
+            params_single = pm.get_single_params(mol, params)
+            mol_store_single = mol_store.select_single(mol)
+            sl_model = mol_store_single.create_spectral_line_model(config_slm)
+            iterator = sl_model.call_multi(
+                freq_data, mol_store_single.include_list, params_single, remove_dir=True
+            )
+            T_pred_single = [args[0] for args in iterator]
+            spans_single = derive_peaks_multi(
+                freq_data, T_pred_single, height, prominence, rel_height)[0]
+            inds = derive_intersections(spans_tot, spans_single)[1]
+            for idx in inds:
+                name_list[idx].append(mol)
+
+    return spans_tot, name_list
 
 
 def derive_blending_list(obs_data, pred_data, T_back, prominence, rel_height):
