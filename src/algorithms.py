@@ -507,13 +507,15 @@ def filter_moleclues(mol_store, config_slm, params,
         params (array): Parameters.
 
     Returns:
-        mol_store (MoleculeStore):
-        params (array):
+        mol_store (MoleculeStore): None if no emission lines.
+        params (array): None if no emission lines.
     """
     names_pos = derive_peaks_pred_data(
         mol_store, config_slm, params, freq_data, T_pred_data,
         T_back, prominence, rel_height
     )[-1]
+    if len(names_pos) == 0:
+        return None, None
     mol_store_sub = mol_store.select_subset(names_pos)
     pm = mol_store.create_parameter_manager(config_slm)
     params_sub = pm.get_subset_params(names_pos, params)
