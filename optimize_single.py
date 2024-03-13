@@ -17,7 +17,7 @@ def main(config):
         name = item["root"]
         model = create_model(name, obs_data, [item], include_dict, config)
         ret_dict = optimize(model, config["opt_single"], pool)
-        save_dir = Path(config["save_dir"])
+        save_dir = Path(config["save_dir"])/Path(config["opt_single"]["dirname"])
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
 
