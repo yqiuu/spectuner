@@ -588,6 +588,9 @@ def derive_peaks_multi(freq_data, spec_data, height, prominence, rel_height):
         heights_data.append(heights)
     spans_data = np.vstack(spans_data)
     heights_data = np.concatenate(heights_data)
+    inds = np.argsort(spans_data[:, 0])
+    spans_data = spans_data[inds]
+    heights_data = heights_data[inds]
     return spans_data, heights_data
 
 
@@ -633,20 +636,18 @@ def derive_peaks_pred_data(mol_store, config_slm, params,
     return spans_tot, name_list, names_pos
 
 
-def derive_blending_list(obs_data, pred_data, T_back, prominence, rel_height):
+def derive_blending_list(obs_data, pred_data_list, T_back, prominence, rel_height):
     height = T_back + prominence
-    freq_data, _, spans_obs_data = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
-    spans_obs_data = np.vstack(spans_obs_data)
+    spans_obs_data = derive_peaks_obs_data(obs_data, height, prominence, rel_height)[-1]
+    spans_obs = np.vstack(spans_obs_data)
+    spans_obs = spans_obs[np.argsort(spans_obs[:, 0])]
 
     blending_list = []
-    for p_data in pred_data:
-        spans_pred_data = []
-        for i_segment, T_pred in zip(p_data["segments"], p_data["T_pred"]):
-            spans_pred_data.append(
-                derive_peaks(freq_data[i_segment], T_pred, height, prominence, rel_height)[0])
-        spans_pred_data = np.vstack(spans_pred_data)
-        inds_obs = set(derive_intersections(spans_obs_data, spans_pred_data)[1])
-        blending_list.append((p_data["name"], inds_obs))
+    for i_pred, pred_data in enumerate(pred_data_list):
+        spans_pred = derive_peaks_multi(
+            pred_data["freq"], pred_data["T_pred"], height, prominence, rel_height)[0]
+        inds_obs = set(derive_intersections(spans_obs, spans_pred)[1])
+        blending_list.append((i_pred, inds_obs))
     blending_list.sort(key=lambda item: -len(item[1]))
 
     return blending_list

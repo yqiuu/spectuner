@@ -7,130 +7,158 @@ from multiprocessing import Pool
 import numpy as np
 
 from src.preprocess import load_preprocess
-from src.fitting_model import create_fitting_model
-from src.xclass_wrapper import create_wrapper_from_config
-from src.algorithms import filter_moleclues, derive_blending_list, Identification
+from src.fitting_model import FittingModel
+from src.algorithms import filter_moleclues, derive_blending_list
 from src.optimize import (
-    optimize, refine_molecules,
-    random_mutation_by_group, prepare_pred_data
+    optimize, combine_mol_stores, random_mutation_by_group,
 )
 
 
 def main(config):
-    T_back = config["xclass"].get("tBack", 0.)
+    T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(config["file_spec"], T_back)
 
     config_opt = config["opt_combine"]
-    config_xclass = config["xclass"]
     pool = Pool(config_opt["n_process"])
-    save_dir = config["save_dir"]
+    prominence = config_opt["pm_loss"]["prominence"]
+    rel_height = config_opt["pm_loss"]["rel_height"]
 
     # Read pred data
-    pred_data_dict = {}
-    for fname in Path(save_dir).glob("*.pickle"):
-        pred_data = pickle.load(open(fname, "rb"))
-        pred_data_dict[pred_data["name"]] = pred_data
+    dir_single = Path(config["save_dir"])/Path(config["opt_single"]["dirname"])
+    pred_data_list = []
+    for fname in dir_single.glob("*.pickle"):
+        pred_data_list.append(pickle.load(open(fname, "rb")))
 
     blending_list = derive_blending_list(
-        obs_data, pred_data_dict.values(), T_back, **config_opt["kwargs"])
-    idn = Identification(obs_data, T_back, **config_opt["kwargs"])
+        obs_data, pred_data_list, T_back, prominence, rel_height)
+    #
+    freq_data = [spec[:, 0] for spec in obs_data]
 
-    name, inds_peak, state = init_state(blending_list, pred_data_dict, idn, config_xclass)
-    idx_pop = 0
+    #
+    save_dir = Path(config["save_dir"])/Path(config_opt["dirname"])
     i_group = 0
+    i_save = 0
+    mol_store_curr = None
     while len(blending_list) != 0:
-        blending_list.pop(idx_pop)
-        for idx_pop, (name, inds_obs) in enumerate(blending_list):
-            if not inds_peak.isdisjoint(inds_obs):
-                inds_peak.update(inds_obs)
-                params_0, mol_list, segments, include_list = combine(
-                    state, pred_data_dict[name], config_xclass
+        if mol_store_curr is None:
+            i_pred, inds_peak_curr = blending_list.pop(0)
+            pred_data = pred_data_list[i_pred]
+            mol_store_curr = pred_data["mol_store"]
+            params_curr = pred_data["params_best"]
+            T_pred_data_curr = pred_data["T_pred"]
+
+        # Filter molecules
+        mol_store_curr, params_curr = filter_moleclues(
+            mol_store=mol_store_curr,
+            config_slm=config["sl_model"],
+            params=params_curr,
+            freq_data=freq_data,
+            T_pred_data=T_pred_data_curr,
+            T_back=T_back,
+            prominence=prominence,
+            rel_height=rel_height
+        )
+
+        # Find blending
+        idx_pop = None
+        for idx_blen, (i_pred, inds_peak) in enumerate(blending_list):
+            if not inds_peak_curr.isdisjoint(inds_peak):
+                pred_data = pred_data_list[i_pred]
+                mol_store_blen, params_blen = filter_moleclues(
+                    mol_store=pred_data["mol_store"],
+                    config_slm=config["sl_model"],
+                    params=pred_data["params_best"],
+                    freq_data=pred_data["freq"],
+                    T_pred_data=pred_data["T_pred"],
+                    T_back=T_back,
+                    prominence=prominence,
+                    rel_height=rel_height
                 )
-                model = create_fitting_model(
-                    obs_data=obs_data,
-                    mol_list=mol_list,
-                    include_list=include_list,
-                    config_xclass=config_xclass,
-                    config_opt=config_opt,
+                mol_store_curr, params_curr = combine_mol_stores(
+                    [mol_store_curr, mol_store_blen],
+                    [params_curr, params_blen],
+                    config["sl_model"]
                 )
+                inds_peak_curr.update(inds_peak)
+                model = create_model(obs_data, mol_store_curr, config)
                 initial_pos = derive_initial_pos(
-                    model.func.pm, params_0, model.bounds,
+                    model.sl_model.pm, params_curr, model.bounds,
                     n_swarm=config_opt["kwargs_opt"]["nswarm"],
                     prob=config_opt["prob_mutation"]
                 )
                 config_opt["kwargs_opt"]["initial_pos"] = initial_pos
-                res_dict = optimize(model, name, segments, config_opt, pool)
-
-                state.update(
-                    params=res_dict["params_best"],
-                    mol_list=mol_list,
-                    segments=segments,
-                    include_list=include_list
-                )
-                save_name = Path(save_dir) \
-                    / Path("combine") \
-                    / Path("group_{}_n{}.pickle".format(i_group, len(mol_list)))
-                pickle.dump(res_dict, open(save_name, "wb"))
+                res_dict = optimize(model, config_opt, pool)
+                params_curr = res_dict["params_best"]
+                T_pred_data_curr = res_dict["T_pred"]
+                save_name = Path("group_{}_{}.pickle".format(
+                    i_group, i_save))
+                i_save += 1
+                pickle.dump(res_dict, open(save_dir/save_name, "wb"))
+                idx_pop = idx_blen
                 break
         else:
-            mol_list = state["mol_list"]
-            if len(mol_list) == 1:
-                res_dict = pred_data_dict[name]
-            save_name = Path(save_dir) \
-                / Path("combine") \
-                / Path("group_{}_n{}.pickle".format(i_group, len(mol_list)))
-            pickle.dump(res_dict, open(save_name, "wb"))
+            sl_model = mol_store_curr.create_spectral_line_model(config["sl_model"])
+            iterator = sl_model.call_multi(
+                freq_data, mol_store_curr.include_list, params_curr, remove_dir=True
+            )
+            T_pred_data = [args[0] for args in iterator]
+            res_dict = {
+                "mol_store": mol_store_curr,
+                "freq": freq_data,
+                "T_pred": T_pred_data,
+                "params_best": params_curr
+            }
+            save_name = Path("group_{}_final.pickle".format(
+                i_group, len(mol_store_curr.mol_list)))
+            pickle.dump(res_dict, open(save_dir/save_name, "wb"))
+            i_group += 1
+            i_save = 0
+            mol_store_curr = None
 
-            if len(blending_list) > 0:
-                i_group += 1
-                name, inds_peak, state = init_state(blending_list, pred_data_dict, idn, config_xclass)
-                idx_pop = 0
+        if idx_pop is not None:
+            blending_list.pop(idx_pop)
+
+    combine_all(save_dir, config["sl_model"])
 
 
-def init_state(blending_list, pred_data_dict, idn, config_xclass):
-    name, inds_peak = blending_list[0]
-    pred_data = pred_data_dict[name]
-    wrapper = create_wrapper_from_config(None, pred_data["mol_list"], config_xclass)
-    mol_list, include_list, params = filter_moleclues(
-        idn=idn,
-        pm=wrapper.pm,
-        segments=pred_data["segments"],
-        include_list=pred_data["include_list"],
-        T_pred_data=pred_data["T_pred"],
-        trans_data=pred_data["trans_dict"],
-        params=pred_data["params_best"]
+def create_model(obs_data, mol_store, config):
+    pm = mol_store.create_parameter_manager(config["sl_model"])
+    # TODO: better way to create bounds?
+    config_opt = config["opt_combine"]
+    bounds = pm.scaler.derive_bounds(
+        pm,
+        config_opt["bounds_mol"],
+        config_opt["bounds_iso"],
+        config_opt["bounds_misc"]
     )
-    state = {
-        "idn": idn,
-        "params": params,
-        "mol_list": mol_list,
-        "segments": pred_data["segments"],
-        "include_list": include_list,
+    model = FittingModel(
+        obs_data, mol_store, bounds, config["sl_model"],
+        config_pm_loss=config_opt.get("pm_loss", None),
+        config_thr_loss=config_opt.get("thr_loss", None),
+    )
+    return model
+
+
+def combine_all(save_dir, config_slm):
+    mol_store_list = []
+    params_list = []
+    for fname in save_dir.glob("group_*_final.pickle"):
+        data = pickle.load(open(fname, "rb"))
+        mol_store_list.append(data["mol_store"])
+        params_list.append(data["params_best"])
+    mol_store_new, params_new = combine_mol_stores(mol_store_list, params_list, config_slm)
+    sl_model = mol_store_new.create_spectral_line_model(config_slm)
+    iterator = sl_model.call_multi(
+        data["freq"], mol_store_new.include_list, params_new, remove_dir=True
+    )
+    T_pred_data = [args[0] for args in iterator]
+    res_dict = {
+        "mol_store": mol_store_new,
+        "freq": data["freq"],
+        "T_pred": T_pred_data,
+        "params_best": params_new
     }
-    return name, inds_peak, state
-
-
-def combine(state, pred_data, config_xclass):
-    wrapper = create_wrapper_from_config(None, pred_data["mol_list"], config_xclass)
-    mol_list, include_list, params = filter_moleclues(
-        idn=state["idn"],
-        pm=wrapper.pm,
-        segments=pred_data["segments"],
-        include_list=pred_data["include_list"],
-        T_pred_data=pred_data["T_pred"],
-        trans_data=pred_data["trans_dict"],
-        params=pred_data["params_best"]
-    )
-
-    params_list = [state["params"], params]
-    mol_list_list = [state["mol_list"], mol_list]
-    segments_list = [state["segments"], pred_data["segments"]]
-    include_list_list = [state["include_list"], include_list]
-
-    params_new, mol_list_new, segments_new, include_list_new = refine_molecules(
-        params_list, mol_list_list, segments_list, include_list_list, config_xclass
-    )
-    return params_new, mol_list_new, segments_new, include_list_new
+    pickle.dump(res_dict, open(save_dir/Path("combine.pickle"), "wb"))
 
 
 def derive_initial_pos(pm, params, bounds, n_swarm, prob):
