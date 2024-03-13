@@ -78,7 +78,7 @@ class SpectralPlot:
             spec = spec_list[i_segment]
 
             idx_e = np.searchsorted(freq, self.bounds[i_ax][-1])
-            if idx_e - idx_b > 1:
+            if idx_e - idx_b > 1 and spec is not None:
                 self.axes[i_ax].plot(freq[idx_b:idx_e], spec[idx_b:idx_e], *args, **kwargs)
 
             if idx_e != len(freq):
