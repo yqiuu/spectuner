@@ -6,6 +6,8 @@ from collections import defaultdict
 
 class SpectralPlot:
     def __init__(self, obs_data, freq_per_row=1000., width=10., height=3., sharey=True):
+        obs_data = obs_data.copy()
+        obs_data.sort(key=lambda item: item[0, 0])
         freq_min = obs_data[0][0, 0]
         freq_max = obs_data[-1][-1, 0]
 
@@ -69,6 +71,10 @@ class SpectralPlot:
         return self._bounds
 
     def plot_spec(self, freq_list, spec_list, *args, **kwargs):
+        sort_list = list(zip(freq_list, spec_list))
+        sort_list.sort(key=lambda item: item[0][0])
+        freq_list, spec_list = list(zip(*sort_list))
+
         i_segment = 0
         i_ax = 0
         idx_b = 0
