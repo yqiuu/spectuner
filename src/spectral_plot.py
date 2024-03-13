@@ -95,7 +95,7 @@ class SpectralPlot:
                 idx_b = 0
 
     def plot_names(self, spans, name_list, y_min, y_max,
-                   colors="k", linestyles="--", offset=5, frac=.5, fontsize=14):
+                   colors="k", linestyles="--", offset=3, frac=.5, fontsize=14):
         for freq_c, names in zip(np.mean(spans, axis=1), name_list):
             idx_ax = self._get_axe_idx(freq_c)
             ax = self.axes[idx_ax]
@@ -106,7 +106,7 @@ class SpectralPlot:
                 ax.text(x_show, y_show, text, rotation="vertical", fontsize=fontsize)
                 x_show += offset
 
-    def plot_errors(self, freqs, errors, y_min, y_max, colors="k", linestyles="--", offset=5, ):
+    def plot_errors(self, freqs, errors, y_min, y_max, colors="k", linestyles="--", offset=3):
         for freq_c, err in zip(freqs, errors):
             idx_ax = self._get_axe_idx(freq_c)
             ax = self.axes[idx_ax]
