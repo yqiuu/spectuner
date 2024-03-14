@@ -364,6 +364,13 @@ class MoleculeStore:
         sl_model = XCLASSWrapper(pm, **xclass_kwargs)
         return sl_model
 
+    def compute_T_pred_data(self, params, freq_data, config_slm):
+        sl_model = self.create_spectral_line_model(config_slm)
+        iterator = sl_model.call_multi(
+            freq_data, self.include_list, params, remove_dir=True
+        )
+        return [args[0] for args in iterator]
+
     def select_single(self, name):
         def find_item(name):
             for item in self.mol_list:
