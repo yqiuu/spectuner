@@ -993,8 +993,9 @@ class IdentifyResult:
         self.T_single_dict = T_single_dict
 
         n_idn = 0
-        for df in df_sub_dict.values():
-            n_idn += len(df)
+        for names in line_dict["name"]:
+            if names is not None:
+                n_idn += 1
         n_tot = len(line_dict["spans"])
 
         self._n_idn = n_idn
@@ -1004,7 +1005,7 @@ class IdentifyResult:
     def __repr__(self):
         return "Number of lines: {}.\n".format(self._n_tot) \
             + "Number of identified lines: {}.\n".format(self._n_idn) \
-            + "Recall: {:.1f}%.\n".format(self._recall*10)
+            + "Recall: {:.1f}%.\n".format(self._recall*100)
 
 
 class PeakMatchingLoss:
