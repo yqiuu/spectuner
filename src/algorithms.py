@@ -765,7 +765,10 @@ class Identification:
 
         line_dict = {"spans": np.vstack(self.spans_obs_data)}
         line_dict.update(true_pos_dict_sparse)
-        return IdentifyResult(df_mol, df_sub_dict, line_dict, T_single_dict, self.T_back)
+        return IdentifyResult(
+            df_mol, df_sub_dict, line_dict, T_single_dict,
+            self.freq_data, self.T_back
+        )
 
     def derive_param_dict(self, mol_store, config_slm, params):
         pm = mol_store.create_parameter_manager(config_slm)
@@ -985,11 +988,13 @@ class Identification:
 
 
 class IdentifyResult:
-    def __init__(self, df_mol, df_sub_dict, line_dict, T_single_dict, T_back):
+    def __init__(self, df_mol, df_sub_dict, line_dict, T_single_dict,
+                 freq_data, T_back):
         self.df_mol = df_mol
         self.df_sub_dict = df_sub_dict
         self.line_dict = line_dict
         self.T_single_dict = T_single_dict
+        self.freq_data = freq_data
         self.T_back = T_back
 
         n_idn = 0
@@ -1015,12 +1020,30 @@ class IdentifyResult:
         for T_pred_data in self.T_single_dict[key].values():
             if T_ret_data is None:
                 T_ret_data = deepcopy(T_pred_data)
+                T_ret_data = [self.T_back if T_pred is None else T_pred for T_pred in T_ret_data]
                 continue
             for i_segment, T_pred in enumerate(T_pred_data):
                 if T_pred is None:
                     continue
                 T_ret_data[i_segment] += T_pred - self.T_back
         return T_ret_data
+
+    def plot_T_pred(self, plot, key, y_min, y_max, name=None):
+        if name is None:
+            name_set = set(self.T_single_dict[key])
+        else:
+            name_set = set(name)
+
+        inds = []
+        for idx, names in enumerate(self.line_dict["name"]):
+            if names is None:
+                continue
+            if not name_set.isdisjoint(set(names)):
+                inds.append(idx)
+        spans = self.line_dict["spans"][inds]
+        name_list = self.line_dict["name"][inds]
+        plot.plot_spec(self.freq_data, self.get_T_pred(key, name), "r", alpha=.8)
+        plot.plot_names(spans, name_list, y_min, y_max)
 
 
 class PeakMatchingLoss:
