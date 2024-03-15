@@ -711,7 +711,7 @@ def compute_dice_score(spans_inter, spans_a, spans_b):
 class Identification:
     def __init__(self, obs_data, T_back, prominence,
                  rel_height=.25, n_eval=5, use_dice=False, is_loss=False,
-                 frac_fp=1., frac_cut=.001):
+                 frac_fp=1., frac_cut=.05):
         height = T_back + prominence
         self.freq_data, self.T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
