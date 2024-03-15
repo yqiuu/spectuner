@@ -733,7 +733,6 @@ class Identification:
             = self.derive_score_dict(true_pos_dict, false_pos_dict)
         param_dict = self.derive_param_dict(mol_store, config_slm, params)
 
-
         sub_dict = defaultdict(list)
         for item in mol_store.mol_list:
             i_id = item["id"]
@@ -766,7 +765,7 @@ class Identification:
 
         line_dict = {"spans": np.vstack(self.spans_obs_data)}
         line_dict.update(true_pos_dict_sparse)
-        return IdentifyResult(df_mol, df_sub_dict, line_dict, T_single_dict)
+        return IdentifyResult(df_mol, df_sub_dict, line_dict, T_single_dict, self.T_back)
 
     def derive_param_dict(self, mol_store, config_slm, params):
         pm = mol_store.create_parameter_manager(config_slm)
@@ -986,11 +985,12 @@ class Identification:
 
 
 class IdentifyResult:
-    def __init__(self, df_mol, df_sub_dict, line_dict, T_single_dict):
+    def __init__(self, df_mol, df_sub_dict, line_dict, T_single_dict, T_back):
         self.df_mol = df_mol
         self.df_sub_dict = df_sub_dict
         self.line_dict = line_dict
         self.T_single_dict = T_single_dict
+        self.T_back = T_back
 
         n_idn = 0
         for names in line_dict["name"]:
@@ -1006,6 +1006,21 @@ class IdentifyResult:
         return "Number of lines: {}.\n".format(self._n_tot) \
             + "Number of identified lines: {}.\n".format(self._n_idn) \
             + "Recall: {:.1f}%.\n".format(self._recall*100)
+
+    def get_T_pred(self, key, name=None):
+        if name is not None:
+            return self.T_single_dict[key][name]
+
+        T_ret_data = None
+        for T_pred_data in self.T_single_dict[key].values():
+            if T_ret_data is None:
+                T_ret_data = deepcopy(T_pred_data)
+                continue
+            for i_segment, T_pred in enumerate(T_pred_data):
+                if T_pred is None:
+                    continue
+                T_ret_data[i_segment] += T_pred - self.T_back
+        return T_ret_data
 
 
 class PeakMatchingLoss:
