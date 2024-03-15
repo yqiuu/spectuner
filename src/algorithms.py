@@ -972,8 +972,8 @@ class Identification:
         fracs = np.vstack(fracs)
         fracs -= self.T_back
         norm = np.sum(fracs, axis=0)
-        cond = norm != 0.
-        fracs[:, cond] = fracs[:, cond]/norm[cond]
+        norm[norm == 0.] = len(fracs)
+        fracs /= norm
         ids= np.array(ids)
         names = np.array(names, dtype=object)
 
@@ -981,7 +981,9 @@ class Identification:
         id_list = []
         name_list = []
         for i_inter, cond in enumerate(fracs.T > self.frac_cut):
-            frac_list.append(fracs[cond, i_inter])
+            fracs_sub = fracs[cond, i_inter]
+            fracs_sub = fracs_sub/np.sum(fracs_sub)
+            frac_list.append(fracs_sub)
             id_list.append(tuple(ids[cond]))
             name_list.append(tuple(names[cond]))
         return frac_list, id_list, name_list
