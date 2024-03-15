@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from copy import deepcopy
 
 import numpy as np
+import pandas as pd
 from scipy import signal
 
 from .atoms import MolecularDecomposer
@@ -669,6 +670,19 @@ def derive_false_postive_props(freq, T_obs, T_pred, spans_fp, n_eval):
     return values_obs, values_pred
 
 
+def compute_T_single_data(mol_store, config_slm, params, freq_data):
+    pm = mol_store.create_parameter_manager(config_slm)
+    T_single_data = defaultdict(dict)
+    for item in mol_store.mol_list:
+        for mol in item["molecules"]:
+            params_single = pm.get_single_params(mol, params)
+            mol_store_single = mol_store.select_single(mol)
+            T_single_data[item["id"]][mol] \
+                = mol_store_single.compute_T_pred_data(params_single, freq_data, config_slm)
+    T_single_data = dict(T_single_data)
+    return T_single_data
+
+
 def quad_simps(x, y, spans):
     x_p = np.hstack([spans, np.mean(spans, axis=1, keepdims=True)])
     y_p = np.interp(np.ravel(x_p), x, y).reshape(*x_p.shape)
@@ -694,31 +708,13 @@ def compute_dice_score(spans_inter, spans_a, spans_b):
     return np.ravel(2*np.diff(spans_inter)/(np.diff(spans_a) + np.diff(spans_b)))
 
 
-@dataclass
-class IdentifyResult:
-    name: str
-    status: str
-    n_match: int
-    name_list: np.ndarray
-    freq_c_data: np.ndarray
-    errors: np.ndarray
-    errors_neg: np.ndarray
-
-    def __repr__(self):
-        return "name: {}\nstatus: {}\nn_match: {}".format(
-            self.name, self.status, self.n_match)
-
-
 class Identification:
     def __init__(self, obs_data, T_back, prominence,
-                 rel_height=.25, n_eval=5, use_dice=False, is_loss=True,
-                 T_thr=None, frac_fp=1.):
+                 rel_height=.25, n_eval=5, use_dice=False, is_loss=False,
+                 frac_fp=1., frac_cut=.001):
         height = T_back + prominence
         self.freq_data, self.T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
-
-        if T_thr is None:
-            T_thr = .5*max([T_obs.max() for T_obs in self.T_obs_data])
 
         self.T_back = T_back
         self.height = height
@@ -727,82 +723,194 @@ class Identification:
         self.n_eval = n_eval
         self.use_dice = use_dice
         self.is_loss = is_loss
-        self.T_thr = T_thr
         self.frac_fp = frac_fp
+        self.frac_cut = frac_cut
 
-    def derive_trans_set(self, segments, T_pred_data, trans_data):
-        """Derive the set that includes the name of all transitions."""
-        trans_set = set()
-        for args in zip(segments, T_pred_data, trans_data):
-            trans_set.update(self._derive_trans_set_sub(*args))
-        return trans_set
+    def identify(self, mol_store, config_slm, params, T_pred_data):
+        true_pos_dict, false_pos_dict, true_pos_dict_sparse, T_single_dict \
+            = self.compute_scores(mol_store, config_slm, params, T_pred_data)
+        score_dict, score_sub_dict \
+            = self.derive_score_dict(true_pos_dict, false_pos_dict)
+        param_dict = self.derive_param_dict(mol_store, config_slm, params)
 
-    def compute_scores(self, segments, T_pred_data, trans_data):
+
+        sub_dict = defaultdict(list)
+        for item in mol_store.mol_list:
+            i_id = item["id"]
+            if i_id not in score_sub_dict:
+                continue
+            for mol in item["molecules"]:
+                if mol not in score_sub_dict[i_id]:
+                    continue
+                cols = {"master_name": item["root"], "name": mol}
+                cols.update(score_sub_dict[i_id][mol])
+                cols.update(param_dict[i_id][mol])
+                sub_dict[i_id].append(cols)
+        df_sub_dict = {i_id: pd.DataFrame.from_dict(res_list)
+                       for i_id, res_list in sub_dict.items()}
+
+        res_list = []
+        for item in mol_store.mol_list:
+            i_id = item["id"]
+            if i_id not in score_dict:
+                continue
+            master_name = item["root"]
+            cols = {"id": i_id, "master_name": master_name}
+            cols.update(score_dict[i_id])
+            for p_dict in param_dict[i_id].values():
+                cols.update(p_dict)
+                break
+            cols["den"] = df_sub_dict[i_id]["den"].sum()
+            res_list.append(cols)
+        df_mol = pd.DataFrame.from_dict(res_list)
+
+        line_dict = {"spans": np.vstack(self.spans_obs_data)}
+        line_dict.update(true_pos_dict_sparse)
+        return IdentifyResult(df_mol, df_sub_dict, line_dict, T_single_dict)
+
+    def derive_param_dict(self, mol_store, config_slm, params):
+        pm = mol_store.create_parameter_manager(config_slm)
+        params_ = pm.scaler.derive_params(pm, params)
+        params_mol = pm.derive_mol_params(params_)
+
+        param_names = ["size", "T_ex", "den", "delta_v", "v_lsr"]
+        param_dict = defaultdict(dict)
+        idx = 0
+        for item in mol_store.mol_list:
+            for mol in item["molecules"]:
+                param_dict[item["id"]][mol] \
+                    = {key: par for key, par in zip(param_names, params_mol[idx])}
+                idx += 1
+        param_dict = dict(param_dict)
+        return param_dict
+
+    def derive_score_dict(self, true_pos_dict, false_pos_dict):
+        def increase_score_dict(score_dict, score_sub_dict, data_dict):
+            scores = data_dict["score"]
+            losses = data_dict["loss"]
+            frac_list = data_dict["frac"]
+            id_list = data_dict["id"]
+            name_list = data_dict["name"]
+            for i_line in range(len(frac_list)):
+                for i_blen in range(len(frac_list[i_line])):
+                    i_id = id_list[i_line][i_blen]
+                    name = name_list[i_line][i_blen]
+                    frac = frac_list[i_line][i_blen]
+                    loss = losses[i_line]*frac
+                    score = scores[i_line]*frac
+                    score_dict[i_id]["loss"] += loss
+                    score_dict[i_id]["score"] += score
+                    score_sub_dict[i_id][name]["loss"] += loss
+                    score_sub_dict[i_id][name]["score"] += score
+
+        def increase_number_dict(score_dict, data_dict, key):
+            for i_id in score_dict:
+                for id_list in data_dict["id"]:
+                    if i_id in id_list:
+                        score_dict[i_id][key] += 1
+
+        dict_factory = lambda: {"loss": 0., "score": 0., "num_tp": 0, "num_fp": 0}
+        score_dict = defaultdict(dict_factory)
+        dict_factory = lambda: {"loss": 0., "score": 0.}
+        score_sub_dict = defaultdict(lambda: defaultdict(dict_factory))
+        increase_score_dict(score_dict, score_sub_dict, true_pos_dict)
+        increase_score_dict(score_dict, score_sub_dict, false_pos_dict)
+
+        increase_number_dict(score_dict, true_pos_dict, "num_tp")
+        increase_number_dict(score_dict, false_pos_dict, "num_fp")
+        # Convert to standard dict
+        score_dict = dict(score_dict)
+        score_sub_dict = {key: dict(val) for key, val in score_sub_dict.items()}
+        return score_dict, score_sub_dict
+
+    def compute_scores(self, mol_store, config_slm, params, T_pred_data):
         true_pos_dict = {
-            "scores": [],
-            "freqs": [],
-            "names": []
+            "freq": [],
+            "loss": [],
+            "score": [],
+            "frac": [],
+            "id": [],
+            "name": []
         }
         false_pos_dict = {
-            "scores": [],
-            "freqs": [],
-            "names": []
+            "freq": [],
+            "loss": [],
+            "score": [],
+            "frac": [],
+            "id": [],
+            "name": []
+        }
+        true_pos_dict_sparse = {
+            "loss": [],
+            "score": [],
+            "frac": [],
+            "id": [],
+            "name": []
         }
 
         def update_data_dict(data, data_new):
-            data["scores"].append(data_new["scores"])
-            data["freqs"].append(data_new["freqs"])
-            data["names"].extend(data_new["names"])
+            data["freq"].append(data_new["freq"])
+            data["loss"].append(data_new["loss"])
+            data["score"].append(data_new["score"])
+            data["frac"].extend(data_new["frac"])
+            data["id"].extend(data_new["id"])
+            data["name"].extend(data_new["name"])
 
-        for i_segment, T_pred, trans_dict in zip(segments, T_pred_data, trans_data):
-            true_pos_dict_sub, false_pos_dict_sub = self._compute_scores_sub(i_segment, T_pred, trans_dict)
+        def update_sparse_dict(data, data_new, num):
+            inds_obs = data_new["inds_obs"]
+            for key in ["loss", "score"]:
+                tmp = np.zeros(num)
+                tmp[inds_obs] = data_new[key]
+                data[key].append(tmp)
+            for key in ["frac", "id", "name"]:
+                tmp = [None for _ in range(num)]
+                for idx, val in zip(inds_obs, data_new[key]):
+                    tmp[idx] = val
+                data[key].extend(tmp)
+
+        T_single_dict = compute_T_single_data(mol_store, config_slm, params, self.freq_data)
+        for i_segment, T_pred in enumerate(T_pred_data):
+            if T_pred is None:
+                continue
+            true_pos_dict_sub, false_pos_dict_sub \
+                = self._compute_scores_sub(i_segment, T_pred, T_single_dict)
             update_data_dict(true_pos_dict, true_pos_dict_sub)
             update_data_dict(false_pos_dict, false_pos_dict_sub)
-        true_pos_dict["scores"] = np.concatenate(true_pos_dict["scores"])
-        true_pos_dict["freqs"] = np.concatenate(true_pos_dict["freqs"])
-        false_pos_dict["scores"] = np.concatenate(false_pos_dict["scores"])
-        false_pos_dict["freqs"] = np.concatenate(false_pos_dict["freqs"])
-        score = np.sum(true_pos_dict["scores"]) + np.sum(false_pos_dict["scores"])
-        return {
-            "score": score,
-            "true_positive": true_pos_dict,
-            "false_positive": false_pos_dict,
-        }
+            update_sparse_dict(
+                true_pos_dict_sparse, true_pos_dict_sub,
+                num=len(self.spans_obs_data[i_segment])
+            )
+        for key in ["freq", "loss", "score"]:
+            true_pos_dict[key] = np.concatenate(true_pos_dict[key])
+            false_pos_dict[key] = np.concatenate(false_pos_dict[key])
+        for key in ["loss", "score"]:
+            true_pos_dict_sparse[key] = np.concatenate(true_pos_dict_sparse[key])
+        for key in ["frac", "id", "name"]:
+            true_pos_dict_sparse[key] = np.array(true_pos_dict_sparse[key], dtype=object)
+        return true_pos_dict, false_pos_dict, true_pos_dict_sparse, T_single_dict
 
-    def _derive_trans_set_sub(self, i_segment, T_pred, trans_dict):
-        """Derive the set that includes the name of all transitions."""
-        trans_set = set()
-
-        freq = self.freq_data[i_segment]
-        spans_obs = self.spans_obs_data[i_segment]
-        spans_pred, _ = derive_peaks(
-            freq, T_pred, self.height, self.prominence, self.rel_height
-        )
-        if len(spans_pred) == 0:
-            return trans_set
-
-        _, _, inds_pred = derive_intersections(spans_obs, spans_pred)
-        if len(inds_pred) > 0:
-            name_list = self._derive_name_list(trans_dict, spans_pred, inds_pred)
-            for names in name_list:
-                trans_set.update(set(names))
-        return trans_set
-
-    def _compute_scores_sub(self, i_segment, T_pred, trans_dict):
+    def _compute_scores_sub(self, i_segment, T_pred, T_single_dict):
         freq = self.freq_data[i_segment]
         T_obs = self.T_obs_data[i_segment]
         spans_obs = self.spans_obs_data[i_segment]
 
         # Set default returns
         true_pos_dict = {
-            "scores": np.zeros(0),
-            "freqs": np.zeros(0),
-            "names": []
+            "freq": np.zeros(0),
+            "score": np.zeros(0),
+            "loss": np.zeros(0),
+            "frac": [],
+            "id": [],
+            "name": [],
+            "inds_obs": np.zeros(0, dtype=int)
         }
         false_pos_dict = {
-            "scores": np.zeros(0),
-            "freqs": np.zeros(0),
-            "names": []
+            "freq": np.zeros(0),
+            "score": np.zeros(0),
+            "loss": np.zeros(0),
+            "frac": [],
+            "id": [],
+            "name": [],
         }
 
         spans_pred, _ = derive_peaks(
@@ -813,21 +921,22 @@ class Identification:
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
-            values_obs, values_pred, factor = derive_true_postive_props(
+            values_obs, values_pred, f_dice = derive_true_postive_props(
                 freq, T_obs, T_pred, spans_obs, spans_pred,
                 spans_inter, inds_pred, inds_obs, self.n_eval
             )
             errors = np.mean(np.abs(values_pred - values_obs), axis=1)
             norm = np.mean(values_obs, axis=1) - self.T_back
-            if self.is_loss:
-                scores = errors - norm*factor
-            else:
-                if not self.use_dice:
-                    factor = 1.
-                scores = np.maximum(0, factor - errors/norm)
-            true_pos_dict["scores"] = scores
-            true_pos_dict["freqs"] = np.mean(spans_inter, axis=1)
-            true_pos_dict["names"] = self._derive_name_list(trans_dict, spans_pred, inds_pred)
+            losses = errors - norm*f_dice
+            if not self.use_dice:
+                f_dice = 1.
+            scores = np.maximum(0, f_dice - errors/norm)
+            true_pos_dict["freq"] = np.mean(spans_inter, axis=1)
+            true_pos_dict["score"] = scores
+            true_pos_dict["loss"] = losses
+            true_pos_dict["frac"], true_pos_dict["id"], true_pos_dict["name"] \
+                = self._compute_fractions(i_segment, T_single_dict, spans_inter)
+            true_pos_dict["inds_obs"] = inds_obs
 
         spans_fp = derive_complementary(spans_pred, inds_pred)
         if len(spans_fp) != 0:
@@ -835,48 +944,67 @@ class Identification:
                 = derive_false_postive_props(freq, T_obs, T_pred, spans_fp, self.n_eval)
             errors_fp = np.mean(np.maximum(0, values_pred_fp - values_obs_fp), axis=1)
             norm_fp = np.mean(values_pred_fp, axis=1) - self.T_back
-            if self.is_loss:
-                scores = errors_fp
-            else:
-                scores = -self.frac_fp*errors_fp/norm_fp
-            false_pos_dict["scores"] = scores
-            false_pos_dict["freqs"] = np.mean(spans_fp, axis=1)
-            false_pos_dict["names"] = self._derive_name_list(trans_dict, spans_fp)
-
+            losses = errors_fp
+            scores = -self.frac_fp*errors_fp/norm_fp
+            false_pos_dict["freq"] = np.mean(spans_fp, axis=1)
+            false_pos_dict["score"] = scores
+            false_pos_dict["loss"] = losses
+            false_pos_dict["frac"], false_pos_dict["id"], false_pos_dict["name"] \
+                = self._compute_fractions(i_segment, T_single_dict, spans_fp)
         return true_pos_dict, false_pos_dict
 
-    def _derive_name_list(self, trans_dict, spans, inds=None):
-        if inds is None:
-            spans_uni = spans
-            uni_inverse = None
-        else:
-            inds_uni, uni_inverse = np.unique(inds, return_inverse=True)
-            spans_uni = spans[inds_uni]
+    def _compute_fractions(self, i_segment, T_single_dict, spans_inter):
+        fracs = []
+        ids = []
+        names = []
+        freq = self.freq_data[i_segment]
+        for i_id, sub_dict in T_single_dict.items():
+            for name, T_pred_data in sub_dict.items():
+                T_pred = T_pred_data[i_segment]
+                if T_pred is None:
+                    continue
+                values = np.mean(eval_spans(spans_inter, freq, T_pred, self.n_eval), axis=1)
+                fracs.append(values)
+                ids.append(i_id)
+                names.append(name)
+        fracs = np.vstack(fracs)
+        fracs -= self.T_back
+        norm = np.sum(fracs, axis=0)
+        cond = norm != 0.
+        fracs[:, cond] = fracs[:, cond]/norm[cond]
+        ids= np.array(ids)
+        names = np.array(names, dtype=object)
 
+        frac_list = []
+        id_list = []
         name_list = []
-        freq_list = []
-        for key, freqs in trans_dict.items():
-            name_list.extend([key]*len(freqs))
-            freq_list.extend(freqs)
-        name_list = np.array(name_list)
-        freq_list = np.array(freq_list)
+        for i_inter, cond in enumerate(fracs.T > self.frac_cut):
+            frac_list.append(fracs[cond, i_inter])
+            id_list.append(tuple(ids[cond]))
+            name_list.append(tuple(names[cond]))
+        return frac_list, id_list, name_list
 
-        f_left, f_right = spans_uni.T
-        inds = np.searchsorted(f_left, freq_list) - 1
-        cond_idx = inds >= 0
-        inds[~cond_idx] = 0
-        cond_right = freq_list <= f_right[inds]
-        cond = cond_idx & cond_right
 
-        names_ret = [[] for _ in range(len(spans_uni))]
-        for idx, name in zip(inds[cond], name_list[cond]):
-            names_ret[idx].append(name)
+class IdentifyResult:
+    def __init__(self, df_mol, df_sub_dict, line_dict, T_single_dict):
+        self.df_mol = df_mol
+        self.df_sub_dict = df_sub_dict
+        self.line_dict = line_dict
+        self.T_single_dict = T_single_dict
 
-        if uni_inverse is not None:
-            names_ret = np.array(names_ret, dtype=object)[uni_inverse]
-            names_ret = list(names_ret)
+        n_idn = 0
+        for df in df_sub_dict.values():
+            n_idn += len(df)
+        n_tot = len(line_dict["spans"])
 
-        return names_ret
+        self._n_idn = n_idn
+        self._n_tot = n_tot
+        self._recall = n_idn/n_tot
+
+    def __repr__(self):
+        return "Number of lines: {}.\n".format(self._n_tot) \
+            + "Number of identified lines: {}.\n".format(self._n_idn) \
+            + "Recall: {:.1f}%.\n".format(self._recall*10)
 
 
 class PeakMatchingLoss:
