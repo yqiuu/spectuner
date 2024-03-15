@@ -1019,8 +1019,11 @@ class IdentifyResult:
         T_ret_data = None
         for T_pred_data in self.T_single_dict[key].values():
             if T_ret_data is None:
-                T_ret_data = deepcopy(T_pred_data)
-                T_ret_data = [self.T_back if T_pred is None else T_pred for T_pred in T_ret_data]
+                T_ret_data = []
+                for i_segment, T_pred in enumerate(T_pred_data):
+                    if T_pred is None:
+                        T_pred = np.full_like(self.freq_data[i_segment], self.T_back)
+                    T_ret_data.append(T_pred)
                 continue
             for i_segment, T_pred in enumerate(T_pred_data):
                 if T_pred is None:
