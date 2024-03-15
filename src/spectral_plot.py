@@ -95,16 +95,20 @@ class SpectralPlot:
                 idx_b = 0
 
     def plot_names(self, spans, name_list, y_min, y_max,
-                   colors="k", linestyles="--", offset=3, frac=.5, fontsize=14):
+                   linestyles="--", offset=3, frac=.5, fontsize=14):
         for freq_c, names in zip(np.mean(spans, axis=1), name_list):
             idx_ax = self._get_axe_idx(freq_c)
             ax = self.axes[idx_ax]
-            ax.vlines(freq_c, y_min, y_max, colors, linestyles)
-            y_show = frac*(y_max + y_min)
-            x_show = freq_c + offset
-            for text in names:
-                ax.text(x_show, y_show, text, rotation="vertical", fontsize=fontsize)
-                x_show += offset
+            if names is None:
+                ax.vlines(freq_c, y_min, y_max, "grey")
+            else:
+                c = "k" if len(names) == 1 else "r"
+                ax.vlines(freq_c, y_min, y_max, c, linestyles)
+                y_show = frac*(y_max + y_min)
+                x_show = freq_c + offset
+                for text in names:
+                    ax.text(x_show, y_show, text, rotation="vertical", fontsize=fontsize, c=c)
+                    x_show += offset
 
     def plot_errors(self, freqs, errors, y_min, y_max, colors="k", linestyles="--", offset=3):
         for freq_c, err in zip(freqs, errors):
