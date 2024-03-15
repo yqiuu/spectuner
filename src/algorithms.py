@@ -1032,7 +1032,7 @@ class IdentifyResult:
         if name is None:
             name_set = set(self.T_single_dict[key])
         else:
-            name_set = set(name)
+            name_set = set((name,))
 
         inds = []
         for idx, names in enumerate(self.line_dict["name"]):
