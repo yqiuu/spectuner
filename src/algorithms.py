@@ -808,7 +808,7 @@ class Identification:
             res_list.append(cols)
         df_mol = pd.DataFrame.from_dict(res_list)
 
-        line_dict = {"spans": np.vstack(self.spans_obs_data)}
+        line_dict = {"freq": np.mean(np.vstack(self.spans_obs_data), axis=1)}
         line_dict.update(true_pos_dict_sparse)
         return IdentifyResult(
             df_mol, df_sub_dict, line_dict, T_single_dict,
@@ -1053,7 +1053,7 @@ class IdentifyResult:
         for names in line_dict["name"]:
             if names is not None:
                 n_idn += 1
-        n_tot = len(line_dict["spans"])
+        n_tot = len(line_dict["freq"])
         self._n_idn = n_idn
         self._n_tot = n_tot
         self._recall = n_idn/n_tot
@@ -1104,7 +1104,7 @@ class IdentifyResult:
                 continue
             if not name_set.isdisjoint(set(names)):
                 inds.append(idx)
-        spans = self.line_dict["spans"][inds]
+        spans = self.line_dict["freq"][inds]
         name_list = self.line_dict["name"][inds]
         plot.plot_spec(self.freq_data, self.get_T_pred(key, name), "r", alpha=.8)
         plot.plot_names(spans, name_list, y_min, y_max)
