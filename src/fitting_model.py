@@ -31,7 +31,6 @@ class FittingModel:
         self.include_list = mol_store.include_list
         self.sl_model = mol_store.create_spectral_line_model(config_slm)
         T_back = self.sl_model.pm.T_back
-        obs_data = self._remove_base(obs_data, base_data, T_back)
         self.freq_range_data, self.freq_data, self.T_obs_data \
             = self._preprocess_spectra(obs_data)
         self.bounds = bounds
@@ -48,15 +47,11 @@ class FittingModel:
         else:
             self.thr_loss_fn = ThresholdRegularizer(obs_data, **config_thr_loss)
 
-    def _remove_base(self, obs_data, base_data, T_back):
         if base_data is None:
-            return obs_data
-
-        obs_data_new = []
-        for spec, T_base in zip(obs_data, base_data):
-            spec[:, 1] = spec[:, 1] - T_base + T_back
-            obs_data_new.append(spec)
-        return obs_data_new
+            base_data = [None for _ in range(len(obs_data))]
+        else:
+            base_data = [T_base - T_back for T_base in base_data]
+        self.base_data = base_data
 
     def _preprocess_spectra(self, obs_data):
         if isinstance(obs_data, list) or isinstance(obs_data, tuple):
@@ -87,6 +82,9 @@ class FittingModel:
             T_pred = args[0]
             if T_pred is None:
                 T_pred = np.zeros_like(T_obs)
+            T_base = self.base_data[i_segment]
+            if T_base is not None:
+                T_pred = T_pred + T_base
             loss += self.loss_fn(T_pred, T_obs)
             if self.pm_loss_fn is not None:
                 loss += self.pm_loss_fn(i_segment, T_pred)
