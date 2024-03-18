@@ -95,14 +95,14 @@ class SpectralPlot:
                 idx_b = 0
 
     def plot_names(self, freqs, name_list, y_min, y_max,
-                   linestyles="--", offset=3, frac=.5, fontsize=14):
+                   color="k", linestyles="--", offset=3, frac=.5, fontsize=14):
         for freq_c, names in zip(freqs, name_list):
             idx_ax = self._get_axe_idx(freq_c)
             ax = self.axes[idx_ax]
             if names is None:
                 ax.vlines(freq_c, y_min, y_max, "grey")
             else:
-                c = "k" if len(names) == 1 else "r"
+                c = color if len(names) == 1 else "r"
                 ax.vlines(freq_c, y_min, y_max, c, linestyles)
                 y_show = frac*(y_max + y_min)
                 x_show = freq_c + offset
