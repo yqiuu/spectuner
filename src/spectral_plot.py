@@ -94,9 +94,9 @@ class SpectralPlot:
                 i_segment += 1
                 idx_b = 0
 
-    def plot_names(self, spans, name_list, y_min, y_max,
+    def plot_names(self, freqs, name_list, y_min, y_max,
                    linestyles="--", offset=3, frac=.5, fontsize=14):
-        for freq_c, names in zip(np.mean(spans, axis=1), name_list):
+        for freq_c, names in zip(freqs, name_list):
             idx_ax = self._get_axe_idx(freq_c)
             ax = self.axes[idx_ax]
             if names is None:
