@@ -530,14 +530,13 @@ def filter_moleclues(mol_store, config_slm, params,
                 T_single = T_single_data[i_segment]
                 if T_single is None:
                     continue
-                spans_single = derive_peaks(freq, T_single, height, prominence, rel_height)
-                spans_inter = derive_intersections(spans_pred, spans_single)[0]
-                values = np.mean(eval_spans(spans_inter, freq, T_pred, n_eval), axis=1)
-            names.append(name)
-            fracs.append(values)
+                values = np.mean(eval_spans(spans_pred, freq, T_single, n_eval), axis=1)
+                names.append(name)
+                fracs.append(values)
         fracs = compute_contributions(fracs, T_back)
         names = np.array(names, dtype=object)
-        for cond in enumerate(fracs.T > frac_cut):
+        for cond in fracs.T > frac_cut:
+            print(names[cond])
             names_pos.update(set(names[cond]))
 
     if len(names_pos) == 0:
@@ -692,6 +691,8 @@ def compute_contributions(values, T_back):
         array (N_mol, N_peak): Normalized fractions.
     """
     fracs = np.vstack(values)
+    if len(fracs.shape) == 1:
+        fracs = fracs[:, None]
     fracs -= T_back
     norm = np.sum(fracs, axis=0)
     norm[norm == 0.] = len(fracs)
@@ -1130,9 +1131,13 @@ class IdentifyResult:
         else:
             name_set = set((name,))
 
-        inds = self.filter_name_list(name_set, self.line_dict["name"])
-        spans = self.line_dict["freq"][inds]
-        name_list = self.line_dict["name"][inds]
+        if self.is_sep:
+            line_dict = self.line_dict[key]
+        else:
+            line_dict = self.line_dict
+        inds = self.filter_name_list(name_set, line_dict["name"])
+        spans = line_dict["freq"][inds]
+        name_list = line_dict["name"][inds]
         plot.plot_spec(self.freq_data, self.get_T_pred(key, name), "r", alpha=.8)
         plot.plot_names(spans, name_list, y_min, y_max)
 
