@@ -499,7 +499,8 @@ def derive_median_frac_threshold(obs_data, median_frac):
 
 
 def filter_moleclues(mol_store, config_slm, params,
-                     freq_data, T_pred_data, T_back, prominence, rel_height):
+                     freq_data, T_pred_data, T_back, prominence, rel_height,
+                     n_eval=5, frac_cut=.05):
     """Select molecules that have emission lines.
 
     Args:
@@ -511,10 +512,34 @@ def filter_moleclues(mol_store, config_slm, params,
         mol_store (MoleculeStore): None if no emission lines.
         params (array): None if no emission lines.
     """
-    names_pos = derive_peaks_pred_data(
-        mol_store, config_slm, params, freq_data, T_pred_data,
-        T_back, prominence, rel_height
-    )[-1]
+    height = T_back + prominence
+    T_single_dict = compute_T_single_data(mol_store, config_slm, params, freq_data)
+    names_pos = set()
+
+    for i_segment in range(len(T_pred_data)):
+        freq = freq_data[i_segment]
+        T_pred = T_pred_data[i_segment]
+        if T_pred is None:
+            continue
+        spans_pred = derive_peaks(freq, T_pred, height, prominence, rel_height)[0]
+
+        names = []
+        fracs = []
+        for sub_dict in T_single_dict.values():
+            for name, T_single_data in sub_dict.items():
+                T_single = T_single_data[i_segment]
+                if T_single is None:
+                    continue
+                spans_single = derive_peaks(freq, T_single, height, prominence, rel_height)
+                spans_inter = derive_intersections(spans_pred, spans_single)[0]
+                values = np.mean(eval_spans(spans_inter, freq, T_pred, n_eval), axis=1)
+            names.append(name)
+            fracs.append(values)
+        fracs = compute_contributions(fracs, T_back)
+        names = np.array(names, dtype=object)
+        for cond in enumerate(fracs.T > frac_cut):
+            names_pos.update(set(names[cond]))
+
     if len(names_pos) == 0:
         return None, None
     mol_store_sub = mol_store.select_subset(names_pos)
@@ -652,6 +677,26 @@ def derive_blending_list(obs_data, pred_data_list, T_back, prominence, rel_heigh
     blending_list.sort(key=lambda item: -len(item[1]))
 
     return blending_list
+
+
+def compute_contributions(values, T_back):
+    """Compute the contributions of each blending peaks.
+
+    Args:
+        fracs (list): Each element should be an array that gives the mean
+            temperature of the peaks. Different elements give the values from
+            different molecules.
+        T_back (_type_): Background temperature.
+
+    Returns:
+        array (N_mol, N_peak): Normalized fractions.
+    """
+    fracs = np.vstack(values)
+    fracs -= T_back
+    norm = np.sum(fracs, axis=0)
+    norm[norm == 0.] = len(fracs)
+    fracs /= norm
+    return fracs
 
 
 def derive_true_postive_props(freq, T_obs, T_pred, spans_obs, spans_pred,
