@@ -934,6 +934,7 @@ class Identification:
             true_pos_dict_sparse[key] = np.concatenate(true_pos_dict_sparse[key])
         for key in ["frac", "id", "name"]:
             true_pos_dict_sparse[key] = np.array(true_pos_dict_sparse[key], dtype=object)
+            false_pos_dict[key] = np.array(false_pos_dict[key], dtype=object)
         return true_pos_dict, false_pos_dict, true_pos_dict_sparse, T_single_dict
 
     def _compute_scores_sub(self, i_segment, T_pred, T_single_dict):
@@ -1036,7 +1037,7 @@ class Identification:
 
 class IdentifyResult:
     def __init__(self, df_mol, df_sub_dict, line_dict, false_line_dict,
-                 T_single_dict, freq_data, T_back):
+                 T_single_dict, freq_data, T_back, is_sep=False):
         self.df_mol = df_mol
         self.df_sub_dict = df_sub_dict
         self.line_dict = line_dict
@@ -1044,20 +1045,26 @@ class IdentifyResult:
         self.T_single_dict = T_single_dict
         self.freq_data = freq_data
         self.T_back = T_back
+        self.is_sep = is_sep
 
         self._mol_dict = {key: tuple(sub_dict.keys()) for key, sub_dict
                           in T_single_dict.items()}
         self._master_name_dict = {key: name for key, name
                                   in zip(df_mol["id"], df_mol["master_name"])}
 
-        n_idn = 0
-        for names in line_dict["name"]:
-            if names is not None:
-                n_idn += 1
-        n_tot = len(line_dict["freq"])
-        self._n_idn = n_idn
-        self._n_tot = n_tot
-        self._recall = n_idn/n_tot
+        if is_sep:
+            self._n_idn = 0
+            self._n_tot = 0
+            self._recall = 0.
+        else:
+            n_idn = 0
+            for names in line_dict["name"]:
+                if names is not None:
+                    n_idn += 1
+            n_tot = len(line_dict["freq"])
+            self._n_idn = n_idn
+            self._n_tot = n_tot
+            self._recall = n_idn/n_tot
 
     def __repr__(self):
         text = "Number of lines: {}.\n".format(self._n_tot) \
@@ -1073,6 +1080,30 @@ class IdentifyResult:
     @property
     def mol_dict(self):
         return self._mol_dict
+
+    def extract_sub(self, key):
+        df_mol_new = deepcopy(self.df_mol[self.df_mol["id"] == key])
+        df_sub_dict_new = {key: deepcopy(self.df_sub_dict[key])}
+        #
+        inds = self.filter_name_list(set((key,)), self.line_dict["id"])
+        line_dict_ = {key: arr[inds] for key, arr in self.line_dict.items()}
+        line_dict_new = {key: deepcopy(line_dict_)}
+        #
+        inds = self.filter_name_list(set((key,)), self.false_line_dict["id"])
+        false_line_dict_ = {key: arr[inds] for key, arr in self.false_line_dict.items()}
+        false_line_dict_new = {key: deepcopy(false_line_dict_)}
+        #
+        T_single_dict_new = {key: deepcopy(self.T_single_dict[key])}
+        return IdentifyResult(
+            df_mol=df_mol_new,
+            df_sub_dict=df_sub_dict_new,
+            line_dict=line_dict_new,
+            false_line_dict=false_line_dict_new,
+            T_single_dict=T_single_dict_new,
+            freq_data=self.freq_data,
+            T_back=self.T_back,
+            is_sep=True
+        )
 
     def get_T_pred(self, key, name=None):
         if name is not None:
@@ -1099,16 +1130,20 @@ class IdentifyResult:
         else:
             name_set = set((name,))
 
-        inds = []
-        for idx, names in enumerate(self.line_dict["name"]):
-            if names is None:
-                continue
-            if not name_set.isdisjoint(set(names)):
-                inds.append(idx)
+        inds = self.filter_name_list(name_set, self.line_dict["name"])
         spans = self.line_dict["freq"][inds]
         name_list = self.line_dict["name"][inds]
         plot.plot_spec(self.freq_data, self.get_T_pred(key, name), "r", alpha=.8)
         plot.plot_names(spans, name_list, y_min, y_max)
+
+    def filter_name_list(self, target_set, name_list):
+        inds = []
+        for idx, names in enumerate(name_list):
+            if names is None:
+                continue
+            if not target_set.isdisjoint(set(names)):
+                inds.append(idx)
+        return inds
 
 
 class PeakMatchingLoss:
