@@ -811,8 +811,8 @@ class Identification:
         line_dict = {"freq": np.mean(np.vstack(self.spans_obs_data), axis=1)}
         line_dict.update(true_pos_dict_sparse)
         return IdentifyResult(
-            df_mol, df_sub_dict, line_dict, T_single_dict,
-            self.freq_data, self.T_back
+            df_mol, df_sub_dict, line_dict, false_pos_dict,
+            T_single_dict, self.freq_data, self.T_back
         )
 
     def derive_param_dict(self, mol_store, config_slm, params):
@@ -1035,11 +1035,12 @@ class Identification:
 
 
 class IdentifyResult:
-    def __init__(self, df_mol, df_sub_dict, line_dict, T_single_dict,
-                 freq_data, T_back):
+    def __init__(self, df_mol, df_sub_dict, line_dict, false_line_dict,
+                 T_single_dict, freq_data, T_back):
         self.df_mol = df_mol
         self.df_sub_dict = df_sub_dict
         self.line_dict = line_dict
+        self.false_line_dict = false_line_dict
         self.T_single_dict = T_single_dict
         self.freq_data = freq_data
         self.T_back = T_back
