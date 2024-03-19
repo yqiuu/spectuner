@@ -1107,34 +1107,15 @@ class IdentifyResult:
         self.T_back = T_back
         self.is_sep = is_sep
 
+        self._mol_dict = {key: tuple(df["name"]) for key, df in df_sub_dict.items()}
         if len(df_mol) > 0:
-            self._mol_dict = {key: tuple(sub_dict.keys()) for key, sub_dict
-                            in T_single_dict.items()}
             self._master_name_dict = {key: name for key, name
                                       in zip(df_mol["id"], df_mol["master_name"])}
         else:
-            self._mol_dict = {}
             self._master_name_dict = {}
 
-        if is_sep:
-            self._n_idn = 0
-            self._n_tot = 0
-            self._recall = 0.
-        else:
-            n_idn = 0
-            for names in line_dict["name"]:
-                if names is not None:
-                    n_idn += 1
-            n_tot = len(line_dict["freq"])
-            self._n_idn = n_idn
-            self._n_tot = n_tot
-            self._recall = n_idn/n_tot
-
     def __repr__(self):
-        text = "Number of lines: {}.\n".format(self._n_tot) \
-            + "Number of identified lines: {}.\n".format(self._n_idn) \
-            + "Recall: {:.1f}%.\n".format(self._recall*100) \
-            + "Molecules:\n"
+        text = "Molecules:\n"
         for key, name_list in self._mol_dict.items():
             text += "id={}, {}\n".format(key, self._master_name_dict[key])
             for name in name_list:
@@ -1144,6 +1125,29 @@ class IdentifyResult:
     @property
     def mol_dict(self):
         return self._mol_dict
+
+    def derive_stats_dict(self):
+        stats_dict = {}
+        n_mol = 0
+        for df in self.df_sub_dict.values():
+            n_mol += len(df)
+        n_master = len(self.df_mol)
+        stats_dict.update(n_master=n_master, n_mol=n_mol)
+
+        if self.is_sep:
+            n_idn = 0
+            n_tot = 0
+            recall = 0.
+        else:
+            n_idn = 0
+            for names in self.line_dict["name"]:
+                if names is not None:
+                    n_idn += 1
+            n_tot = len(self.line_dict["freq"])
+            recall = n_idn/n_tot
+        stats_dict.update(n_tot=n_tot, n_idn=n_idn, recall=recall)
+
+        return stats_dict
 
     def extract_sub(self, key):
         df_mol_new = deepcopy(self.df_mol[self.df_mol["id"] == key])
