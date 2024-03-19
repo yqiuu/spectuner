@@ -807,6 +807,7 @@ class Identification:
             cols["den"] = df_sub_dict[i_id]["den"].sum()
             res_list.append(cols)
         df_mol = pd.DataFrame.from_dict(res_list)
+        df_mol.sort_values("score", ascending=False, inplace=True)
 
         line_dict = {"freq": np.mean(np.vstack(self.spans_obs_data), axis=1)}
         line_dict.update(true_pos_dict_sparse)
