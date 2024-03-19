@@ -830,7 +830,8 @@ class Identification:
             cols["den"] = df_sub_dict[i_id]["den"].sum()
             res_list.append(cols)
         df_mol = pd.DataFrame.from_dict(res_list)
-        df_mol.sort_values("score", ascending=False, inplace=True)
+        if len(df_mol) > 0:
+            df_mol.sort_values("score", ascending=False, inplace=True)
 
         line_dict = {"freq": np.mean(np.vstack(self.spans_obs_data), axis=1)}
         line_dict.update(true_pos_dict_sparse)
@@ -1078,10 +1079,14 @@ class IdentifyResult:
         self.T_back = T_back
         self.is_sep = is_sep
 
-        self._mol_dict = {key: tuple(sub_dict.keys()) for key, sub_dict
-                          in T_single_dict.items()}
-        self._master_name_dict = {key: name for key, name
-                                  in zip(df_mol["id"], df_mol["master_name"])}
+        if len(df_mol) > 0:
+            self._mol_dict = {key: tuple(sub_dict.keys()) for key, sub_dict
+                            in T_single_dict.items()}
+            self._master_name_dict = {key: name for key, name
+                                      in zip(df_mol["id"], df_mol["master_name"])}
+        else:
+            self._mol_dict = {}
+            self._master_name_dict = {}
 
         if is_sep:
             self._n_idn = 0
