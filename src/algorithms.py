@@ -880,7 +880,13 @@ class Identification:
                     if i_id in id_list:
                         score_dict[i_id][key] += 1
 
-        dict_factory = lambda: {"loss": 0., "score": 0., "num_tp": 0, "num_fp": 0}
+        def increase_number_i_dict(score_dict, data_dict, key):
+            for i_id in score_dict:
+                for id_list in data_dict["id"]:
+                    if len(id_list) == 1 and i_id == id_list[0]:
+                        score_dict[i_id][key] += 1
+
+        dict_factory = lambda: {"loss": 0., "score": 0., "num_tp": 0, "num_tp_i": 0, "num_fp": 0}
         score_dict = defaultdict(dict_factory)
         dict_factory = lambda: {"loss": 0., "score": 0.}
         score_sub_dict = defaultdict(lambda: defaultdict(dict_factory))
@@ -889,6 +895,7 @@ class Identification:
 
         increase_number_dict(score_dict, true_pos_dict, "num_tp")
         increase_number_dict(score_dict, false_pos_dict, "num_fp")
+        increase_number_i_dict(score_dict, true_pos_dict, "num_tp_i")
         # Convert to standard dict
         score_dict = dict(score_dict)
         score_sub_dict = {key: dict(val) for key, val in score_sub_dict.items()}
