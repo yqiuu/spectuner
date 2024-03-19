@@ -780,6 +780,7 @@ def compute_dice_score(spans_inter, spans_a, spans_b):
 
 
 def concat_identify_result(res_list):
+    res_list = [res for res in res_list if len(res.df_mol) > 0]
     df_mol = pd.concat([res.df_mol for res in res_list])
     df_sub_dict = {}
     line_dict = {}
