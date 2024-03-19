@@ -728,6 +728,32 @@ def compute_T_single_data(mol_store, config_slm, params, freq_data):
     return T_single_data
 
 
+def sum_T_single_data(T_single_dict, T_back, key=None):
+    # Get a test dict
+    for sub_dict in T_single_dict.values():
+        for T_single_data in sub_dict.values():
+            break
+        break
+    T_ret_data = [None for _ in T_single_data]
+
+    def sum_sub(target_dict):
+        for T_single_data in target_dict.values():
+            for i_segment, T_single in enumerate(T_single_data):
+                if T_single is None:
+                    continue
+                if T_ret_data[i_segment] is None:
+                    T_ret_data[i_segment] = T_back
+                T_ret_data[i_segment] = T_ret_data[i_segment] + T_single - T_back
+
+    if key is not None:
+        sum_sub(T_single_dict[key])
+        return T_ret_data
+
+    for sub_dict in T_single_dict.values():
+        sum_sub(sub_dict)
+    return T_ret_data
+
+
 def quad_simps(x, y, spans):
     x_p = np.hstack([spans, np.mean(spans, axis=1, keepdims=True)])
     y_p = np.interp(np.ravel(x_p), x, y).reshape(*x_p.shape)
@@ -1141,27 +1167,24 @@ class IdentifyResult:
             is_sep=True
         )
 
-    def get_T_pred(self, key, name=None):
-        if name is not None:
+    def get_T_pred(self, key=None, name=None):
+        if key is not None and name is not None:
             return self.T_single_dict[key][name]
+        return sum_T_single_data(self.T_single_dict, self.T_back, key)
 
-        T_ret_data = None
-        for T_pred_data in self.T_single_dict[key].values():
-            if T_ret_data is None:
-                T_ret_data = []
-                for i_segment, T_pred in enumerate(T_pred_data):
-                    if T_pred is None:
-                        T_pred = np.full_like(self.freq_data[i_segment], self.T_back)
-                    T_ret_data.append(T_pred)
-                continue
-            for i_segment, T_pred in enumerate(T_pred_data):
-                if T_pred is None:
-                    continue
-                T_ret_data[i_segment] += T_pred - self.T_back
-        return T_ret_data
-
-    def plot_T_pred(self, plot, key, y_min, y_max, name=None):
+    def plot_T_pred(self, plot, y_min, y_max, key=None, name=None):
         plot.plot_spec(self.freq_data, self.get_T_pred(key, name), "r", alpha=.8)
+
+        if key is None:
+            plot.plot_names(
+                self.line_dict["freq"], self.line_dict["name"],
+                y_min, y_max
+            )
+            plot.plot_names(
+                self.false_line_dict["freq"], self.false_line_dict["name"],
+                y_min, y_max, color="b"
+            )
+            return
 
         if name is None:
             name_set = set(self.T_single_dict[key])
