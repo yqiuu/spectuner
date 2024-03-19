@@ -859,10 +859,8 @@ class Identification:
         if len(df_mol) > 0:
             df_mol.sort_values("score", ascending=False, inplace=True)
 
-        line_dict = {"freq": np.mean(np.vstack(self.spans_obs_data), axis=1)}
-        line_dict.update(true_pos_dict_sparse)
         return IdentifyResult(
-            df_mol, df_sub_dict, line_dict, false_pos_dict,
+            df_mol, df_sub_dict, true_pos_dict_sparse, false_pos_dict,
             T_single_dict, self.freq_data, self.T_back
         )
 
@@ -946,6 +944,7 @@ class Identification:
             "name": []
         }
         true_pos_dict_sparse = {
+            "freq": [],
             "loss": [],
             "score": [],
             "frac": [],
@@ -961,8 +960,10 @@ class Identification:
             data["id"].extend(data_new["id"])
             data["name"].extend(data_new["name"])
 
-        def update_sparse_dict(data, data_new, num):
+        def update_sparse_dict(data, data_new, freq):
             inds_obs = data_new["inds_obs"]
+            num = len(freq)
+            data["freq"].append(freq)
             for key in ["loss", "score"]:
                 tmp = np.zeros(num)
                 tmp[inds_obs] = data_new[key]
@@ -983,12 +984,12 @@ class Identification:
             update_data_dict(false_pos_dict, false_pos_dict_sub)
             update_sparse_dict(
                 true_pos_dict_sparse, true_pos_dict_sub,
-                num=len(self.spans_obs_data[i_segment])
+                np.mean(self.spans_obs_data[i_segment], axis=1)
             )
         for key in ["freq", "loss", "score"]:
             true_pos_dict[key] = np.concatenate(true_pos_dict[key])
             false_pos_dict[key] = np.concatenate(false_pos_dict[key])
-        for key in ["loss", "score"]:
+        for key in ["freq", "loss", "score"]:
             true_pos_dict_sparse[key] = np.concatenate(true_pos_dict_sparse[key])
         for key in ["frac", "id", "name"]:
             true_pos_dict_sparse[key] = np.array(true_pos_dict_sparse[key], dtype=object)
