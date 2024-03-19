@@ -536,7 +536,6 @@ def filter_moleclues(mol_store, config_slm, params,
         fracs = compute_contributions(fracs, T_back)
         names = np.array(names, dtype=object)
         for cond in fracs.T > frac_cut:
-            print(names[cond])
             names_pos.update(set(names[cond]))
 
     if len(names_pos) == 0:
