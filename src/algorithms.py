@@ -1161,20 +1161,26 @@ class IdentifyResult:
         return T_ret_data
 
     def plot_T_pred(self, plot, key, y_min, y_max, name=None):
+        plot.plot_spec(self.freq_data, self.get_T_pred(key, name), "r", alpha=.8)
+
         if name is None:
             name_set = set(self.T_single_dict[key])
         else:
             name_set = set((name,))
-
         if self.is_sep:
             line_dict = self.line_dict[key]
+            false_line_dict = self.false_line_dict[key]
         else:
             line_dict = self.line_dict
+            false_line_dict = self.false_line_dict
         inds = self.filter_name_list(name_set, line_dict["name"])
         spans = line_dict["freq"][inds]
         name_list = line_dict["name"][inds]
-        plot.plot_spec(self.freq_data, self.get_T_pred(key, name), "r", alpha=.8)
         plot.plot_names(spans, name_list, y_min, y_max)
+        inds = self.filter_name_list(name_set, false_line_dict["name"])
+        spans = false_line_dict["freq"][inds]
+        name_list = false_line_dict["name"][inds]
+        plot.plot_names(spans, name_list, y_min, y_max, color="b")
 
     def filter_name_list(self, target_set, name_list):
         inds = []
