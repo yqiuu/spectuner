@@ -753,6 +753,29 @@ def compute_dice_score(spans_inter, spans_a, spans_b):
     return np.ravel(2*np.diff(spans_inter)/(np.diff(spans_a) + np.diff(spans_b)))
 
 
+def concat_identify_result(res_list):
+    df_mol = pd.concat([res.df_mol for res in res_list])
+    df_sub_dict = {}
+    line_dict = {}
+    false_line_dict = {}
+    T_single_dict = {}
+    for res in res_list:
+        df_sub_dict.update(deepcopy(res.df_sub_dict))
+        line_dict.update(deepcopy(res.line_dict))
+        false_line_dict.update(deepcopy(res.false_line_dict))
+        T_single_dict.update(deepcopy(res.T_single_dict))
+    return IdentifyResult(
+        df_mol=df_mol,
+        df_sub_dict=df_sub_dict,
+        line_dict=line_dict,
+        false_line_dict=false_line_dict,
+        T_single_dict=T_single_dict,
+        freq_data=res.freq_data,
+        T_back=res.T_back,
+        is_sep=True
+    )
+
+
 class Identification:
     def __init__(self, obs_data, T_back, prominence,
                  rel_height=.25, n_eval=5, use_dice=False, is_loss=False,
