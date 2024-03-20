@@ -540,6 +540,10 @@ def filter_moleclues(mol_store, config_slm, params,
 
     if len(names_pos) == 0:
         return None, None
+    return mol_store.select_subset_with_params(names_pos, params, config_slm)
+
+
+def select_mol_store(mol_store, config_slm, params, names_pos):
     mol_store_sub = mol_store.select_subset(names_pos)
     pm = mol_store.create_parameter_manager(config_slm)
     params_sub = pm.get_subset_params(names_pos, params)

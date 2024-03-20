@@ -405,3 +405,9 @@ class MoleculeStore:
             include_list_new.append([mol for mol in in_list if mol in names])
 
         return MoleculeStore(mol_list_new, include_list_new, self.scaler)
+
+    def select_subset_with_params(self, names, params, config_slm):
+        mol_store_sub = self.select_subset(names)
+        pm = self.create_parameter_manager(config_slm)
+        params_sub = pm.get_subset_params(names, params)
+        return mol_store_sub, params_sub
