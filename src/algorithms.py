@@ -821,9 +821,9 @@ class Identification:
         self.frac_fp = frac_fp
         self.frac_cut = frac_cut
 
-    def identify(self, mol_store, config_slm, params, T_pred_data):
+    def identify(self, mol_store, config_slm, params):
         true_pos_dict, false_pos_dict, true_pos_dict_sparse, T_single_dict \
-            = self.compute_scores(mol_store, config_slm, params, T_pred_data)
+            = self.compute_scores(mol_store, config_slm, params)
         score_dict, score_sub_dict \
             = self.derive_score_dict(true_pos_dict, false_pos_dict)
         param_dict = self.derive_param_dict(mol_store, config_slm, params)
@@ -927,7 +927,7 @@ class Identification:
         score_sub_dict = {key: dict(val) for key, val in score_sub_dict.items()}
         return score_dict, score_sub_dict
 
-    def compute_scores(self, mol_store, config_slm, params, T_pred_data):
+    def compute_scores(self, mol_store, config_slm, params):
         true_pos_dict = {
             "freq": [],
             "loss": [],
@@ -976,6 +976,7 @@ class Identification:
                 data[key].extend(tmp)
 
         T_single_dict = compute_T_single_data(mol_store, config_slm, params, self.freq_data)
+        T_pred_data = sum_T_single_data(T_single_dict, self.T_back)
         for i_segment, T_pred in enumerate(T_pred_data):
             if T_pred is None:
                 continue
