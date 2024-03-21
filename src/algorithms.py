@@ -1185,11 +1185,15 @@ class IdentifyResult:
         return sum_T_single_data(self.T_single_dict, self.T_back, key)
 
     def plot_T_pred(self, plot, y_min, y_max, key=None, name=None,
-                    color_spec="r", alpha=.8, show_lines=True):
-        plot.plot_spec(
-            self.freq_data, self.get_T_pred(key, name),
-            color=color_spec, alpha=alpha
-        )
+                    color_spec="r", alpha=.8, show_lines=True, T_base_data=None):
+        T_data = self.get_T_pred(key, name)
+        if T_base_data is not None:
+            for i_segment, T_base in enumerate(T_base_data):
+                if T_base_data is None or T_data[i_segment] is None:
+                    continue
+                T_data[i_segment] = T_data[i_segment] + T_base - self.T_back
+        plot.plot_spec(self.freq_data, T_data, color=color_spec, alpha=alpha)
+
         if not show_lines:
             return
 
