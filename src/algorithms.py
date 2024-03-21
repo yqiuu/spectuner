@@ -1184,8 +1184,14 @@ class IdentifyResult:
             return self.T_single_dict[key][name]
         return sum_T_single_data(self.T_single_dict, self.T_back, key)
 
-    def plot_T_pred(self, plot, y_min, y_max, key=None, name=None):
-        plot.plot_spec(self.freq_data, self.get_T_pred(key, name), "r", alpha=.8)
+    def plot_T_pred(self, plot, y_min, y_max, key=None, name=None,
+                    color_spec="r", alpha=.8, show_lines=True):
+        plot.plot_spec(
+            self.freq_data, self.get_T_pred(key, name),
+            color=color_spec, alpha=alpha
+        )
+        if not show_lines:
+            return
 
         if key is None:
             plot.plot_names(
