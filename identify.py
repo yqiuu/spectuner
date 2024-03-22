@@ -27,15 +27,28 @@ def main(config, target):
             / Path(config["opt_combine"]["dirname"]) \
             / Path("combine.pickle")
     else:
-        raise ValueError()
+        target = Path(target)
+        if target.exists():
+            res = identify_file(idn, target)
+            pickle.dump(res, open(rename(target), "wb"))
+            return
+        else:
+            raise ValueError()
 
     dirname = Path(config["save_dir"])/Path(config[key]["dirname"])
     if fname_base is None:
         res = identify_without_base(idn, dirname, config)
     else:
         res = identify_with_base(idn, dirname, fname_base, config)
-    print(res)
     pickle.dump(res, open(dirname/Path("identify.pickle"), "wb"))
+
+
+def identify_file(idn, fname):
+    data = pickle.load(open(fname, "rb"))
+    res = idn.identify(
+        data["mol_store"], config["sl_model"], data["params_best"],
+    )
+    return res
 
 
 def identify_without_base(idn, dirname, config):
@@ -45,8 +58,7 @@ def identify_without_base(idn, dirname, config):
             continue
         data = pickle.load(open(fname, "rb"))
         res = idn.identify(
-            data["mol_store"], config["sl_model"],
-            data["params_best"],
+            data["mol_store"], config["sl_model"], data["params_best"],
         )
         if len(res.df_mol) == 0:
             continue
@@ -98,6 +110,10 @@ def is_exclusive(fname):
     return name.startswith("identify") \
         or name.startswith("combine") \
         or name.startswith("tmp")
+
+
+def rename(fname):
+    return fname.parent/f"identify_{fname.name}"
 
 
 if __name__ == "__main__":
