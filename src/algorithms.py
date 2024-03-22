@@ -1236,6 +1236,13 @@ class IdentifyResult:
                 inds.append(idx)
         return inds
 
+    def plot_unknown_lines(self, plot, y_min, y_max, color="grey", linestyle="-"):
+        freqs = []
+        for freq, names in zip(self.line_dict["freq"], self.line_dict["name"]):
+            if names is None:
+                freqs.append(freq)
+        plot.vlines(freqs, y_min, y_max, colors=color, linestyles=linestyle)
+
 
 class PeakMatchingLoss:
     def __init__(self, obs_data, T_back, prominence, rel_height, n_eval=5):
