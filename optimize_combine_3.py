@@ -34,62 +34,24 @@ def main(config):
     for fname in dir_single.glob("*.pickle"):
         pred_data_list.append(pickle.load(open(fname, "rb")))
     pred_data_list.sort(key=lambda item: item["cost_best"])
-    order_list = [pred_data["mol_store"].mol_list[0]["id"] for pred_data in pred_data_list]
+    #order_list = [pred_data["mol_store"].mol_list[0]["id"] for pred_data in pred_data_list]
 
     pack_list = []
     for pred_data in pred_data_list:
         pack_list.append(prepare_properties(
-            pred_data, config_slm, T_back, prominence, rel_height))
+            pred_data, config_slm, T_back, prominence, rel_height, need_filter=True))
+    if config["fname_base"] is not None:
+        base_data = pickle.load(open(config["fname_base"], "rb"))
+        pack_base = prepare_properties(
+            base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
 
-    pack_final = combine_greedy(
-        pack_list[0], pack_list[1:], obs_data, config, pool,
+    combine_greedy(
+        pack_list, pack_base, obs_data, config, pool,
         force_merge=False
     )
 
-    # Save results
-    save_dir = Path(config["save_dir"])/Path(config["opt_combine"]["dirname"])
-    save_dict = {
-        "mol_store": pack_final.mol_store,
-        "freq": get_freq_data(obs_data),
-        "T_pred": pack_final.T_pred_data,
-        "params_best": pack_final.params,
-        "order_list": order_list
-    }
-    save_name = save_dir/Path("combine.pickle")
-    pickle.dump(save_dict, open(save_name, "wb"))
 
-    #
-    include_list = [item["id"] for item in pack_final.mol_store.mol_list]
-    exclude_list = [i_id for i_id in order_list if i_id not in include_list]
-    idx_restart = 0
-    for i_id in include_list:
-        idx_restart = max(idx_restart, order_list.index(i_id))
-
-    for i_id in exclude_list:
-        idx = order_list.index(i_id)
-        pack = pack_list[idx]
-        item = pack.mol_store.mol_list[0]
-        save_name = save_dir/Path("{}_{}.pickle".format(item["id"], item["root"]))
-        if idx > idx_restart:
-            src_name = save_dir/Path("tmp_{}_{}.pickle".format(item["id"], item["root"]))
-            if src_name.exists():
-                shutil.copy(src_name, save_name)
-            else:
-                res_dict = {
-                    "mol_store": pack.mol_store,
-                    "freq": get_freq_data(obs_data),
-                    "T_pred": pack.T_pred_data,
-                    "params_best": pack.params,
-                }
-                pickle.dump(res_dict, open(save_name, "wb"))
-        else:
-            res_dict = optimize_with_base(
-                pack, obs_data, pack_final.T_pred_data, config_opt, pool
-            )
-            pickle.dump(res_dict, open(save_name, "wb"))
-
-
-def combine_greedy(pack_0, pack_list, obs_data, config, pool, force_merge):
+def combine_greedy(pack_list, pack_base, obs_data, config, pool, force_merge):
     config_opt = config["opt_combine"]
     config_slm = config["sl_model"]
     save_dir = Path(config["save_dir"])/Path(config_opt["dirname"])
@@ -100,13 +62,22 @@ def combine_greedy(pack_0, pack_list, obs_data, config, pool, force_merge):
     freq_data = get_freq_data(obs_data)
     idn = Identification(obs_data, T_back, prominence, rel_height)
 
-    pack_curr = pack_0
+    if pack_base is None:
+        pack_curr = pack_list
+        pack_list = pack_list[1:]
+        need_opt = True
+    else:
+        pack_curr = pack_base
+        need_opt = False
+    is_include_list = []
+
     for pack in pack_list:
         if pack.mol_store is None:
+            is_include_list.append(False)
             continue
 
         spans_inter = derive_intersections(pack_curr.spans, pack.spans)[0]
-        if len(spans_inter) > 0:
+        if len(spans_inter) > 0 and need_opt:
             res_dict = optimize_with_base(
                 pack, obs_data, pack_curr.T_pred_data, config_opt, pool
             )
@@ -146,11 +117,53 @@ def combine_greedy(pack_0, pack_list, obs_data, config, pool, force_merge):
                 mol_store_combine, params_combine,
                 T_pred_data_combine, spans_combine
             )
+            need_opt = True
+            is_include_list.append(True)
+        else:
+            is_include_list.append(False)
+
+    # Save results
+    save_dict = {
+        "mol_store": pack_curr.mol_store,
+        "freq": get_freq_data(obs_data),
+        "T_pred": pack_curr.T_pred_data,
+        "params_best": pack_curr.params,
+    }
+    save_name = save_dir/Path("combine.pickle")
+    pickle.dump(save_dict, open(save_name, "wb"))
+
+    # Derive restart index
+    idx_restart = 0
+    for idx, is_include in enumerate(is_include_list):
+        if is_include:
+            idx_restart = idx
+
+    #
+    for idx, pack in enumerate(pack_list):
+        item = pack.mol_store.mol_list[0]
+        save_name = save_dir/Path("{}_{}.pickle".format(item["id"], item["root"]))
+        if idx < idx_restart:
+            res_dict = optimize_with_base(
+                pack, obs_data, pack_curr.T_pred_data, config_opt, pool
+            )
+            pickle.dump(res_dict, open(save_name, "wb"))
+        else:
+            src_name = save_dir/Path("tmp_{}_{}.pickle".format(item["id"], item["root"]))
+            if src_name.exists():
+                shutil.copy(src_name, save_name)
+            else:
+                res_dict = {
+                    "mol_store": pack.mol_store,
+                    "freq": get_freq_data(obs_data),
+                    "T_pred": pack.T_pred_data,
+                    "params_best": pack.params,
+                }
+                pickle.dump(res_dict, open(save_name, "wb"))
 
     return pack_curr
 
 
-def prepare_properties(pred_data, config_slm, T_back, prominence, rel_height):
+def prepare_properties(pred_data, config_slm, T_back, prominence, rel_height, need_filter):
     height = T_back + prominence
     mol_store = pred_data["mol_store"]
     params = pred_data["params_best"]
@@ -164,16 +177,20 @@ def prepare_properties(pred_data, config_slm, T_back, prominence, rel_height):
         rel_height=rel_height
     )[0]
     # Filter molecules
-    mol_store_new, params_new = filter_moleclues(
-        mol_store=mol_store,
-        config_slm=config_slm,
-        params=params,
-        freq_data=freq_data,
-        T_pred_data=T_pred_data,
-        T_back=T_back,
-        prominence=prominence,
-        rel_height=rel_height
-    )
+    if need_filter:
+        mol_store_new, params_new = filter_moleclues(
+            mol_store=mol_store,
+            config_slm=config_slm,
+            params=params,
+            freq_data=freq_data,
+            T_pred_data=T_pred_data,
+            T_back=T_back,
+            prominence=prominence,
+            rel_height=rel_height
+        )
+    else:
+        mol_store_new = mol_store
+        params_new = params
     return Pack(mol_store_new, params_new, T_pred_data, spans_pred)
 
 
@@ -187,6 +204,7 @@ def optimize_with_base(pack, obs_data, T_base, config_opt, pool):
     config_opt["kwargs_opt"]["initial_pos"] = initial_pos
     res_dict = optimize(model, config_opt, pool)
     return res_dict
+
 
 def create_model(obs_data, mol_store, config, base_data):
     pm = mol_store.create_parameter_manager(config["sl_model"])
