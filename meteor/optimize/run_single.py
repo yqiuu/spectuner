@@ -5,8 +5,8 @@ from multiprocessing import Pool
 from .optimize import optimize
 from ..preprocess import load_preprocess_select
 from ..xclass_wrapper import MoleculeStore, Scaler
-from ..fitting_model import FittingModel
 from ..identify import run_identify
+from ..fitting_model import FittingModel
 
 
 __all__ = ["run_single"]

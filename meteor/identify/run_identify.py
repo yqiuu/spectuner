@@ -1,9 +1,11 @@
 import pickle
 from pathlib import Path
 
-from .identify import identify_file, identify_without_base, identify_with_base
+from .identify import (
+    identify_file, identify_without_base, identify_with_base,
+    Identification
+)
 from ..preprocess import load_preprocess
-from ..algorithms import Identification
 
 
 __all__ = ["run_identify"]

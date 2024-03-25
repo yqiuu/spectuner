@@ -2,7 +2,7 @@ import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 from tqdm import trange
 
-from ..xclass_wrapper import extract_line_frequency, MoleculeStore
+from ..xclass_wrapper import extract_line_frequency
 
 
 def optimize(model, config_opt, pool):
@@ -97,27 +97,6 @@ def prepare_pred_data(model, pos):
         else:
             trans_data_ret.append(extract_line_frequency(trans))
     return T_pred_data, trans_data_ret
-
-
-def combine_mol_stores(mol_store_list, params_list, config_slm):
-    mol_list = []
-    include_list = [[] for _ in range(len(mol_store_list[0].include_list))]
-    for mol_store in mol_store_list:
-        mol_list.extend(mol_store.mol_list)
-        for in_list_new, in_list in zip(include_list, mol_store.include_list):
-            in_list_new.extend(in_list)
-    mol_store_new = MoleculeStore(mol_list, include_list, mol_store_list[0].scaler)
-
-    params_mol = []
-    params_den = []
-    for mol_store, params in zip(mol_store_list, params_list):
-        pm = mol_store.create_parameter_manager(config_slm)
-        params_mol.append(pm.get_all_mol_params(params))
-        params_den.append(pm.get_all_den_params(params))
-    params_mol = np.concatenate(params_mol)
-    params_den = np.concatenate(params_den)
-    params_new = np.append(params_mol, params_den)
-    return mol_store_new, params_new
 
 
 def shrink_bounds(pm, params, bounds_mol, delta_mol, bounds_iso, delta_iso, bounds_misc):

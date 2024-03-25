@@ -95,6 +95,27 @@ def extract_line_frequency(transitions):
     return trans_dict
 
 
+def combine_mol_stores(mol_store_list, params_list, config_slm):
+    mol_list = []
+    include_list = [[] for _ in range(len(mol_store_list[0].include_list))]
+    for mol_store in mol_store_list:
+        mol_list.extend(mol_store.mol_list)
+        for in_list_new, in_list in zip(include_list, mol_store.include_list):
+            in_list_new.extend(in_list)
+    mol_store_new = MoleculeStore(mol_list, include_list, mol_store_list[0].scaler)
+
+    params_mol = []
+    params_den = []
+    for mol_store, params in zip(mol_store_list, params_list):
+        pm = mol_store.create_parameter_manager(config_slm)
+        params_mol.append(pm.get_all_mol_params(params))
+        params_den.append(pm.get_all_den_params(params))
+    params_mol = np.concatenate(params_mol)
+    params_den = np.concatenate(params_den)
+    params_new = np.append(params_mol, params_den)
+    return mol_store_new, params_new
+
+
 class XCLASSWrapper:
     def __init__(self, pm, prefix_molfit,
                  FreqMin=0., FreqMax=1., FreqStep=.1,

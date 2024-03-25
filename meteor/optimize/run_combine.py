@@ -6,14 +6,15 @@ from multiprocessing import Pool
 
 import numpy as np
 
-from .optimize import optimize, combine_mol_stores
+from .optimize import optimize
 from ..preprocess import load_preprocess
-from ..fitting_model import FittingModel
-from ..algorithms import (
-    filter_moleclues, derive_peaks_multi, derive_intersections,
-    Identification
+from ..xclass_wrapper import combine_mol_stores
+from ..identify import (
+    filter_moleclues, derive_peaks_multi, derive_intersections, run_identify,
+    Identification,
 )
-from ..identify import run_identify
+from ..fitting_model import FittingModel
+
 
 
 def run_combine(config, need_identify=True):

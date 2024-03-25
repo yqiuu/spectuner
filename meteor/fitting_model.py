@@ -1,7 +1,8 @@
 import numpy as np
 
 from .xclass_wrapper import derive_freq_range
-from .algorithms import derive_median_frac_threshold, PeakMatchingLoss
+from .algorithms import derive_median_frac_threshold
+from .identify import PeakMatchingLoss
 
 
 def l1_loss(y_pred, y_obs):
