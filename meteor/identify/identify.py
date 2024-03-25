@@ -1,5 +1,6 @@
 import pickle
 from collections import defaultdict
+from dataclasses import dataclass
 from copy import deepcopy
 
 import numpy as np
@@ -375,7 +376,7 @@ def concat_identify_result(res_list):
         line_dict.update(deepcopy(res.line_dict))
         false_line_dict.update(deepcopy(res.false_line_dict))
         T_single_dict.update(deepcopy(res.T_single_dict))
-    return IdentifyResult(
+    return IdentResult(
         df_mol=df_mol,
         df_sub_dict=df_sub_dict,
         line_dict=line_dict,
@@ -444,9 +445,9 @@ class Identification:
         if len(df_mol) > 0:
             df_mol.sort_values("score", ascending=False, inplace=True)
 
-        return IdentifyResult(
+        return IdentResult(
             df_mol, df_sub_dict, true_pos_dict_sparse, false_pos_dict,
-            T_single_dict, self.freq_data, self.T_back
+            T_single_dict, self.freq_data, self.T_back, is_sep=False
         )
 
     def derive_param_dict(self, mol_store, config_slm, params):
@@ -681,19 +682,20 @@ class Identification:
         return frac_list, id_list, name_list
 
 
-class IdentifyResult:
-    def __init__(self, df_mol, df_sub_dict, line_dict, false_line_dict,
-                 T_single_dict, freq_data, T_back, is_sep=False):
-        self.df_mol = df_mol
-        self.df_sub_dict = df_sub_dict
-        self.line_dict = line_dict
-        self.false_line_dict = false_line_dict
-        self.T_single_dict = T_single_dict
-        self.freq_data = freq_data
-        self.T_back = T_back
-        self.is_sep = is_sep
+@dataclass
+class IdentResult:
+    df_mol: pd.DataFrame
+    df_sub_dict: dict
+    line_dict: dict
+    false_line_dict: dict
+    T_single_dict: dict
+    freq_data: list
+    T_back: object
+    is_sep: bool
 
-        self._mol_dict = {key: tuple(df["name"]) for key, df in df_sub_dict.items()}
+    def __post_init__(self):
+        self._mol_dict = {key: tuple(df["name"]) for key, df in self.df_sub_dict.items()}
+        df_mol = self.df_mol
         if len(df_mol) > 0:
             self._master_name_dict = {key: name for key, name
                                       in zip(df_mol["id"], df_mol["master_name"])}
@@ -748,7 +750,7 @@ class IdentifyResult:
         false_line_dict_new = {key: deepcopy(false_line_dict_)}
         #
         T_single_dict_new = {key: deepcopy(self.T_single_dict[key])}
-        return IdentifyResult(
+        return IdentResult(
             df_mol=df_mol_new,
             df_sub_dict=df_sub_dict_new,
             line_dict=line_dict_new,
