@@ -31,7 +31,7 @@ def run_identify(config, target):
             pickle.dump(res, open(_rename(target), "wb"))
             return
         else:
-            raise ValueError()
+            raise ValueError(f"Unknown target: {target}.")
 
     dirname = Path(config["save_dir"])/Path(config[key]["dirname"])
     if fname_base is None:
