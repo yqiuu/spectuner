@@ -17,7 +17,7 @@ def main():
     elif args.target == "combine":
         run_combine(config)
     elif args.target == "full":
-        run_single(config)
+        run_single(config, need_identify=False)
         run_combine(config)
     else:
         raise ValueError(f"Unknown target: {args.target}")

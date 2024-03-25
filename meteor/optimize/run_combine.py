@@ -13,9 +13,10 @@ from ..algorithms import (
     filter_moleclues, derive_peaks_multi, derive_intersections,
     Identification
 )
+from ..identify import run_identify
 
 
-def run_combine(config):
+def run_combine(config, need_identify=True):
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(config["file_spec"], T_back)
 
@@ -49,11 +50,16 @@ def run_combine(config):
         force_merge=False
     )
 
+    if need_identify:
+        save_name = get_save_dir(config)/Path("combine.pickle")
+        run_identify(config, save_name)
+        run_identify(config, "combine")
+
 
 def combine_greedy(pack_list, pack_base, obs_data, config, pool, force_merge):
     config_opt = config["opt_combine"]
     config_slm = config["sl_model"]
-    save_dir = Path(config["save_dir"])/Path(config_opt["dirname"])
+    save_dir = get_save_dir(config)
     T_back = config["sl_model"].get("tBack", 0.)
     prominence = config_opt["pm_loss"]["prominence"]
     rel_height = config_opt["pm_loss"]["rel_height"]
@@ -236,6 +242,10 @@ def derive_initial_pos(params, bounds, n_swarm):
 
 def get_freq_data(obs_data):
     return [spec[:, 0] for spec in obs_data]
+
+
+def get_save_dir(config):
+    return Path(config["save_dir"])/Path(config["opt_combine"]["dirname"])
 
 
 @dataclass

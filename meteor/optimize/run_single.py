@@ -6,12 +6,13 @@ from .optimize import optimize
 from ..preprocess import load_preprocess_select
 from ..xclass_wrapper import MoleculeStore, Scaler
 from ..fitting_model import FittingModel
+from ..identify import run_identify
 
 
 __all__ = ["run_single"]
 
 
-def run_single(config):
+def run_single(config, need_identify=True):
     obs_data, mol_list, include_dict = load_preprocess_select(config)
     pool = Pool(config["opt_single"]["n_process"])
 
@@ -33,6 +34,9 @@ def run_single(config):
         ret_dict = optimize(model, config["opt_single"], pool)
         save_dir = Path(config["save_dir"])/Path(config["opt_single"]["dirname"])
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
+
+    if need_identify:
+        run_identify(config, "single")
 
 
 def _create_model(name, obs_data, mol_list_sub, include_dict, config, base_data):
