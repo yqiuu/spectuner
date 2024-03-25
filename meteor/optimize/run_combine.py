@@ -10,9 +10,10 @@ from .optimize import optimize
 from ..preprocess import load_preprocess
 from ..xclass_wrapper import combine_mol_stores
 from ..identify import (
-    filter_moleclues, derive_peaks_multi, derive_intersections, identify,
+    filter_moleclues, derive_peaks_multi, derive_intersections,
     Identification,
 )
+from ..identify.identify import identify
 from ..fitting_model import FittingModel
 
 
@@ -32,6 +33,8 @@ def run_combine(config, need_identify=True):
     dir_single = Path(config["save_dir"])/Path(config["opt_single"]["dirname"])
     pred_data_list = []
     for fname in dir_single.glob("*.pickle"):
+        if str(fname.name).startswith("identify"):
+            continue
         pred_data_list.append(pickle.load(open(fname, "rb")))
     pred_data_list.sort(key=lambda item: item["cost_best"])
 
@@ -148,6 +151,9 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, force_merge):
 
     #
     for idx, pack in enumerate(pack_list):
+        if is_include_list[idx] or pack.mol_store is None:
+            continue
+
         item = pack.mol_store.mol_list[0]
         save_name = save_dir/Path("{}_{}.pickle".format(item["id"], item["root"]))
         if idx < idx_restart:
