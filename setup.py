@@ -19,6 +19,7 @@ setup(
     packages=find_packages(),
     entry_points={
         'console_scripts': [
+            "meteor-run=meteor.optimize.scripts:main"
         ],
     },
 )

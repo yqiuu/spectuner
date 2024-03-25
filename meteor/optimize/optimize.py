@@ -2,9 +2,7 @@ import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 from tqdm import trange
 
-from .xclass_wrapper import (
-    create_wrapper_from_config, extract_line_frequency, MoleculeStore
-)
+from ..xclass_wrapper import extract_line_frequency, MoleculeStore
 
 
 def optimize(model, config_opt, pool):
