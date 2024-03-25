@@ -193,7 +193,8 @@ def prepare_properties(pred_data, config_slm, T_back, prominence, rel_height, ne
     return Pack(mol_store_new, params_new, T_pred_data, spans_pred)
 
 
-def optimize_with_base(pack, obs_data, T_base, config_opt, pool):
+def optimize_with_base(pack, obs_data, T_base, config, pool):
+    config_opt = config["opt_combine"]
     model = create_model(
         obs_data, pack.mol_store, config, T_base
     )
