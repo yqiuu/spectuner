@@ -1,9 +1,11 @@
-import sys
-import yaml
 import pickle
 from pathlib import Path
 
-from src.optimize import combine_mol_stores
+from ..xclass_wrapper import combine_mol_stores
+from ..identify.identify import identify
+
+
+__all__ = ["modify"]
 
 
 def modify(config, config_modify):
@@ -54,6 +56,8 @@ def modify(config, config_modify):
     }
     pickle.dump(save_dict, open(save_name, "wb"))
 
+    identify(config, save_name)
+
 
 def load_data_list(target_dir, include_id_list):
     data_list = []
@@ -66,9 +70,3 @@ def load_data_list(target_dir, include_id_list):
         if key in include_id_list:
             data_list.append(pickle.load(open(fname, "rb")))
     return data_list
-
-
-if __name__ == "__main__":
-    config = yaml.safe_load(open(sys.argv[1]))
-    config_modify = yaml.safe_load(open(sys.argv[2]))
-    modify(config, config_modify)

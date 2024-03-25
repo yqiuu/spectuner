@@ -20,7 +20,8 @@ setup(
     entry_points={
         'console_scripts': [
             "meteor-run=meteor.scripts:exec_fit",
-            "meteor-identify=meteor.scripts:exec_identify"
+            "meteor-modify=meteor.scripts:exec_modify",
+            "meteor-identify=meteor.scripts:exec_identify",
         ],
     },
 )
