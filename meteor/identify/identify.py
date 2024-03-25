@@ -1,49 +1,11 @@
-import sys
-import yaml
 import pickle
-from pathlib import Path
 from copy import deepcopy
 
-from src.preprocess import load_preprocess
-from src.algorithms import (
-    concat_identify_result, compute_T_single_data, Identification
-)
-from src.optimize import combine_mol_stores
+from ..algorithms import concat_identify_result, compute_T_single_data
+from ..optimize import combine_mol_stores
 
 
-def main(config, target):
-    T_back = config["sl_model"].get("tBack", 0.)
-    obs_data = load_preprocess(config["file_spec"], T_back)
-    prominence = config["opt_single"]["pm_loss"]["prominence"]
-    rel_height =  config["opt_single"]["pm_loss"]["rel_height"]
-    idn = Identification(obs_data, T_back, prominence, rel_height)
-
-    if target == "single":
-        key = "opt_single"
-        fname_base = config.get("fname_base", None)
-    elif target == "combine":
-        key = "opt_combine"
-        fname_base =  Path(config["save_dir"]) \
-            / Path(config["opt_combine"]["dirname"]) \
-            / Path("combine.pickle")
-    else:
-        target = Path(target)
-        if target.exists():
-            res = identify_file(idn, target)
-            pickle.dump(res, open(rename(target), "wb"))
-            return
-        else:
-            raise ValueError()
-
-    dirname = Path(config["save_dir"])/Path(config[key]["dirname"])
-    if fname_base is None:
-        res = identify_without_base(idn, dirname, config)
-    else:
-        res = identify_with_base(idn, dirname, fname_base, config)
-    pickle.dump(res, open(dirname/Path("identify.pickle"), "wb"))
-
-
-def identify_file(idn, fname):
+def identify_file(idn, fname, config):
     data = pickle.load(open(fname, "rb"))
     res = idn.identify(
         data["mol_store"], config["sl_model"], data["params_best"],
@@ -110,13 +72,3 @@ def is_exclusive(fname):
     return name.startswith("identify") \
         or name.startswith("combine") \
         or name.startswith("tmp")
-
-
-def rename(fname):
-    return fname.parent/f"identify_{fname.name}"
-
-
-if __name__ == "__main__":
-    config = yaml.safe_load(open(sys.argv[1]))
-    target = sys.argv[2]
-    main(config, target)
