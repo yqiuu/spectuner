@@ -1,11 +1,11 @@
 import yaml
 from argparse import ArgumentParser
 
-from .run_single import run_single
-from .run_combine import run_combine
+from .optimize import run_single, run_combine
+from .identify.identify import identify
 
 
-def main():
+def exec_fit():
     parser = ArgumentParser()
     parser.add_argument("config", type=str)
     parser.add_argument("--target", type=str, default="full")
@@ -21,3 +21,13 @@ def main():
         run_combine(config)
     else:
         raise ValueError(f"Unknown target: {args.target}.")
+
+
+def exec_identify():
+    parser = ArgumentParser()
+    parser.add_argument("config", type=str)
+    parser.add_argument("target", type=str)
+    args = parser.parse_args()
+
+    config = yaml.safe_load(open(args.config))
+    identify(config, args.target)

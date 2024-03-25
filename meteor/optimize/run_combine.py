@@ -16,6 +16,8 @@ from ..identify import (
 from ..fitting_model import FittingModel
 
 
+__all__ = ["run_combine"]
+
 
 def run_combine(config, need_identify=True):
     T_back = config["sl_model"].get("tBack", 0.)
