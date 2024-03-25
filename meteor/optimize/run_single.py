@@ -5,7 +5,7 @@ from multiprocessing import Pool
 from .optimize import optimize
 from ..preprocess import load_preprocess_select
 from ..xclass_wrapper import MoleculeStore, Scaler
-from ..identify import run_identify
+from ..identify import identify
 from ..fitting_model import FittingModel
 
 
@@ -36,7 +36,7 @@ def run_single(config, need_identify=True):
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
     if need_identify:
-        run_identify(config, "single")
+        identify(config, "single")
 
 
 def _create_model(name, obs_data, mol_list_sub, include_dict, config, base_data):

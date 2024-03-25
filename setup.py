@@ -20,7 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             "meteor-run=meteor.optimize.scripts:main",
-            "meteor-identify=meteor.identify.scripts:identify"
+            "meteor-identify=meteor.identify.scripts:exec_identify"
         ],
     },
 )

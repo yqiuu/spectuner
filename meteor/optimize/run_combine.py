@@ -10,7 +10,7 @@ from .optimize import optimize
 from ..preprocess import load_preprocess
 from ..xclass_wrapper import combine_mol_stores
 from ..identify import (
-    filter_moleclues, derive_peaks_multi, derive_intersections, run_identify,
+    filter_moleclues, derive_peaks_multi, derive_intersections, identify,
     Identification,
 )
 from ..fitting_model import FittingModel
@@ -53,8 +53,8 @@ def run_combine(config, need_identify=True):
 
     if need_identify:
         save_name = get_save_dir(config)/Path("combine.pickle")
-        run_identify(config, save_name)
-        run_identify(config, "combine")
+        identify(config, save_name)
+        identify(config, "combine")
 
 
 def combine_greedy(pack_list, pack_base, obs_data, config, pool, force_merge):
