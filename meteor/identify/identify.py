@@ -15,8 +15,8 @@ from ..preprocess import load_preprocess
 def identify(config, target):
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(config["file_spec"], T_back)
-    prominence = config["opt_single"]["pm_loss"]["prominence"]
-    rel_height =  config["opt_single"]["pm_loss"]["rel_height"]
+    prominence = config["pm_loss"]["prominence"]
+    rel_height =  config["pm_loss"]["rel_height"]
     idn = Identification(obs_data, T_back, prominence, rel_height)
 
     if target == "single":

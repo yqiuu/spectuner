@@ -27,8 +27,8 @@ def run_combine(config, need_identify=True):
     config_opt = config["opt_combine"]
     config_slm = config["sl_model"]
     pool = Pool(config_opt["n_process"])
-    prominence = config_opt["pm_loss"]["prominence"]
-    rel_height = config_opt["pm_loss"]["rel_height"]
+    prominence = config["pm_loss"]["prominence"]
+    rel_height = config["pm_loss"]["rel_height"]
 
     dir_single = Path(config["save_dir"])/Path(config["opt_single"]["dirname"])
     pred_data_list = []
@@ -67,8 +67,8 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, force_merge):
     config_slm = config["sl_model"]
     save_dir = get_save_dir(config)
     T_back = config["sl_model"].get("tBack", 0.)
-    prominence = config_opt["pm_loss"]["prominence"]
-    rel_height = config_opt["pm_loss"]["rel_height"]
+    prominence = config["pm_loss"]["prominence"]
+    rel_height = config["pm_loss"]["rel_height"]
     height = T_back + prominence
     freq_data = get_freq_data(obs_data)
     idn = Identification(obs_data, T_back, prominence, rel_height)
@@ -233,8 +233,8 @@ def create_model(obs_data, mol_store, config, base_data):
     )
     model = FittingModel(
         obs_data, mol_store, bounds, config["sl_model"],
-        config_pm_loss=config_opt.get("pm_loss", None),
-        config_thr_loss=config_opt.get("thr_loss", None),
+        config_pm_loss=config.get("pm_loss", None),
+        config_thr_loss=config.get("thr_loss", None),
         base_data=base_data,
     )
     return model

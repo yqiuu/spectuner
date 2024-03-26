@@ -52,8 +52,8 @@ def _create_model(name, obs_data, mol_list_sub, include_dict, config, base_data)
     )
     model = FittingModel(
         obs_data, mol_store, bounds, config["sl_model"],
-        config_pm_loss=config_opt.get("pm_loss", None),
-        config_thr_loss=config_opt.get("thr_loss", None),
+        config_pm_loss=config.get("pm_loss", None),
+        config_thr_loss=config.get("thr_loss", None),
         base_data=base_data
     )
     return model
