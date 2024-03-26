@@ -22,7 +22,7 @@ __all__ = ["run_combine"]
 
 def run_combine(config, need_identify=True):
     T_back = config["sl_model"].get("tBack", 0.)
-    obs_data = load_preprocess(config["file_spec"], T_back)
+    obs_data = load_preprocess(config["files"], T_back)
 
     config_opt = config["opt_combine"]
     config_slm = config["sl_model"]
@@ -226,10 +226,7 @@ def create_model(obs_data, mol_store, config, base_data):
     # TODO: better way to create bounds?
     config_opt = config["opt_combine"]
     bounds = pm.scaler.derive_bounds(
-        pm,
-        config_opt["bounds_mol"],
-        config_opt["bounds_iso"],
-        config_opt["bounds_misc"]
+        pm, config_opt["bounds_mol"], config_opt["bounds_iso"], {}
     )
     model = FittingModel(
         obs_data, mol_store, bounds, config["sl_model"],

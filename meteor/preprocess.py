@@ -5,16 +5,17 @@ from .algorithms import select_molecules_multi
 
 
 def load_preprocess_select(config):
-    file_spec = config["file_spec"]
-    ElowMin = config["ElowMin"]
-    ElowMax = config["ElowMax"]
+    file_spec = config["files"]
+    config_spec = config["species"]
+    ElowMin = config_spec["ElowMin"]
+    ElowMax = config_spec["ElowMax"]
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(file_spec, T_back)
     mol_list, include_dict = select_molecules_multi(
         obs_data, ElowMin, ElowMax,
-        config["elements"], config["molecules"],
-        config["base_only"], config["iso_list"],
-        config["exclude_list"], config["rename_dict"]
+        config_spec["elements"], config_spec["molecules"],
+        config_spec["base_only"], config_spec["iso_list"],
+        config_spec["exclude_list"], config_spec["rename_dict"]
     )
     return obs_data, mol_list, include_dict
 

@@ -19,6 +19,7 @@ setup(
     packages=find_packages(),
     entry_points={
         'console_scripts': [
+            "meteor-config=meteor.scripts:exec_config",
             "meteor-run=meteor.scripts:exec_fit",
             "meteor-modify=meteor.scripts:exec_modify",
             "meteor-identify=meteor.scripts:exec_identify",

@@ -1,0 +1,18 @@
+files: []
+save_dir: "./"
+fname_base: null
+sl_model:
+  prefix_molfit: "tmp/"
+  Inter_Flag: False
+  TelescopeSize: 30
+  BMIN: null
+  BMAJ: null
+  BPA: null
+  N_H: 0.
+  kappa_1300: 0.
+  beta_dust: 0.
+  vLSR: 0.
+  tBack: 0.
+pm_loss:
+  prominence: null
+  rel_height: null

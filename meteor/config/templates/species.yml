@@ -1,0 +1,17 @@
+elements: ["H", "D", "C", "N", "O", "S", "Si", "Na", "Cl", "P"]
+molecules: null
+iso_list: []
+exclude_list: [
+  "HNC3;v=0;", # Duplicated
+  "H2C-13-CHCN;v=0;", # Duplicated
+  "H2CC-13-HCN;v=0;", # Duplicated
+  "H2CCHC-13-N;v=0;", # Duplicated
+]
+rename_dict:
+  "NH2CN": "H2NCN"
+  "H2CCHCN-15": "CH2CHCN-15"
+  "C2H3CN": "CH2CHCN"
+  "C-13-H3C-13-H2C-13-N": "C2H5CN"
+ElowMin: 0.0
+ElowMax: 5000.
+base_only: False

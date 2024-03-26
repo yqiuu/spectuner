@@ -45,10 +45,7 @@ def _create_model(name, obs_data, mol_list_sub, include_dict, config, base_data)
     # TODO: better way to create bounds?
     config_opt = config["opt_single"]
     bounds = pm.scaler.derive_bounds(
-        pm,
-        config_opt["bounds_mol"],
-        config_opt["bounds_iso"],
-        config_opt["bounds_misc"]
+        pm, config_opt["bounds_mol"], config_opt["bounds_iso"], {}
     )
     model = FittingModel(
         obs_data, mol_store, bounds, config["sl_model"],

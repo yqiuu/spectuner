@@ -119,18 +119,24 @@ def combine_mol_stores(mol_store_list, params_list, config_slm):
 class XCLASSWrapper:
     def __init__(self, pm, prefix_molfit,
                  FreqMin=0., FreqMax=1., FreqStep=.1,
-                 IsoTableFileName=None, **xclass_kwargs):
+                 IsoTableFileName=None, **kwargs):
         self.pm = pm
+        kwargs_ = {
+            "NoSubBeamFlag": True,
+            "printFlag": False,
+        }
         if IsoTableFileName is None:
-            xclass_kwargs["iso_flag"] = False
+            kwargs["iso_flag"] = False
         else:
-            xclass_kwargs["iso_flag"] = True
-        xclass_kwargs["IsoTableFileName"] = IsoTableFileName
+            kwargs["iso_flag"] = True
+        kwargs["IsoTableFileName"] = IsoTableFileName
+        kwargs_.update(**kwargs)
+
         self.update_frequency(FreqMin, FreqMax, FreqStep)
 
-        self._xclass_kwargs = xclass_kwargs
-        self._MaxElowSQL = xclass_kwargs.pop("MaxElowSQL", None)
-        self._MingASQL = xclass_kwargs.pop("MingASQL", None)
+        self._xclass_kwargs = kwargs_
+        self._MaxElowSQL = kwargs_.pop("MaxElowSQL", None)
+        self._MingASQL = kwargs_.pop("MingASQL", None)
         self.prefix_molfit = prefix_molfit
         self.include_list = None
 
@@ -191,7 +197,7 @@ class ParameterManager:
         n_param_per_mol = 5
         idx_den = 2
         misc_names = []
-        for var_name in ["tBack", "tSlope", "vLSR"]:
+        for var_name in ["tBack", "vLSR"]:
             if not var_name in xclass_kwargs:
                 misc_names.append(var_name)
         self._T_back = xclass_kwargs.get("tBack", 0.)
