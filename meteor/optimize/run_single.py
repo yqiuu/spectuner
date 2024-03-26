@@ -38,4 +38,4 @@ def run_single(config, parent_dir, need_identify=True):
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
     if need_identify:
-        identify(config, "single")
+        identify(config, parent_dir, "single")
