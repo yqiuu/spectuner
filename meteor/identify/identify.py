@@ -143,7 +143,7 @@ def filter_moleclues(mol_store, config_slm, params,
                 T_single = T_single_data[i_segment]
                 if T_single is None:
                     continue
-                values = np.mean(eval_spans(spans_pred, freq, T_single, n_eval), axis=1)
+                values = compute_peak_norms(spans_pred, freq, T_pred)
                 names.append(name)
                 fracs.append(values)
         fracs = compute_contributions(fracs, T_back)
@@ -316,20 +316,43 @@ def compute_contributions(values, T_back):
     return fracs
 
 
-def derive_true_postive_props(freq, T_obs, T_pred, spans_obs, spans_pred,
-                              spans_inter, inds_pred, inds_obs, n_eval):
+def derive_true_postive_props(freq, T_obs, T_pred, T_back, spans_obs, spans_pred,
+                              spans_inter, inds_pred, inds_obs):
     """Derive properties used to compute errors of true postive samples."""
-    values_obs = eval_spans(spans_inter, freq, T_obs, n_eval)
-    values_pred = eval_spans(spans_inter, freq, T_pred, n_eval)
+    errors = np.zeros(len(spans_inter))
+    norms = np.zeros(len(spans_inter))
+    d_eval = np.ravel(np.diff(spans_inter, axis=1))
+    iterator = enumerate(eval_spans(spans_inter, freq, T_obs, T_pred))
+    for i_span, (x_eval, T_obs_eval, T_pred_eval) in iterator:
+        errors[i_span] = np.trapz(np.abs(T_obs_eval - T_pred_eval), x_eval)
+        norms[i_span] = np.trapz(T_obs_eval, x_eval)
+    errors /= d_eval
+    norms /= d_eval
+    norms -= T_back
     f_dice = compute_dice_score(spans_inter, spans_obs[inds_obs], spans_pred[inds_pred])
-    return values_obs, values_pred, f_dice
+    return errors, norms, f_dice
 
 
-def derive_false_postive_props(freq, T_obs, T_pred, spans_fp, n_eval):
+def derive_false_postive_props(freq, T_obs, T_pred, T_back, spans_fp):
     """Derive properties used to compute errors of false postive samples."""
-    values_obs = eval_spans(spans_fp, freq, T_obs, n_eval)
-    values_pred = eval_spans(spans_fp, freq, T_pred, n_eval)
-    return values_obs, values_pred
+    errors = np.zeros(len(spans_fp))
+    norms = np.zeros(len(spans_fp))
+    d_eval = np.ravel(np.diff(spans_fp, axis=1))
+    iterator = enumerate(eval_spans(spans_fp, freq, T_obs, T_pred))
+    for i_span, (x_eval, T_obs_eval, T_pred_eval) in iterator:
+        errors[i_span] = np.trapz(np.maximum(0, T_pred_eval - T_obs_eval), x_eval)
+        norms[i_span] = np.trapz(T_obs_eval, x_eval)
+    errors /= d_eval
+    norms /= d_eval
+    norms -= T_back
+    return errors, norms
+
+
+def compute_peak_norms(spans, freq, spec):
+    norms = np.zeros(len(spans))
+    for i_span, (x_eval, y_eval) in enumerate(eval_spans(spans, freq, spec)):
+        norms[i_span] = np.trapz(y_eval, x_eval)
+    return norms
 
 
 def compute_T_single_data(mol_store, config_slm, params, freq_data):
@@ -371,18 +394,17 @@ def sum_T_single_data(T_single_dict, T_back, key=None):
     return T_ret_data
 
 
-def quad_simps(x, y, spans):
-    x_p = np.hstack([spans, np.mean(spans, axis=1, keepdims=True)])
-    y_p = np.interp(np.ravel(x_p), x, y).reshape(*x_p.shape)
-    weights = np.array([1./6, 1./6, 2./3])*np.diff(spans)
-    return np.sum(weights*y_p, axis=1)
-
-
-def eval_spans(spans, x, y, n_eval):
-    frac = np.linspace(0., 1, n_eval)
-    x_p = spans[:, :1] + np.diff(spans)*frac
-    y_p = np.interp(np.ravel(x_p), x, y).reshape(*x_p.shape)
-    return y_p
+def eval_spans(spans, x, y_a, y_b=None):
+    inds_left = np.searchsorted(x, spans[:, 0])
+    inds_right = np.searchsorted(x, spans[:, 1]) - 1
+    for (x_left, x_right), idx_left, idx_right in zip(spans, inds_left, inds_right):
+        x_eval = np.concatenate([[x_left], x[idx_left:idx_right], [x_right]])
+        y_a_eval = np.interp(x_eval, x, y_a)
+        if y_b is None:
+            yield x_eval, y_a_eval
+        else:
+            y_b_eval = np.interp(x_eval, x, y_b)
+            yield x_eval, y_a_eval, y_b_eval
 
 
 def derive_counts(inds):
@@ -624,16 +646,14 @@ class Identification:
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
-            values_obs, values_pred, f_dice = derive_true_postive_props(
-                freq, T_obs, T_pred, spans_obs, spans_pred,
-                spans_inter, inds_pred, inds_obs, self.n_eval
+            errors, norms, f_dice = derive_true_postive_props(
+                freq, T_obs, T_pred, self.T_back, spans_obs, spans_pred,
+                spans_inter, inds_pred, inds_obs
             )
-            errors = np.mean(np.abs(values_pred - values_obs), axis=1)
-            norm = np.mean(values_obs, axis=1) - self.T_back
-            losses = errors - norm*f_dice
+            losses = errors - norms*f_dice
             if not self.use_dice:
                 f_dice = 1.
-            scores = np.maximum(0, f_dice - errors/norm)
+            scores = np.maximum(0, f_dice - errors/norms)
             true_pos_dict["freq"] = np.mean(spans_inter, axis=1)
             true_pos_dict["score"] = scores
             true_pos_dict["loss"] = losses
@@ -643,12 +663,11 @@ class Identification:
 
         spans_fp = derive_complementary(spans_pred, inds_pred)
         if len(spans_fp) != 0:
-            values_obs_fp, values_pred_fp \
-                = derive_false_postive_props(freq, T_obs, T_pred, spans_fp, self.n_eval)
-            errors_fp = np.mean(np.maximum(0, values_pred_fp - values_obs_fp), axis=1)
-            norm_fp = np.mean(values_pred_fp, axis=1) - self.T_back
+            errors_fp, norms_fp = derive_false_postive_props(
+                freq, T_obs, T_pred, self.T_back, spans_fp
+            )
             losses = errors_fp
-            scores = -self.frac_fp*errors_fp/norm_fp
+            scores = -self.frac_fp*errors_fp/norms_fp
             false_pos_dict["freq"] = np.mean(spans_fp, axis=1)
             false_pos_dict["score"] = scores
             false_pos_dict["loss"] = losses
@@ -666,7 +685,7 @@ class Identification:
                 T_pred = T_pred_data[i_segment]
                 if T_pred is None:
                     continue
-                values = np.mean(eval_spans(spans_inter, freq, T_pred, self.n_eval), axis=1)
+                values = compute_peak_norms(spans_inter, freq, T_pred)
                 fracs.append(values)
                 ids.append(i_id)
                 names.append(name)
@@ -716,21 +735,19 @@ class PeakMatchingLoss:
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
-            values_obs, values_pred, factor = derive_true_postive_props(
-                freq, T_obs, T_pred, spans_obs, spans_pred,
-                spans_inter, inds_pred, inds_obs, self.n_eval
+            errors, norms, f_dice = derive_true_postive_props(
+                freq, T_obs, T_pred, self.T_back, spans_obs, spans_pred,
+                spans_inter, inds_pred, inds_obs
             )
-            errors = np.mean(np.abs(values_pred - values_obs), axis=1)
-            norm = np.mean(values_obs, axis=1) - self.T_back
-            loss = np.sum(errors - factor*norm)
+            loss = np.sum(errors - f_dice*norms)
         else:
             loss = 0.
 
         spans_fp = derive_complementary(spans_pred, inds_pred)
         if len(spans_fp) != 0:
-            values_obs_fp, values_pred_fp \
-                = derive_false_postive_props(freq, T_obs, T_pred, spans_fp, self.n_eval)
-            errors_fp = np.mean(np.maximum(0, values_pred_fp - values_obs_fp), axis=1)
+            errors_fp, _ = derive_false_postive_props(
+                freq, T_obs, T_pred, self.T_back, spans_fp
+            )
             loss += np.sum(errors_fp)
 
         return loss
