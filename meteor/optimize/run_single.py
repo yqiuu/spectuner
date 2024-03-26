@@ -5,7 +5,7 @@ from multiprocessing import Pool
 from .optimize import optimize
 from ..preprocess import load_preprocess_select
 from ..xclass_wrapper import MoleculeStore, Scaler
-from ..identify import identify
+from ..identify.identify import identify
 from ..fitting_model import FittingModel
 
 
