@@ -1,5 +1,4 @@
 files: []
-save_dir: "./"
 fname_base: null
 sl_model:
   prefix_molfit: "tmp/"
