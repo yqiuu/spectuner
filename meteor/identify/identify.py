@@ -143,9 +143,8 @@ def filter_moleclues(mol_store, config_slm, params,
                 T_single = T_single_data[i_segment]
                 if T_single is None:
                     continue
-                values = compute_peak_norms(spans_pred, freq, T_pred)
                 names.append(name)
-                fracs.append(values)
+                fracs.append(compute_peak_norms(spans_pred, freq, T_pred))
         fracs = compute_contributions(fracs, T_back)
         names = np.array(names, dtype=object)
         for cond in fracs.T > frac_cut:
@@ -689,12 +688,8 @@ class Identification:
                 fracs.append(compute_peak_norms(spans_inter, freq, T_pred))
                 ids.append(i_id)
                 names.append(name)
-        fracs = np.vstack(fracs)
-        fracs -= self.T_back
-        norm = np.sum(fracs, axis=0)
-        norm[norm == 0.] = len(fracs)
-        fracs /= norm
-        ids= np.array(ids)
+        fracs = compute_contributions(fracs, self.T_back)
+        ids = np.array(ids)
         names = np.array(names, dtype=object)
 
         frac_list = []
