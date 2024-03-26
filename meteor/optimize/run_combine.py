@@ -20,7 +20,7 @@ from ..fitting_model import FittingModel
 __all__ = ["run_combine"]
 
 
-def run_combine(config, need_identify=True):
+def run_combine(config, parent_dir, need_identify=True):
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(config["files"], T_back)
 
@@ -30,9 +30,14 @@ def run_combine(config, need_identify=True):
     prominence = config["pm_loss"]["prominence"]
     rel_height = config["pm_loss"]["rel_height"]
 
-    dir_single = Path(config["save_dir"])/Path(config["opt_single"]["dirname"])
+    #
+    parent_dir = Path(parent_dir)
+    single_dir = parent_dir/"single"
+    save_dir = parent_dir/"combine"
+    save_dir.mkdir(exist_ok=True)
+
     pred_data_list = []
-    for fname in dir_single.glob("*.pickle"):
+    for fname in single_dir.glob("*.pickle"):
         if str(fname.name).startswith("identify"):
             continue
         pred_data_list.append(pickle.load(open(fname, "rb")))
@@ -52,20 +57,19 @@ def run_combine(config, need_identify=True):
         pack_base = None
 
     combine_greedy(
-        pack_list, pack_base, obs_data, config, pool,
+        pack_list, pack_base, obs_data, config, pool, save_dir,
         force_merge=False
     )
 
     if need_identify:
-        save_name = get_save_dir(config)/Path("combine.pickle")
-        identify(config, save_name)
-        identify(config, "combine")
+        save_name = save_dir/Path("combine.pickle")
+        identify(config, parent_dir, save_name)
+        identify(config, parent_dir, "combine")
 
 
-def combine_greedy(pack_list, pack_base, obs_data, config, pool, force_merge):
+def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force_merge):
     config_opt = config["opt_combine"]
     config_slm = config["sl_model"]
-    save_dir = get_save_dir(config)
     T_back = config["sl_model"].get("tBack", 0.)
     prominence = config["pm_loss"]["prominence"]
     rel_height = config["pm_loss"]["rel_height"]

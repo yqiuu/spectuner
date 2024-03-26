@@ -12,7 +12,7 @@ from ..xclass_wrapper import combine_mol_stores
 from ..preprocess import load_preprocess
 
 
-def identify(config, target):
+def identify(config, parent_dir, target):
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(config["files"], T_back)
     prominence = config["pm_loss"]["prominence"]
@@ -20,14 +20,11 @@ def identify(config, target):
     idn = Identification(obs_data, T_back, prominence, rel_height)
 
     if target == "single":
-        key = "opt_single"
         fname_base = config.get("fname_base", None)
     elif target == "combine":
-        key = "opt_combine"
-        fname_base =  Path(config["save_dir"]) \
-            / Path(config["opt_combine"]["dirname"]) \
-            / Path("combine.pickle")
+        fname_base =  Path(parent_dir)/"combine"/"combine.pickle"
     else:
+        # The function will always terminate in this block
         target = Path(target)
         if target.exists():
             res = identify_file(idn, target, config)
@@ -37,7 +34,7 @@ def identify(config, target):
         else:
             raise ValueError(f"Unknown target: {target}.")
 
-    dirname = Path(config["save_dir"])/Path(config[key]["dirname"])
+    dirname = Path(parent_dir)/target
     if fname_base is None:
         res = identify_without_base(idn, dirname, config)
     else:

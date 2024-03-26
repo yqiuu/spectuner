@@ -12,7 +12,7 @@ from ..fitting_model import FittingModel
 __all__ = ["run_single"]
 
 
-def run_single(config, need_identify=True):
+def run_single(config, parent_dir, need_identify=True):
     obs_data, mol_list, include_dict = load_preprocess_select(config)
     pool = Pool(config["opt_single"]["n_process"])
 
@@ -27,12 +27,13 @@ def run_single(config, need_identify=True):
     else:
         base_data = None
 
+    save_dir = Path(parent_dir)/"single"
+    save_dir.mkdir(exist_ok=True)
     for item in mol_list:
         name = item["root"]
         item["id"] = item["id"] + id_offset
         model = _create_model(name, obs_data, [item], include_dict, config, base_data)
         ret_dict = optimize(model, config["opt_single"], pool)
-        save_dir = Path(config["save_dir"])/Path(config["opt_single"]["dirname"])
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
     if need_identify:
