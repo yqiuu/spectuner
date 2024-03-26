@@ -352,6 +352,7 @@ def compute_peak_norms(spans, freq, spec):
     norms = np.zeros(len(spans))
     for i_span, (x_eval, y_eval) in enumerate(eval_spans(spans, freq, spec)):
         norms[i_span] = np.trapz(y_eval, x_eval)
+    norms /= np.ravel(np.diff(spans))
     return norms
 
 
@@ -685,8 +686,7 @@ class Identification:
                 T_pred = T_pred_data[i_segment]
                 if T_pred is None:
                     continue
-                values = compute_peak_norms(spans_inter, freq, T_pred)
-                fracs.append(values)
+                fracs.append(compute_peak_norms(spans_inter, freq, T_pred))
                 ids.append(i_id)
                 names.append(name)
         fracs = np.vstack(fracs)
