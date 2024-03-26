@@ -25,6 +25,21 @@ def l2_loss_log(y_obs, y_pred):
     return np.mean(np.log(1 + np.square(delta)))
 
 
+def create_fitting_model(obs_data, mol_store, config, config_opt, base_data):
+    pm = mol_store.create_parameter_manager(config["sl_model"])
+    # TODO: better way to create bounds?
+    bounds = pm.scaler.derive_bounds(
+        pm, config_opt["bounds_mol"], config_opt["bounds_iso"], {}
+    )
+    model = FittingModel(
+        obs_data, mol_store, bounds, config["sl_model"],
+        config_pm_loss=config.get("pm_loss", None),
+        config_thr_loss=config.get("thr_loss", None),
+        base_data=base_data
+    )
+    return model
+
+
 class FittingModel:
     def __init__(self, obs_data, mol_store, bounds, config_slm,
                  config_pm_loss=None, config_thr_loss=None, base_data=None):

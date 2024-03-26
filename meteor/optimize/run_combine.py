@@ -14,7 +14,7 @@ from ..identify import (
     Identification,
 )
 from ..identify.identify import identify
-from ..fitting_model import FittingModel
+from ..fitting_model import create_fitting_model
 
 
 __all__ = ["run_combine"]
@@ -214,8 +214,8 @@ def prepare_properties(pred_data, config_slm, T_back, prominence, rel_height, ne
 
 def optimize_with_base(pack, obs_data, T_base, config, pool):
     config_opt = config["opt_combine"]
-    model = create_model(
-        obs_data, pack.mol_store, config, T_base
+    model = create_fitting_model(
+        obs_data, pack.mol_store, config, config_opt, T_base
     )
     initial_pos = derive_initial_pos(
         pack.params, model.bounds, config_opt["kwargs_opt"]["nswarm"],
@@ -223,22 +223,6 @@ def optimize_with_base(pack, obs_data, T_base, config, pool):
     config_opt["kwargs_opt"]["initial_pos"] = initial_pos
     res_dict = optimize(model, config_opt, pool)
     return res_dict
-
-
-def create_model(obs_data, mol_store, config, base_data):
-    pm = mol_store.create_parameter_manager(config["sl_model"])
-    # TODO: better way to create bounds?
-    config_opt = config["opt_combine"]
-    bounds = pm.scaler.derive_bounds(
-        pm, config_opt["bounds_mol"], config_opt["bounds_iso"], {}
-    )
-    model = FittingModel(
-        obs_data, mol_store, bounds, config["sl_model"],
-        config_pm_loss=config.get("pm_loss", None),
-        config_thr_loss=config.get("thr_loss", None),
-        base_data=base_data,
-    )
-    return model
 
 
 def derive_initial_pos(params, bounds, n_swarm):

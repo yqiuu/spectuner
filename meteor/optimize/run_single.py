@@ -6,7 +6,7 @@ from .optimize import optimize
 from ..preprocess import load_preprocess_select
 from ..xclass_wrapper import MoleculeStore, Scaler
 from ..identify.identify import identify
-from ..fitting_model import FittingModel
+from ..fitting_model import create_fitting_model
 
 
 __all__ = ["run_single"]
@@ -32,26 +32,10 @@ def run_single(config, parent_dir, need_identify=True):
     for item in mol_list:
         name = item["root"]
         item["id"] = item["id"] + id_offset
-        model = _create_model(name, obs_data, [item], include_dict, config, base_data)
+        mol_store = MoleculeStore([item], include_dict[name], Scaler())
+        model = create_fitting_model(obs_data, mol_store, config, config["opt_single"], base_data)
         ret_dict = optimize(model, config["opt_single"], pool)
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
     if need_identify:
         identify(config, "single")
-
-
-def _create_model(name, obs_data, mol_list_sub, include_dict, config, base_data):
-    mol_store = MoleculeStore(mol_list_sub,  include_dict[name], Scaler())
-    pm = mol_store.create_parameter_manager(config["sl_model"])
-    # TODO: better way to create bounds?
-    config_opt = config["opt_single"]
-    bounds = pm.scaler.derive_bounds(
-        pm, config_opt["bounds_mol"], config_opt["bounds_iso"], {}
-    )
-    model = FittingModel(
-        obs_data, mol_store, bounds, config["sl_model"],
-        config_pm_loss=config.get("pm_loss", None),
-        config_thr_loss=config.get("thr_loss", None),
-        base_data=base_data
-    )
-    return model
