@@ -18,6 +18,8 @@ def concat_identify_result(res_list):
         line_dict.update(deepcopy(res.line_dict))
         false_line_dict.update(deepcopy(res.false_line_dict))
         T_single_dict.update(deepcopy(res.T_single_dict))
+    df_mol.sort_values(["num_tp_i", "score"], ascending=False, inplace=True)
+    df_mol.reset_index(drop=True, inplace=True)
     return IdentResult(
         df_mol=df_mol,
         df_sub_dict=df_sub_dict,

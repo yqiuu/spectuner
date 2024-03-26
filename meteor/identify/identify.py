@@ -473,7 +473,8 @@ class Identification:
             res_list.append(cols)
         df_mol = pd.DataFrame.from_dict(res_list)
         if len(df_mol) > 0:
-            df_mol.sort_values("score", ascending=False, inplace=True)
+            df_mol.sort_values(["num_tp_i", "score"], ascending=False, inplace=True)
+            df_mol.reset_index(drop=True, inplace=True)
 
         return IdentResult(
             df_mol, df_sub_dict, true_pos_dict_sparse, false_pos_dict,
