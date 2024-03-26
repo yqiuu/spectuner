@@ -37,12 +37,11 @@ def exec_fit():
 def exec_modify():
     parser = ArgumentParser()
     parser.add_argument("config", type=str)
-    parser.add_argument("config_modify", type=str)
+    parser.add_argument("dir", type=str)
     args = parser.parse_args()
 
     config = load_config(args.config)
-    config_modify = config["modify"]
-    modify(config, config_modify)
+    modify(config, args.dir)
 
 
 def exec_identify():

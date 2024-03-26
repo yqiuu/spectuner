@@ -8,12 +8,13 @@ from ..identify.identify import identify
 __all__ = ["modify"]
 
 
-def modify(config, config_modify):
+def modify(config, parent_dir):
     config_slm = config["sl_model"]
+    config_modify = config["modify"]
     exclude_id_list = config_modify["exclude_id_list"]
     exclude_name_set = set(config_modify["exclude_name_list"])
 
-    save_dir = Path(config["save_dir"])/Path(config["opt_combine"]["dirname"])
+    save_dir = Path(parent_dir)/Path(config["opt_combine"]["dirname"])
     save_name = save_dir/Path("combine_final.pickle")
     data_combine = pickle.load(open(save_dir/Path("combine.pickle"), "rb"))
     freq_data = data_combine["freq"]
@@ -56,7 +57,7 @@ def modify(config, config_modify):
     }
     pickle.dump(save_dict, open(save_name, "wb"))
 
-    identify(config, save_name)
+    identify(config, parent_dir, save_name)
 
 
 def load_data_list(target_dir, include_id_list):
