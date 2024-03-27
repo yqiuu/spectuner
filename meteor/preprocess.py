@@ -43,3 +43,7 @@ def preprocess_spectrum(spec_obs, temp_back):
         spec_obs = spec_obs[::-1]
     spec_obs[:, 1] = np.maximum(spec_obs[:, 1], temp_back)
     return spec_obs
+
+
+def get_freq_data(obs_data):
+    return [spec[:, 0] for spec in obs_data]

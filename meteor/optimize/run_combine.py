@@ -7,7 +7,7 @@ from multiprocessing import Pool
 import numpy as np
 
 from .optimize import optimize
-from ..preprocess import load_preprocess
+from ..preprocess import load_preprocess, get_freq_data
 from ..xclass_wrapper import combine_mol_stores
 from ..identify import (
     filter_moleclues, derive_peaks_multi, derive_intersections,
@@ -232,10 +232,6 @@ def derive_initial_pos(params, bounds, n_swarm):
     initial_pos = lb + (ub - lb)*np.random.rand(n_swarm - 1, 1)
     initial_pos = np.vstack([params, initial_pos])
     return initial_pos
-
-
-def get_freq_data(obs_data):
-    return [spec[:, 0] for spec in obs_data]
 
 
 def get_save_dir(config):
