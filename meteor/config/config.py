@@ -28,7 +28,7 @@ def load_config(dir):
     if config["pm_loss"]["rel_height"] is None:
         raise ValueError("'rel_height' cannot be None.")
     for key, fname in iter_config_names():
-        config[key] = yaml.safe_load(open(fname))
+        config[key] = yaml.safe_load(open(dir/fname))
     return config
 
 
