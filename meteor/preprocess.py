@@ -12,7 +12,7 @@ def load_preprocess_select(config):
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(file_spec, T_back)
     mol_list, include_dict = select_molecules_multi(
-        obs_data, ElowMin, ElowMax,
+        get_freq_data(obs_data), ElowMin, ElowMax,
         config_spec["elements"], config_spec["molecules"],
         config_spec["base_only"], config_spec["iso_list"],
         config_spec["exclude_list"], config_spec["rename_dict"]

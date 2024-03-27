@@ -35,17 +35,17 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
     return mol_dict_ret
 
 
-def select_molecules_multi(obs_data, ElowMin, ElowMax,
+def select_molecules_multi(freq_data, ElowMin, ElowMax,
                            elements, molecules, base_only,
                            iso_list=None, exclude_list=None, rename_dict=None):
     if iso_list is None:
         iso_list = []
 
     normal_dict_list = []
-    for spec in obs_data:
+    for freq in freq_data:
         normal_dict_list.append(group_by_normal_form(
-            FreqMin=spec[0, 0],
-            FreqMax=spec[-1, 0],
+            FreqMin=freq[0],
+            FreqMax=freq[-1],
             ElowMin=ElowMin,
             ElowMax=ElowMax,
             elements=elements,
@@ -68,7 +68,7 @@ def select_molecules_multi(obs_data, ElowMin, ElowMax,
     mol_list, master_name_dict \
         = replace_with_master_name(normal_dict_all, base_only, iso_list)
 
-    incldue_dict = defaultdict(lambda: [[] for _ in range(len(obs_data))])
+    incldue_dict = defaultdict(lambda: [[] for _ in range(len(freq_data))])
     for i_segment, normal_dict in enumerate(normal_dict_list):
         for name, iso_list in normal_dict.items():
             master_name = master_name_dict[name]
