@@ -45,5 +45,8 @@ def preprocess_spectrum(spec_obs, temp_back):
     return spec_obs
 
 
-def get_freq_data(obs_data):
-    return [spec[:, 0] for spec in obs_data]
+def get_freq_data(data):
+    return [spec[:, 0] for spec in data]
+
+def get_T_data(data):
+    return [spec[:, 1] for spec in data]
