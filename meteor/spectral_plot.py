@@ -66,7 +66,7 @@ class SpectralPlot:
     def bounds(self):
         return self._bounds
 
-    def plot_spec(self, freq_list, spec_list, *args, **kwargs):
+    def plot_spec(self, freq_list, spec_list, *args, color="C0", **kwargs):
         sort_list = list(zip(freq_list, spec_list))
         sort_list.sort(key=lambda item: item[0][0])
         freq_list, spec_list = list(zip(*sort_list))
@@ -81,7 +81,9 @@ class SpectralPlot:
 
             idx_e = np.searchsorted(freq, self.bounds[i_ax][-1])
             if idx_e - idx_b > 1 and spec is not None:
-                self.axes[i_ax].plot(freq[idx_b:idx_e], spec[idx_b:idx_e], *args, **kwargs)
+                self.axes[i_ax].plot(
+                    freq[idx_b:idx_e], spec[idx_b:idx_e], *args, color=color, **kwargs
+                )
 
             if idx_e != len(freq):
                 i_ax += 1
