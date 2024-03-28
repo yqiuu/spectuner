@@ -23,10 +23,11 @@ def load_config(dir):
     config = yaml.safe_load(open(dir/"config.yml"))
     if config["files"] is None or len(config["files"]) == 0:
         raise ValueError("'files' cannot be empty.")
-    if config["pm_loss"]["prominence"] is None:
-        raise ValueError("'prominence' cannot be None.")
-    if config["pm_loss"]["rel_height"] is None:
-        raise ValueError("'rel_height' cannot be None.")
+    if "pm_loss" in config:
+        if config["pm_loss"]["prominence"] is None:
+            raise ValueError("'prominence' cannot be None.")
+        if config["pm_loss"]["rel_height"] is None:
+            raise ValueError("'rel_height' cannot be None.")
     for key, fname in iter_config_names():
         config[key] = yaml.safe_load(open(dir/fname))
     return config

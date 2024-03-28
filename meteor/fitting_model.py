@@ -32,32 +32,36 @@ def create_fitting_model(obs_data, mol_store, config, config_opt, base_data):
         pm, config_opt["bounds_mol"], config_opt["bounds_iso"], {}
     )
     model = FittingModel(
-        obs_data, mol_store, bounds, config["sl_model"],
-        config_pm_loss=config.get("pm_loss", None),
-        config_thr_loss=config.get("thr_loss", None),
-        base_data=base_data
+        obs_data, mol_store, bounds, config, base_data=base_data
     )
     return model
 
 
 class FittingModel:
-    def __init__(self, obs_data, mol_store, bounds, config_slm,
-                 config_pm_loss=None, config_thr_loss=None, base_data=None):
+    def __init__(self, obs_data, mol_store, bounds, config, base_data=None):
         self.mol_store = mol_store
         self.include_list = mol_store.include_list
-        self.sl_model = mol_store.create_spectral_line_model(config_slm)
+        self.sl_model = mol_store.create_spectral_line_model(config["sl_model"])
         T_back = self.sl_model.pm.T_back
         self.freq_range_data, self.freq_data, self.T_obs_data \
             = self._preprocess_spectra(obs_data)
         self.bounds = bounds
         #
-        self.loss_fn = l1_loss
+        loss_fn = config.get("loss_fn", "mae")
+        if loss_fn == "mae":
+            self.loss_fn = l1_loss
+        elif loss_fn == "mse":
+            self.loss_fn = l2_loss
+        else:
+            raise ValueError(f"Unknown loss function {loss_fn}.")
         #
+        config_pm_loss = config.get("pm_loss", None)
         if config_pm_loss is None:
             self.pm_loss_fn = None
         else:
             self.pm_loss_fn = PeakMatchingLoss(obs_data, T_back, **config_pm_loss)
         #
+        config_thr_loss=config.get("thr_loss", None)
         if config_thr_loss is None:
             self.thr_loss_fn = None
         else:
