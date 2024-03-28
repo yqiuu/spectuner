@@ -17,5 +17,4 @@ kwargs_opt:
   limit: 20
 save_history: True
 save_all: False
-loss_fn: "l1"
 score_cut: 2.
