@@ -5,11 +5,11 @@ from collections import defaultdict
 
 
 class SpectralPlot:
-    def __init__(self, obs_data, freq_per_row=1000., width=10., height=3., sharey=True):
-        obs_data = obs_data.copy()
-        obs_data.sort(key=lambda item: item[0, 0])
-        freq_min = obs_data[0][0, 0]
-        freq_max = obs_data[-1][-1, 0]
+    def __init__(self, freq_data, freq_per_row=1000., width=10., height=3., sharey=True):
+        freq_data = freq_data.copy()
+        freq_data.sort(key=lambda item: item[0])
+        freq_min = freq_data[0][0]
+        freq_max = freq_data[-1][-1]
 
         bounds_dict = {}
         slice_dict = defaultdict(list)
@@ -17,8 +17,8 @@ class SpectralPlot:
         i_ax = 0
         freq_curr = freq_min + freq_per_row
         idx_b = 0
-        while i_segment < len(obs_data) and freq_curr < freq_max + freq_per_row:
-            freq = obs_data[i_segment][:, 0]
+        while i_segment < len(freq_data) and freq_curr < freq_max + freq_per_row:
+            freq = freq_data[i_segment]
 
             idx_e = np.searchsorted(freq, freq_curr)
             if idx_e != 0 and idx_e - idx_b > 1:
@@ -37,12 +37,8 @@ class SpectralPlot:
         n_axe = len(slice_dict)
         fig, axes = plt.subplots(figsize=(width, n_axe*height), nrows=n_axe, sharey=sharey)
         axes = np.ravel(axes)
-        for i_ax, slice_list in enumerate(slice_dict.values()):
-            ax = axes[i_ax]
-            for i_segment, inds in slice_list:
-                freq, spec = obs_data[i_segment].T
-                ax.plot(freq[inds], spec[inds], "k")
-                ax.set_xlim(*bounds[i_ax])
+        for i_ax, ax in enumerate(axes):
+            ax.set_xlim(*bounds[i_ax])
 
         self._fig = fig
         self._axes = axes
