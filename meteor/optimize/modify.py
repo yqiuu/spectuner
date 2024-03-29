@@ -14,7 +14,7 @@ def modify(config, parent_dir):
     exclude_id_list = config_modify["exclude_id_list"]
     exclude_name_set = set(config_modify["exclude_name_list"])
 
-    save_dir = Path(parent_dir)/Path(config["opt_combine"]["dirname"])
+    save_dir = Path(parent_dir)/"combine"
     save_name = save_dir/Path("combine_final.pickle")
     data_combine = pickle.load(open(save_dir/Path("combine.pickle"), "rb"))
     freq_data = data_combine["freq"]
