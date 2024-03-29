@@ -27,13 +27,13 @@ def exec_fit():
         idx += 1
     # Set fname_base
     if idx > 0:
-        fname_base = Path(f"cycle_{idx - 1}")/"combine"/"combine_final.pickle"
+        fname_base = Path(args.config)/f"cycle_{idx - 1}"/"combine"/"combine_final.pickle"
         print(fname_base)
         if not fname_base.exists():
             raise ValueError("Finalize the last cycle before staring a new one.")
         config["fname_base"] = fname_base
 
-    save_dir = Path(f"cycle_{idx}")
+    save_dir = Path(args.config)/f"cycle_{idx}"
     save_dir.mkdir(parents=True, exist_ok=True)
     if args.target == "single":
         run_single(config, save_dir)
