@@ -41,6 +41,8 @@ def run_combine(config, parent_dir, need_identify=True):
         if str(fname.name).startswith("identify"):
             continue
         pred_data_list.append(pickle.load(open(fname, "rb")))
+    if len(pred_data_list) == 0:
+        raise ValueError("Cannot find any individual fitting results.")
     pred_data_list.sort(key=lambda item: item["cost_best"])
 
     pack_list = []
