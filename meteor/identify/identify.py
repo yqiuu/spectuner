@@ -1,5 +1,6 @@
 import pickle
 from collections import defaultdict
+from dataclasses import dataclass, replace
 from copy import deepcopy
 from pathlib import Path
 
@@ -193,6 +194,58 @@ def derive_complementary(spans, inds):
     """Derive spans that are not in the given indices."""
     inds_iso = [idx for idx in range(len(spans)) if idx not in set(inds)]
     return spans[inds_iso]
+
+
+def derive_peaks_extra(freq, spec, height, prominence, rel_height, return_rel_h=False):
+    ret_h_min = 1e-3
+    spans_ret = []
+    rel_hs_ret = []
+    queue = [(spec, 0, rel_height)]
+    while len(queue) != 0 :
+        spec_it, offset, rel_h = queue.pop(0)
+        spans, conds = derive_peaks_inters(spec_it, height, prominence, rel_h)
+        for sp, is_inter in zip(spans, conds):
+            if is_inter and rel_h > ret_h_min:
+                idx_left = int(sp[0])
+                idx_right = int(sp[1]) + 1
+                queue.append((spec_it[idx_left:idx_right], idx_left, .5*rel_h))
+            else:
+                spans_ret.append((sp[0] + offset, sp[1] + offset))
+                rel_hs_ret.append(rel_h)
+    spans_ret = np.array(spans_ret)
+    rel_hs_ret = np.array(rel_hs_ret)
+
+    if len(spans_ret) == 0:
+        if return_rel_h:
+            return spans_ret, rel_hs_ret
+        return spans_ret
+
+    spans_ret = np.interp(np.ravel(spans_ret), np.arange(len(freq)), freq).reshape(-1, 2)
+    inds = np.argsort(spans_ret[:, 0])
+    spans_ret = spans_ret[inds]
+    if return_rel_h:
+        return spans_ret, rel_hs_ret
+    return spans_ret
+
+
+def derive_peaks_inters(x, height, prominence, rel_height):
+    peaks, _ = signal.find_peaks(x, height=height, prominence=prominence)
+    _, _, f_left, f_right = signal.peak_widths(x, peaks, rel_height)
+    spans = [[left, right] for left, right in zip(f_left, f_right)]
+    spans.sort(key=lambda x: x[0])
+
+    # Find inter intervals
+    spans_new = []
+    is_inter = []
+    for left, right in spans:
+        if len(spans_new) == 0 or spans_new[-1][-1] < left:
+            spans_new.append([left, right])
+            is_inter.append(False)
+        else:
+            spans_new[-1][-1] = max(spans_new[-1][-1], right)
+            is_inter[-1] = True
+
+    return spans_new, is_inter
 
 
 def derive_peaks(freq, spec, height, prominence, rel_height):
