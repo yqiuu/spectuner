@@ -72,6 +72,7 @@ class FittingModel:
         else:
             base_data = [T_base - T_back for T_base in base_data]
         self.base_data = base_data
+        self.T_back = T_back
 
     def _preprocess_spectra(self, obs_data):
         if isinstance(obs_data, list) or isinstance(obs_data, tuple):
@@ -101,7 +102,7 @@ class FittingModel:
             T_obs = self.T_obs_data[i_segment]
             T_pred = args[0]
             if T_pred is None:
-                T_pred = np.zeros_like(T_obs)
+                T_pred = np.full_like(T_obs, self.T_back)
             T_base = self.base_data[i_segment]
             if T_base is not None:
                 T_pred = T_pred + T_base
