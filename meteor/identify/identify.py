@@ -196,6 +196,30 @@ def derive_complementary(spans, inds):
     return spans[inds_iso]
 
 
+def derive_peaks_multi(freq_data, spec_data, height, prominence, rel_height):
+    span_data = []
+    cond_data = []
+    for freq, spec in zip(freq_data, spec_data):
+        if spec is None:
+            continue
+        spans, heights = derive_peaks(freq, spec, height, prominence, rel_height)
+        span_data.append(spans)
+        cond_data.append(heights)
+    span_data = np.vstack(span_data)
+    cond_data = np.concatenate(cond_data)
+    inds = np.argsort(span_data[:, 0])
+    span_data = span_data[inds]
+    cond_data = cond_data[inds]
+    return span_data, cond_data
+
+
+def derive_peaks(freq, spec, height, prominence, rel_height):
+    spans, is_inter = find_peaks_inters(spec, height, prominence, rel_height)
+    spans = np.interp(np.ravel(spans), np.arange(len(freq)), freq).reshape(-1, 2)
+    is_inter = np.array(is_inter)
+    return spans, is_inter
+
+
 def derive_peaks_extra(freq, spec, height, prominence, rel_height, return_rel_h=False):
     ret_h_min = 1e-3
     spans_ret = []
@@ -203,7 +227,7 @@ def derive_peaks_extra(freq, spec, height, prominence, rel_height, return_rel_h=
     queue = [(spec, 0, rel_height)]
     while len(queue) != 0 :
         spec_it, offset, rel_h = queue.pop(0)
-        spans, conds = derive_peaks_inters(spec_it, height, prominence, rel_h)
+        spans, conds = find_peaks_inters(spec_it, height, prominence, rel_h)
         for sp, is_inter in zip(spans, conds):
             if is_inter and rel_h > ret_h_min:
                 idx_left = int(sp[0])
@@ -228,7 +252,7 @@ def derive_peaks_extra(freq, spec, height, prominence, rel_height, return_rel_h=
     return spans_ret
 
 
-def derive_peaks_inters(x, height, prominence, rel_height):
+def find_peaks_inters(x, height, prominence, rel_height):
     peaks, _ = signal.find_peaks(x, height=height, prominence=prominence)
     _, _, f_left, f_right = signal.peak_widths(x, peaks, rel_height)
     spans = [[left, right] for left, right in zip(f_left, f_right)]
@@ -246,45 +270,6 @@ def derive_peaks_inters(x, height, prominence, rel_height):
             is_inter[-1] = True
 
     return spans_new, is_inter
-
-
-def derive_peaks(freq, spec, height, prominence, rel_height):
-    peaks, _ = signal.find_peaks(spec, height=height, prominence=prominence)
-    _, peak_heights, f_left, f_right = signal.peak_widths(spec, peaks, rel_height)
-    spans = [[left, right] for left, right in zip(f_left, f_right)]
-    spans.sort(key=lambda x: x[0])
-
-    # Merge
-    spans_new = []
-    peak_heights_new = []
-    for (left, right), h in zip(spans, peak_heights):
-        if len(spans_new) == 0 or spans_new[-1][-1] < left:
-            spans_new.append([left, right])
-            peak_heights_new.append(h)
-        else:
-            spans_new[-1][-1] = max(spans_new[-1][-1], right)
-            peak_heights_new[-1] = min(peak_heights_new[-1], h)
-
-    spans_new = np.interp(np.ravel(spans_new), np.arange(len(freq)), freq).reshape(-1, 2)
-    peak_heights_new = np.array(peak_heights_new)
-    return spans_new, peak_heights_new
-
-
-def derive_peaks_multi(freq_data, spec_data, height, prominence, rel_height):
-    spans_data = []
-    heights_data = []
-    for freq, spec in zip(freq_data, spec_data):
-        if spec is None:
-            continue
-        spans, heights = derive_peaks(freq, spec, height, prominence, rel_height)
-        spans_data.append(spans)
-        heights_data.append(heights)
-    spans_data = np.vstack(spans_data)
-    heights_data = np.concatenate(heights_data)
-    inds = np.argsort(spans_data[:, 0])
-    spans_data = spans_data[inds]
-    heights_data = heights_data[inds]
-    return spans_data, heights_data
 
 
 def derive_peaks_obs_data(obs_data, height, prominence, rel_height):
