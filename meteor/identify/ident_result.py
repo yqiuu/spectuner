@@ -7,6 +7,9 @@ from . import identify
 
 
 def concat_identify_result(res_list):
+    if len(res_list) == 0:
+        return
+
     res_list = [res for res in res_list if len(res.df_mol) > 0]
     df_mol = pd.concat([res.df_mol for res in res_list])
     df_sub_dict = {}
