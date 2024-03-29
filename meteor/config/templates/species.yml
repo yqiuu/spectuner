@@ -1,5 +1,39 @@
 elements: ["H", "D", "C", "N", "O", "S", "Si", "Na", "Cl", "P"]
-molecules: null
+molecules:
+  - CS
+  - CCS
+  - CCCS
+  - H2CO
+  - H2S
+  - H2CS
+  - OCS
+  - HCN
+  - HNC
+  - SiS
+  - SiO
+  - NH3
+  - c-C3H2
+  - SO
+  - SO2
+  - H2CCO
+  - HNCO
+  - CH3OH
+  - CH3OCHO
+  - CH3CHO
+  - CH3OCH3
+  - CH2OCH2
+  - CH3SH
+  - CH3CN
+  - C2H3CN
+  - C2H5CN
+  - C2H5OH
+  - C2H5CHO
+  - CH3COCH3
+  - HC(O)NH2
+  - HCCCN
+  - HCCCCCN
+  - CH3NH2
+  - NH2CN
 iso_list: []
 exclude_list: [
   "HNC3;v=0;", # Duplicated
