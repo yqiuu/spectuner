@@ -9,7 +9,7 @@ from .identify.identify import identify
 
 def exec_config():
     parser = ArgumentParser()
-    parser.add_argument("--dir", type=str, default="./")
+    parser.add_argument("dir", type=str)
     args = parser.parse_args()
     create_config(args.dir)
 
