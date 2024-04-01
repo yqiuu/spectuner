@@ -96,7 +96,7 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
         spans_inter = derive_intersections(pack_curr.spans, pack.spans)[0]
         if len(spans_inter) > 0 and need_opt:
             res_dict = optimize_with_base(
-                pack, obs_data, pack_curr.T_pred_data, config_opt, pool
+                pack, obs_data, pack_curr.T_pred_data, config, pool
             )
             params_new =  res_dict["params_best"]
             mol_store_new = pack.mol_store
@@ -164,7 +164,7 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
         save_name = save_dir/Path("{}_{}.pickle".format(item["id"], item["root"]))
         if idx < idx_restart:
             res_dict = optimize_with_base(
-                pack, obs_data, pack_curr.T_pred_data, config_opt, pool
+                pack, obs_data, pack_curr.T_pred_data, config, pool
             )
             pickle.dump(res_dict, open(save_name, "wb"))
         else:
