@@ -1,9 +1,13 @@
 import re
+import warnings
 from collections import defaultdict
 from copy import deepcopy
 
 import numpy as np
-from xclass import task_ListDatabase
+try:
+    from xclass import task_ListDatabase
+except ImportError:
+    warnings.warn("XCLASS is not installed.")
 
 from .atoms import MolecularDecomposer
 

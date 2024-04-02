@@ -1,4 +1,5 @@
 import os
+import warnings
 import shutil
 from collections import defaultdict
 from dataclasses import dataclass
@@ -7,7 +8,10 @@ from copy import deepcopy
 import numpy as np
 
 # Import XCLASS
-from xclass import task_myXCLASS, task_ListDatabase
+try:
+    from xclass import task_myXCLASS
+except ImportError:
+    warnings.warn("XCLASS is not installed.")
 
 
 def create_molfit_file(fname, mol_names, params, include_list, MaxElowSQL=None, MingASQL=None):
