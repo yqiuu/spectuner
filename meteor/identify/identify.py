@@ -785,3 +785,79 @@ class PeakMatchingLoss:
             loss += np.sum(errors_fp)
 
         return loss
+
+
+class PeakManager:
+    def __init__(self, obs_data, T_back, prominence, rel_height, n_eval=5):
+        height = T_back + prominence
+        self.freq_data, self.T_obs_data, self.spans_obs_data \
+            = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
+
+        self.T_back = T_back
+        self.height = height
+        self.prominence = prominence
+        self.rel_height = rel_height
+        self.n_eval = n_eval
+
+
+    def __call__(self, i_segment, T_pred):
+        loss = 0.
+
+        freq = self.freq_data[i_segment]
+        T_obs = self.T_obs_data[i_segment]
+        spans_obs = self.spans_obs_data[i_segment]
+
+        spans_pred, _ = derive_peaks(
+            freq, T_pred, self.height, self.prominence, self.rel_height
+        )
+        if len(spans_pred) == 0:
+            return loss
+
+        spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
+        if len(spans_inter) > 0:
+            errors, norms, f_dice = derive_true_postive_props(
+                freq, T_obs, T_pred, self.T_back, spans_obs, spans_pred,
+                spans_inter, inds_pred, inds_obs
+            )
+            loss += np.sum(np.minimum(errors - f_dice*norms, 0.))
+
+        spans_fp = derive_complementary(spans_pred, inds_pred)
+        if len(spans_fp) != 0:
+            errors_fp, _ = derive_false_postive_props(
+                freq, T_obs, T_pred, self.T_back, spans_fp
+            )
+
+            centres_obs = np.mean(spans_obs, axis=1)
+            centres_pred = np.mean(spans_fp, axis=1)
+            side = np.zeros(len(centres_pred), dtype="i4")
+            inds_r = np.searchsorted(centres_obs, centres_pred)
+            inds_l = inds_r - 1
+            # Right
+            cond = inds_r == len(centres_obs)
+            inds_r[cond] = len(centres_obs) - 1
+            x_right = centres_obs[inds_r]
+            x_right[cond] = freq[-1]
+            side[cond] = 1
+            # Left
+            cond = inds_l < 0
+            inds_l[cond] = 0
+            x_left = centres_obs[inds_l]
+            x_left[cond] = freq[0]
+            side[cond] = -1
+            loss += np.sum(linear_deacy(centres_pred, x_left, x_right, side, errors_fp))
+
+        return loss
+
+
+@np.vectorize
+def linear_deacy(x, x_left, x_right, side, height):
+    if side == 1:
+        return height*(x - x_left)/(x_right - x_left)
+    if side == -1:
+        return height*(x_right - x)/(x_right - x_left)
+
+    x_mid = .5*(x_left + x_right)
+    if x < x_mid:
+        return height*(x - x_left)/(x_mid - x_left)
+    else:
+        return height*(x_right - x)/(x_right - x_mid)

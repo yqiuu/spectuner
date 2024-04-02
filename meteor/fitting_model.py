@@ -2,7 +2,7 @@ import numpy as np
 
 from .xclass_wrapper import derive_freq_range
 from .algorithms import derive_median_frac_threshold
-from .identify import PeakMatchingLoss
+from .identify import PeakMatchingLoss, PeakManager
 
 
 def l1_loss(y_pred, y_obs):
@@ -59,7 +59,7 @@ class FittingModel:
         if config_pm_loss is None:
             self.pm_loss_fn = None
         else:
-            self.pm_loss_fn = PeakMatchingLoss(obs_data, T_back, **config_pm_loss)
+            self.pm_loss_fn = PeakManager(obs_data, T_back, **config_pm_loss)
         #
         config_thr_loss=config.get("thr_loss", None)
         if config_thr_loss is None:
