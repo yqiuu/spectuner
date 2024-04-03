@@ -84,6 +84,59 @@ class SpectralPlot:
     def bounds(self):
         return self._bounds
 
+    def plot_T_pred(self, ident_result, y_min, y_max, key=None, name=None,
+                    color_spec="r", show_lines=True, T_base_data=None):
+        T_data = ident_result.get_T_pred(key, name)
+        if T_base_data is not None:
+            for i_segment, T_base in enumerate(T_base_data):
+                if T_base_data is None or T_data[i_segment] is None:
+                    continue
+                T_data[i_segment] = T_data[i_segment] \
+                    + T_base - ident_result.T_back
+        self.plot_spec(ident_result.freq_data, T_data, color=color_spec)
+
+        if not show_lines:
+            return
+
+        if key is None:
+            self.plot_names(
+                ident_result.line_dict["freq"],
+                ident_result.line_dict["name"],
+                y_min, y_max
+            )
+            self.plot_names(
+                ident_result.false_line_dict["freq"],
+                ident_result.false_line_dict["name"],
+                y_min, y_max, color="b"
+            )
+            return
+
+        if name is None:
+            name_set = set(ident_result.T_single_dict[key])
+        else:
+            name_set = set((name,))
+        if ident_result.is_sep:
+            line_dict = ident_result.line_dict[key]
+            false_line_dict = ident_result.false_line_dict[key]
+        else:
+            line_dict = ident_result.line_dict
+            false_line_dict = ident_result.false_line_dict
+        inds = ident_result.filter_name_list(name_set, line_dict["name"])
+        spans = line_dict["freq"][inds]
+        name_list = line_dict["name"][inds]
+        self.plot_names(spans, name_list, y_min, y_max)
+        inds = ident_result.filter_name_list(name_set, false_line_dict["name"])
+        spans = false_line_dict["freq"][inds]
+        name_list = false_line_dict["name"][inds]
+        self.plot_names(spans, name_list, y_min, y_max, color="b")
+
+    def plot_unknown_lines(self, ident_result, y_min, y_max, color="grey", linestyle="-"):
+        freqs = []
+        for freq, names in zip(ident_result.line_dict["freq"], ident_result.line_dict["name"]):
+            if names is None:
+                freqs.append(freq)
+        self.vlines(freqs, y_min, y_max, colors=color, linestyles=linestyle)
+
     def plot_spec(self, freq_list, spec_list, *args, color="C0", **kwargs):
         sort_list = list(zip(freq_list, spec_list))
         sort_list.sort(key=lambda item: item[0][0])
