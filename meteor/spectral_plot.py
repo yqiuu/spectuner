@@ -84,7 +84,8 @@ class SpectralPlot:
         return self._bounds
 
     def plot_T_pred(self, ident_result, y_min, y_max, key=None, name=None,
-                    color_spec="r", show_lines=True, T_base_data=None):
+                    color_spec="r", show_lines=True, offset_0=1.5, offset_1=4,
+                    fontsize=12, T_base_data=None):
         T_data = ident_result.get_T_pred(key, name)
         if T_base_data is not None:
             for i_segment, T_base in enumerate(T_base_data):
@@ -123,11 +124,17 @@ class SpectralPlot:
         inds = ident_result.filter_name_list(name_set, line_dict["name"])
         spans = line_dict["freq"][inds]
         name_list = line_dict["name"][inds]
-        self.plot_names(spans, name_list, y_min, y_max)
+        self.plot_names(
+            spans, name_list, y_min, y_max,
+            offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
+        )
         inds = ident_result.filter_name_list(name_set, false_line_dict["name"])
         spans = false_line_dict["freq"][inds]
         name_list = false_line_dict["name"][inds]
-        self.plot_names(spans, name_list, y_min, y_max, color="b")
+        self.plot_names(
+            spans, name_list, y_min, y_max, color="b",
+            offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
+        )
 
     def plot_unknown_lines(self, ident_result, y_min, y_max, color="grey", linestyle="-"):
         freqs = []
