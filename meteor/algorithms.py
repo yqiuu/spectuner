@@ -40,7 +40,7 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
 
 
 def select_molecules_multi(freq_data, ElowMin, ElowMax,
-                           elements, molecules, base_only,
+                           elements, molecules, base_only=False,
                            iso_list=None, exclude_list=None, rename_dict=None):
     if iso_list is None:
         iso_list = []
