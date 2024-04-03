@@ -44,6 +44,14 @@ def select_molecules_multi(freq_data, ElowMin, ElowMax,
                            iso_list=None, exclude_list=None, rename_dict=None):
     if iso_list is None:
         iso_list = []
+    rename_dict_ = {
+        "NH2CN": "H2NCN",
+        "H2CCHCN-15": "CH2CHCN-15",
+        "C2H3CN": "CH2CHCN",
+        "C-13-H3C-13-H2C-13-N": "C2H5CN",
+    }
+    if rename_dict is not None:
+        rename_dict_.update(**rename_dict)
 
     normal_dict_list = []
     for freq in freq_data:
@@ -55,7 +63,7 @@ def select_molecules_multi(freq_data, ElowMin, ElowMax,
             elements=elements,
             moleclues=molecules,
             exclude_list=exclude_list,
-            rename_dict=rename_dict
+            rename_dict=rename_dict_
         ))
 
     # Merge all normal dict from different segment
