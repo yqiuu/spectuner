@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 
 from collections import defaultdict
 
+from .preprocess import load_preprocess, get_freq_data, get_T_data
+
 
 class SpectralPlot:
     def __init__(self, freq_data, freq_per_row=1000., width=10., height=3., sharey=True):
@@ -53,6 +55,22 @@ class SpectralPlot:
         else:
             raise ValueError
         return idx
+
+    @classmethod
+    def from_config(cls, config, freq_per_row=1000., width=10., height=3., sharey=True,
+                    color="k", **kwargs):
+        T_back = config["sl_model"].get("tBack", 0.)
+        obs_data = load_preprocess(config["files"], T_back)
+        freq_data = get_freq_data(obs_data)
+        plot = cls(
+            freq_data=freq_data,
+            freq_per_row=freq_per_row,
+            width=width,
+            height=height,
+            sharey=sharey,
+        )
+        plot.plot_spec(freq_data, get_T_data(obs_data), color=color, **kwargs)
+        return plot
 
     @property
     def fig(self):
