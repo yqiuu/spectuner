@@ -7,7 +7,7 @@ from .preprocess import load_preprocess, get_freq_data, get_T_data
 
 
 class SpectralPlot:
-    def __init__(self, freq_data, freq_per_row=1000., width=10., height=3., sharey=True):
+    def __init__(self, freq_data, freq_per_row=1000., width=15., height=3., sharey=True):
         freq_data = freq_data.copy()
         freq_data.sort(key=lambda item: item[0])
         freq_min = freq_data[0][0]
@@ -57,7 +57,7 @@ class SpectralPlot:
         return idx
 
     @classmethod
-    def from_config(cls, config, freq_per_row=1000., width=10., height=3., sharey=True,
+    def from_config(cls, config, freq_per_row=1000., width=15., height=3., sharey=True,
                     color="k", **kwargs):
         T_back = config["sl_model"].get("tBack", 0.)
         obs_data = load_preprocess(config["files"], T_back)
