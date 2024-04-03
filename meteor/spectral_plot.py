@@ -103,7 +103,7 @@ class SpectralPlot:
 
             c = color if len(names) == 1 else color_blen
             ax.vlines(freq_c, y_min, y_max, c, linestyles)
-            y_show = frac*(y_max + y_min)
+            y_show = y_min + frac*(y_max - y_min)
             x_show = freq_c + offset_0
             for text in names:
                 ax.text(
