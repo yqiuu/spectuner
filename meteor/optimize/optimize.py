@@ -35,15 +35,15 @@ def optimize(model, config_opt, pool):
                 pos_all.append(data["pos"])
                 cost_all.append(data["cost"])
 
-        if i_cycle + 1 >= max(2, n_cycle_min):
+        if i_cycle > 1:
             rate = compute_rate(opt)
             if rate < tol_stop:
                 n_stuck += 1
             else:
                 n_stuck = 0
 
-            if n_stuck == n_stop:
-                break
+        if n_stuck >= n_stop and i_cycle + 1 >= n_cycle_min:
+            break
 
     if len(pos_all) != 0:
         pos_all = np.vstack(pos_all)
