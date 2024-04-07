@@ -59,8 +59,7 @@ class SpectralPlot:
     @classmethod
     def from_config(cls, config, freq_per_row=1000., width=15., height=3., sharey=True,
                     color="k", **kwargs):
-        T_back = config["sl_model"].get("tBack", 0.)
-        obs_data = load_preprocess(config["files"], T_back)
+        obs_data = [np.loadtxt(fname) for fname in config["files"]]
         freq_data = get_freq_data(obs_data)
         plot = cls(
             freq_data=freq_data,
