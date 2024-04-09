@@ -46,6 +46,14 @@ def select_molecules_multi(freq_data, ElowMin, ElowMax,
     }
     if rename_dict is not None:
         rename_dict_.update(**rename_dict)
+    exclude_list_ = [
+        "HNC3;v=0;", # Duplicated
+        "H2C-13-CHCN;v=0;", # Duplicated
+        "H2CC-13-HCN;v=0;", # Duplicated
+        "H2CCHC-13-N;v=0;", # Duplicated
+    ]
+    if exclude_list_ is not None:
+        exclude_list_.extend(exclude_list)
 
     normal_dict_list = []
     for freq in freq_data:
@@ -56,7 +64,7 @@ def select_molecules_multi(freq_data, ElowMin, ElowMax,
             ElowMax=ElowMax,
             elements=elements,
             moleclues=molecules,
-            exclude_list=exclude_list,
+            exclude_list=exclude_list_,
             rename_dict=rename_dict_
         ))
 
