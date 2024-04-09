@@ -12,32 +12,9 @@ except ImportError:
 from .atoms import MolecularDecomposer
 
 
-def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
-                     molecules, elements, base_only,
+def select_molecules(freq_data, ElowMin, ElowMax,
+                     elements, molecules, base_only=False,
                      exclude_list=None, rename_dict=None):
-    if molecules is None:
-        molecules = []
-        skip = True
-    else:
-        skip = False
-
-    normal_dict = group_by_normal_form(
-        FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list, rename_dict
-    )
-    mol_dict, _ = replace_with_master_name(normal_dict, molecules, base_only)
-    if skip:
-        return mol_dict
-
-    mol_dict_ret = {}
-    for name in molecules:
-        if name in mol_dict:
-            mol_dict_ret[name] = mol_dict[name]
-    return mol_dict_ret
-
-
-def select_molecules_multi(freq_data, ElowMin, ElowMax,
-                           elements, molecules, base_only=False,
-                           exclude_list=None, rename_dict=None):
     rename_dict_ = {
         "NH2CN": "H2NCN",
         "H2CCHCN-15": "CH2CHCN-15",
