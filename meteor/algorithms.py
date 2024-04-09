@@ -14,21 +14,17 @@ from .atoms import MolecularDecomposer
 
 def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
                      molecules, elements, base_only,
-                     iso_list=None, exclude_list=None, rename_dict=None):
+                     exclude_list=None, rename_dict=None):
     if molecules is None:
         molecules = []
         skip = True
     else:
         skip = False
-    if iso_list is None:
-        iso_list = []
 
     normal_dict = group_by_normal_form(
         FreqMin, FreqMax, ElowMin, ElowMax, elements, exclude_list, rename_dict
     )
-    mol_dict, _ = replace_with_master_name(
-        normal_dict, molecules, base_only, iso_list
-    )
+    mol_dict, _ = replace_with_master_name(normal_dict, molecules, base_only)
     if skip:
         return mol_dict
 
@@ -41,9 +37,7 @@ def select_molecules(FreqMin, FreqMax, ElowMin, ElowMax,
 
 def select_molecules_multi(freq_data, ElowMin, ElowMax,
                            elements, molecules, base_only=False,
-                           iso_list=None, exclude_list=None, rename_dict=None):
-    if iso_list is None:
-        iso_list = []
+                           exclude_list=None, rename_dict=None):
     rename_dict_ = {
         "NH2CN": "H2NCN",
         "H2CCHCN-15": "CH2CHCN-15",
@@ -78,7 +72,7 @@ def select_molecules_multi(freq_data, ElowMin, ElowMax,
         normal_dict_all[key] = tmp
 
     mol_list, master_name_dict \
-        = replace_with_master_name(normal_dict_all, base_only, iso_list)
+        = replace_with_master_name(normal_dict_all, base_only)
 
     incldue_dict = defaultdict(lambda: [[] for _ in range(len(freq_data))])
     for i_segment, normal_dict in enumerate(normal_dict_list):
@@ -152,7 +146,7 @@ def derive_normal_form(mol_name, rename_dict):
     return fm, atom_set
 
 
-def replace_with_master_name(normal_dict, base_only, iso_list):
+def replace_with_master_name(normal_dict, base_only):
     mol_dict = defaultdict(list)
     master_name_dict = {}
     for normal_name, name_list in normal_dict.items():
@@ -162,8 +156,7 @@ def replace_with_master_name(normal_dict, base_only, iso_list):
         if master_name is None:
             continue
         for name in name_list:
-            if base_only and name.split(";")[1] != "v=0" \
-                and name not in iso_list:
+            if base_only and name.split(";")[1] != "v=0":
                 continue
             if name == master_name:
                 mol_dict[master_name]

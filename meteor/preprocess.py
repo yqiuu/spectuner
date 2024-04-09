@@ -14,8 +14,8 @@ def load_preprocess_select(config):
     mol_list, include_dict = select_molecules_multi(
         get_freq_data(obs_data), ElowMin, ElowMax,
         config_spec["elements"], config_spec["molecules"],
-        config_spec["base_only"], config_spec["iso_list"],
-        config_spec["exclude_list"], config_spec["rename_dict"]
+        config_spec["base_only"], config_spec["exclude_list"],
+        config_spec["rename_dict"]
     )
     return obs_data, mol_list, include_dict
 
