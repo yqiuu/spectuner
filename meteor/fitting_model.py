@@ -1,7 +1,6 @@
 import numpy as np
 
 from .xclass_wrapper import derive_freq_range
-from .algorithms import derive_median_frac_threshold
 from .identify import PeakMatchingLoss, PeakManager
 
 
@@ -35,6 +34,14 @@ def create_fitting_model(obs_data, mol_store, config, config_opt, base_data):
         obs_data, mol_store, bounds, config, base_data=base_data
     )
     return model
+
+
+def derive_median_frac_threshold(obs_data, median_frac):
+    T_obs = np.concatenate([spec[:, 1] for spec in obs_data])
+    T_max = T_obs.max()
+    T_median = np.median(T_obs)
+    T_thr = T_median + median_frac*(T_max - T_median)
+    return T_thr
 
 
 class FittingModel:
