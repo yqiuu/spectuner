@@ -52,7 +52,7 @@ def select_molecules_multi(freq_data, ElowMin, ElowMax,
         "H2CC-13-HCN;v=0;", # Duplicated
         "H2CCHC-13-N;v=0;", # Duplicated
     ]
-    if exclude_list_ is not None:
+    if exclude_list is not None:
         exclude_list_.extend(exclude_list)
 
     normal_dict_list = []
