@@ -10,7 +10,16 @@ def create_config(dir="./"):
     template_dir = Path(__file__).resolve().parent/Path("templates")
     target_dir = Path(dir)
     target_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(template_dir/"config.yml", target_dir)
+
+    tmp_dir = target_dir.resolve()/'tmp'
+    tmp_dir.mkdir(exist_ok=True)
+    lines = open(template_dir/"config.yml").readlines()
+    for i_l, ln in enumerate(lines):
+        if "TMP_DIR" in ln:
+            lines[i_l] = ln.replace("TMP_DIR", str(tmp_dir/"tmp"))
+            break
+    open(target_dir/"config.yml", "w").writelines(lines)
+
     for _, fname in iter_config_names():
         shutil.copy(template_dir/fname, target_dir)
 

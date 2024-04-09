@@ -1,7 +1,7 @@
 files: []
 fname_base: null
 sl_model:
-  prefix_molfit: "tmp/"
+  prefix_molfit: TMP_DIR
   Inter_Flag: False
   TelescopeSize: 30
   BMIN: null
