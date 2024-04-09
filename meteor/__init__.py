@@ -1,4 +1,4 @@
-from .algorithms import *
+from .spectral_data import *
 from .identify import *
 from .optimize import *
 from .fitting_model import *

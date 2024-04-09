@@ -1,7 +1,7 @@
 import glob
 import numpy as np
 
-from .algorithms import select_molecules
+from .spectral_data import select_molecules
 
 
 def load_preprocess_select(config):

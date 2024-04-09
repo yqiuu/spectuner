@@ -3,7 +3,6 @@ import warnings
 from collections import defaultdict
 from copy import deepcopy
 
-import numpy as np
 try:
     from xclass import task_ListDatabase
 except ImportError:
