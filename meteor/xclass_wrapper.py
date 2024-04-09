@@ -14,8 +14,16 @@ except ImportError:
     warnings.warn("XCLASS is not installed.")
 
 
-def create_molfit_file(fname, mol_names, params, include_list, MaxElowSQL=None, MingASQL=None):
+def create_molfit_file(fname, mol_names, params, include_list,
+                       MinNumTransitionsSQL=None, MaxNumTransitionsSQL=None,
+                       TransOrderSQL=None, MaxElowSQL=None, MingASQL=None):
     text = ""
+    if MinNumTransitionsSQL is not None:
+        text += f"%%MinNumTransitionsSQL = {MinNumTransitionsSQL}\n"
+    if MaxNumTransitionsSQL is not None:
+        text += f"%%MaxNumTransitionsSQL = {MaxNumTransitionsSQL}\n"
+    if TransOrderSQL is not None:
+        text += f"%%TransOrderSQL = {TransOrderSQL}\n"
     if MaxElowSQL is not None:
         text += f"%%MaxElowSQL = {MaxElowSQL}\n"
     if MingASQL is not None:
@@ -138,9 +146,19 @@ class XCLASSWrapper:
 
         self.update_frequency(FreqMin, FreqMax, FreqStep)
 
-        self._xclass_kwargs = kwargs_
-        self._MaxElowSQL = kwargs_.pop("MaxElowSQL", None)
-        self._MingASQL = kwargs_.pop("MingASQL", None)
+        kwargs_molfit = {}
+        names = [
+            "MinNumTransitionsSQL",
+            "MaxNumTransitionsSQL",
+            "TransOrderSQL",
+            "MaxElowSQL",
+            "MingASQL",
+        ]
+        for key in names:
+            kwargs_molfit[key] = kwargs_.pop(key, None)
+        self._kwargs_molfit = kwargs_molfit
+
+        self._kwargs_xclass = kwargs_
         self.prefix_molfit = prefix_molfit
         self.include_list = None
 
@@ -176,7 +194,7 @@ class XCLASSWrapper:
         fname_molfit = "{}_{}.molfit".format(self.prefix_molfit, os.getpid())
         create_molfit_file(
             fname_molfit, mol_names, params_mol,
-            self.include_list, self._MaxElowSQL, self._MingASQL
+            self.include_list, **self._kwargs_molfit
         )
 
         spec, log, trans, tau, job_dir = task_myXCLASS.myXCLASSCore(
@@ -185,7 +203,7 @@ class XCLASSWrapper:
             FreqStep=self.freq_step,
             MolfitsFileName=fname_molfit,
             **params_dict,
-            **self._xclass_kwargs
+            **self._kwargs_xclass
         )
         if remove_dir:
             shutil.rmtree(job_dir)

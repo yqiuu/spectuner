@@ -12,6 +12,18 @@ sl_model:
   beta_dust: 0.
   vLSR: 0.
   tBack: 0.
+  MinNumTransitionsSQL: 1
+  MaxNumTransitionsSQL: 0
+  # order of transitions:
+  # - 1: by lower energy
+  # - 2: by gA
+  # - 3: gA/E_low^2
+  # - else: by trans. freq.
+  TransOrderSQL: 1
+  # Maximum lower energy.
+  MaxElowSQL: null
+  # Minimum intensity.
+  MingASQL: null
 pm_loss:
   prominence: null
   rel_height: null
