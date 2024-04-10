@@ -1,6 +1,5 @@
 import pickle
 from collections import defaultdict
-from dataclasses import dataclass, replace
 from copy import deepcopy
 from pathlib import Path
 
@@ -9,6 +8,7 @@ import pandas as pd
 from scipy import signal
 
 from .ident_result import concat_identify_result, IdentResult
+from ..utils import load_pred_data
 from ..xclass_wrapper import combine_mol_stores
 from ..preprocess import load_preprocess
 
@@ -52,11 +52,9 @@ def identify_file(idn, fname, config):
 
 
 def identify_without_base(idn, dirname, config):
+    pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=True)
     res_list = []
-    for fname in dirname.glob("*.pickle"):
-        if is_exclusive(fname):
-            continue
-        data = pickle.load(open(fname, "rb"))
+    for data in pred_data_list:
         res = idn.identify(
             data["mol_store"], config["sl_model"], data["params_best"],
         )
@@ -77,11 +75,9 @@ def identify_with_base(idn, dirname, fname_base, config):
         mol_store_base, config_slm, params_base, data["freq"]
     )
 
+    pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=True)
     res_list = []
-    for fname in dirname.glob("*.pickle"):
-        if is_exclusive(fname):
-            continue
-        data = pickle.load(open(fname, "rb"))
+    for data in pred_data_list:
         mol_store_combine, params_combine = combine_mol_stores(
             [mol_store_base, data["mol_store"]],
             [params_base, data["params_best"]],
@@ -103,13 +99,6 @@ def identify_with_base(idn, dirname, fname_base, config):
         if res is not None:
             res_list.append(res)
     return concat_identify_result(res_list)
-
-
-def is_exclusive(fname):
-    name = str(fname.name)
-    return name.startswith("identify") \
-        or name.startswith("combine") \
-        or name.startswith("tmp")
 
 
 def filter_moleclues(mol_store, config_slm, params,

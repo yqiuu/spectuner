@@ -7,6 +7,7 @@ from multiprocessing import Pool
 import numpy as np
 
 from .optimize import optimize
+from ..utils import load_pred_data
 from ..preprocess import load_preprocess, get_freq_data
 from ..xclass_wrapper import combine_mol_stores
 from ..identify import (
@@ -36,11 +37,7 @@ def run_combine(config, parent_dir, need_identify=True):
     save_dir = parent_dir/"combine"
     save_dir.mkdir(exist_ok=True)
 
-    pred_data_list = []
-    for fname in single_dir.glob("*.pickle"):
-        if str(fname.name).startswith("identify"):
-            continue
-        pred_data_list.append(pickle.load(open(fname, "rb")))
+    pred_data_list = load_pred_data(single_dir.glob("*.pickle"), reset_id=True)
     if len(pred_data_list) == 0:
         raise ValueError("Cannot find any individual fitting results.")
     pred_data_list.sort(key=lambda item: item["cost_best"])
