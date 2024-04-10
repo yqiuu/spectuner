@@ -721,7 +721,7 @@ class Identification:
 
 
 class PeakManager:
-    def __init__(self, obs_data, T_back, prominence, rel_height):
+    def __init__(self, obs_data, T_back, prominence, rel_height, frac_cut=.05):
         height = T_back + prominence
         self.freq_data, self.T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
@@ -731,8 +731,11 @@ class PeakManager:
         self.prominence = prominence
         self.rel_height = rel_height
 
+        self.frac_cut = frac_cut
+
     def __call__(self, i_segment, T_pred):
-        loss_tp, loss_fp = self.compute_loss(i_segment, T_pred)
+        peak_store = self.create_peak_store(i_segment, T_pred)
+        loss_tp, loss_fp = self.compute_loss(i_segment, peak_store)
         return np.sum(loss_tp) + np.sum(loss_fp)
 
     def create_peak_store(self, i_segment, T_pred):
@@ -770,9 +773,8 @@ class PeakManager:
             errors_tp, norms_tp, f_dice, spans_fp, errors_fp, norms_fp
         )
 
-    def compute_loss(self, i_segment, T_pred):
+    def compute_loss(self, i_segment, peak_store):
         freq = self.freq_data[i_segment]
-        peak_store = self.create_peak_store(i_segment, T_pred)
         if len(peak_store.spans_inter) > 0:
             loss_tp = np.minimum(peak_store.errors_tp - peak_store.f_dice*peak_store.norms_tp, 0.)
         else:
@@ -800,10 +802,88 @@ class PeakManager:
         else:
             loss_fp = np.zeros(0)
 
-        return loss_fp, loss_tp
+        return loss_tp, loss_fp
+
+    def derive_line_table(self, mol_store, config_slm, params, T_single_dict):
+        if T_single_dict is None:
+            T_single_dict = compute_T_single_data(mol_store, config_slm, params, self.freq_data)
+        T_pred_data = sum_T_single_data(T_single_dict, self.T_back)
+        line_table = LineTable()
+        line_table_fp = LineTable()
+        for i_segment, T_pred in enumerate(T_pred_data):
+            if T_pred is None:
+                continue
+            line_table_sub, line_table_fp_sub \
+                = self._derive_line_table_sub(i_segment, T_pred, T_single_dict)
+            line_table.append(line_table_sub)
+            line_table_fp.append(line_table_fp_sub)
+        return line_table, line_table_fp
+
+    def _derive_line_table_sub(self, i_segment, T_pred, T_single_dict):
+        peak_store = self.create_peak_store(i_segment, T_pred)
+        freqs = np.mean(peak_store.spans_obs, axis=1)
+        loss_tp, loss_fp = self.compute_loss(i_segment, peak_store)
+        frac_list_tp, id_list_tp, name_list_tp = self._compute_fractions(
+            i_segment, T_single_dict, peak_store.spans_inter
+        )
+        line_table = LineTable()
+        line_table_tmp = LineTable(
+            freq=freqs,
+            loss=loss_tp,
+            frac=frac_list_tp,
+            id=id_list_tp,
+            name=name_list_tp,
+            error=peak_store.errors_tp,
+            norm=peak_store.norms_tp
+        )
+        sparsity = (peak_store.inds_inter_obs, len(peak_store.spans_obs))
+        line_table.append(line_table_tmp, sparsity=sparsity)
+
+        freq_fp = np.mean(peak_store.spans_fp, axis=1)
+        frac_list_fp, id_list_fp, name_list_fp = self._compute_fractions(
+            i_segment, T_single_dict, peak_store.spans_fp
+        )
+        line_table_fp = LineTable(
+            freq=freq_fp,
+            loss=loss_fp,
+            frac=frac_list_fp,
+            id=id_list_fp,
+            name=name_list_fp,
+            error=peak_store.errors_fp,
+            norm=peak_store.norms_fp
+        )
+        return line_table, line_table_fp
+
+    def _compute_fractions(self, i_segment, T_single_dict, spans_inter):
+        fracs = []
+        ids = []
+        names = []
+        freq = self.freq_data[i_segment]
+        for i_id, sub_dict in T_single_dict.items():
+            for name, T_pred_data in sub_dict.items():
+                T_pred = T_pred_data[i_segment]
+                if T_pred is None:
+                    continue
+                fracs.append(compute_peak_norms(spans_inter, freq, T_pred))
+                ids.append(i_id)
+                names.append(name)
+        fracs = compute_contributions(fracs, self.T_back)
+        ids = np.array(ids)
+        names = np.array(names, dtype=object)
+
+        frac_list = []
+        id_list = []
+        name_list = []
+        for i_inter, cond in enumerate(fracs.T > self.frac_cut):
+            fracs_sub = fracs[cond, i_inter]
+            fracs_sub = fracs_sub/np.sum(fracs_sub)
+            frac_list.append(fracs_sub)
+            id_list.append(tuple(ids[cond]))
+            name_list.append(tuple(names[cond]))
+        return frac_list, id_list, name_list
 
 
-@dataclass
+@dataclass(frozen=True)
 class PeakStore:
     spans_obs: np.ndarray
     spans_pred: np.ndarray = field(default_factory=partial(np.zeros, (0, 2)))
@@ -816,3 +896,37 @@ class PeakStore:
     spans_fp: np.ndarray = field(default_factory=partial(np.zeros, (0, 2)))
     errors_fp: np.ndarray = field(default_factory=partial(np.zeros, 0))
     norms_fp: np.ndarray = field(default_factory=partial(np.zeros, 0))
+
+
+@dataclass
+class LineTable:
+    freq: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    loss: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    frac: np.ndarray = field(default_factory=list)
+    id: np.ndarray = field(default_factory=list)
+    name: np.ndarray = field(default_factory=list)
+    error: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    norm: np.ndarray = field(default_factory=partial(np.zeros, 0))
+
+    def append(self, line_table, sparsity=None):
+        self.freq = np.append(self.freq, line_table.freq)
+
+        for name in ["loss", "error", "norm"]:
+            if sparsity is None:
+                arr_new = getattr(line_table, name)
+            else:
+                inds, num = sparsity
+                arr_tmp = getattr(line_table, name)
+                arr_new = np.full(num, np.nan)
+                arr_new[inds] = arr_tmp
+            setattr(self, name, np.append(getattr(self, name), arr_new))
+
+        for name in ["frac", "id", "name"]:
+            if sparsity is None:
+                list_new = getattr(line_table, name)
+            else:
+                inds, num = sparsity
+                list_new = [None for _ in range(num)]
+                for idx, val in zip(inds, getattr(line_table, name)):
+                    list_new[idx] = val
+            getattr(self, name).extend(list_new)
