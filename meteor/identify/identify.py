@@ -286,34 +286,6 @@ def derive_peaks_obs_data(obs_data, height, prominence, rel_height):
     return freq_data, T_obs_data, spans_obs_data
 
 
-def derive_peaks_pred_data(mol_store, config_slm, params,
-                           freq_data, T_pred_data, T_back, prominence, rel_height):
-    height = T_back + prominence
-    spans_tot = derive_peaks_multi(freq_data, T_pred_data, height, prominence, rel_height)[0]
-    name_list = [[] for _ in range(len(spans_tot))]
-    names_pos = []
-
-    pm = mol_store.create_parameter_manager(config_slm)
-    for item in mol_store.mol_list:
-        for mol in item["molecules"]:
-            params_single = pm.get_single_params(mol, params)
-            mol_store_single = mol_store.select_single(mol)
-            sl_model = mol_store_single.create_spectral_line_model(config_slm)
-            iterator = sl_model.call_multi(
-                freq_data, mol_store_single.include_list, params_single, remove_dir=True
-            )
-            T_pred_single = [args[0] for args in iterator]
-            spans_single = derive_peaks_multi(
-                freq_data, T_pred_single, height, prominence, rel_height)[0]
-            inds = derive_intersections(spans_tot, spans_single)[1]
-            for idx in inds:
-                name_list[idx].append(mol)
-            if len(inds) > 0:
-                names_pos.append(mol)
-
-    return spans_tot, name_list, names_pos
-
-
 def derive_blending_list(obs_data, pred_data_list, T_back, prominence, rel_height):
     height = T_back + prominence
     spans_obs_data = derive_peaks_obs_data(obs_data, height, prominence, rel_height)[-1]
