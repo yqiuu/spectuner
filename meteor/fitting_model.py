@@ -1,7 +1,7 @@
 import numpy as np
 
 from .xclass_wrapper import derive_freq_range
-from .identify import PeakMatchingLoss, PeakManager
+from .identify import PeakManager
 
 
 def l1_loss(y_pred, y_obs):

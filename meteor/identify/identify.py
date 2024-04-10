@@ -1,5 +1,7 @@
 import pickle
+from functools import partial
 from collections import defaultdict
+from dataclasses import dataclass, field
 from copy import deepcopy
 from pathlib import Path
 
@@ -417,6 +419,20 @@ def compute_dice_score(spans_inter, spans_a, spans_b):
     return np.ravel(2*np.diff(spans_inter)/(np.diff(spans_a) + np.diff(spans_b)))
 
 
+@np.vectorize
+def linear_deacy(x, x_left, x_right, side, height):
+    if side == 1:
+        return height*(x - x_left)/(x_right - x_left)
+    if side == -1:
+        return height*(x_right - x)/(x_right - x_left)
+
+    x_mid = .5*(x_left + x_right)
+    if x < x_mid:
+        return height*(x - x_left)/(x_mid - x_left)
+    else:
+        return height*(x_right - x)/(x_right - x_mid)
+
+
 class Identification:
     def __init__(self, obs_data, T_back, prominence,
                  rel_height=.25, n_eval=5, use_dice=False, is_loss=False,
@@ -704,52 +720,8 @@ class Identification:
         return frac_list, id_list, name_list
 
 
-class PeakMatchingLoss:
-    def __init__(self, obs_data, T_back, prominence, rel_height, n_eval=5):
-        height = T_back + prominence
-        self.freq_data, self.T_obs_data, self.spans_obs_data \
-            = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
-
-        self.T_back = T_back
-        self.height = height
-        self.prominence = prominence
-        self.rel_height = rel_height
-        self.n_eval = n_eval
-
-
-    def __call__(self, i_segment, T_pred):
-        freq = self.freq_data[i_segment]
-        T_obs = self.T_obs_data[i_segment]
-        spans_obs = self.spans_obs_data[i_segment]
-
-        spans_pred, _ = derive_peaks(
-            freq, T_pred, self.height, self.prominence, self.rel_height
-        )
-        if len(spans_pred) == 0:
-            return 0.
-
-        spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
-        if len(spans_inter) > 0:
-            errors, norms, f_dice = derive_true_postive_props(
-                freq, T_obs, T_pred, self.T_back, spans_obs, spans_pred,
-                spans_inter, inds_pred, inds_obs
-            )
-            loss = np.sum(errors - f_dice*norms)
-        else:
-            loss = 0.
-
-        spans_fp = derive_complementary(spans_pred, inds_pred)
-        if len(spans_fp) != 0:
-            errors_fp, _ = derive_false_postive_props(
-                freq, T_obs, T_pred, self.T_back, spans_fp
-            )
-            loss += np.sum(errors_fp)
-
-        return loss
-
-
 class PeakManager:
-    def __init__(self, obs_data, T_back, prominence, rel_height, n_eval=5):
+    def __init__(self, obs_data, T_back, prominence, rel_height):
         height = T_back + prominence
         self.freq_data, self.T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
@@ -758,38 +730,57 @@ class PeakManager:
         self.height = height
         self.prominence = prominence
         self.rel_height = rel_height
-        self.n_eval = n_eval
-
 
     def __call__(self, i_segment, T_pred):
-        loss = 0.
+        loss_tp, loss_fp = self.compute_loss(i_segment, T_pred)
+        return np.sum(loss_tp) + np.sum(loss_fp)
 
+    def create_peak_store(self, i_segment, T_pred):
         freq = self.freq_data[i_segment]
         T_obs = self.T_obs_data[i_segment]
         spans_obs = self.spans_obs_data[i_segment]
-
         spans_pred, _ = derive_peaks(
             freq, T_pred, self.height, self.prominence, self.rel_height
         )
         if len(spans_pred) == 0:
-            return loss
+            return PeakStore(spans_obs)
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
-            errors, norms, f_dice = derive_true_postive_props(
+            errors_tp, norms_tp, f_dice = derive_true_postive_props(
                 freq, T_obs, T_pred, self.T_back, spans_obs, spans_pred,
                 spans_inter, inds_pred, inds_obs
             )
-            loss += np.sum(np.minimum(errors - f_dice*norms, 0.))
+        else:
+            errors_tp = np.zeros(0)
+            norms_tp = np.zeros(0)
+            f_dice = np.zeros(0)
 
         spans_fp = derive_complementary(spans_pred, inds_pred)
-        if len(spans_fp) != 0:
-            errors_fp, _ = derive_false_postive_props(
+        if len(spans_fp) > 0:
+            errors_fp, norms_fp = derive_false_postive_props(
                 freq, T_obs, T_pred, self.T_back, spans_fp
             )
+        else:
+            errors_fp = np.zeros(0)
+            norms_fp = np.zeros(0)
 
-            centres_obs = np.mean(spans_obs, axis=1)
-            centres_pred = np.mean(spans_fp, axis=1)
+        return PeakStore(
+            spans_obs, spans_pred, spans_inter, inds_obs, inds_pred,
+            errors_tp, norms_tp, f_dice, spans_fp, errors_fp, norms_fp
+        )
+
+    def compute_loss(self, i_segment, T_pred):
+        freq = self.freq_data[i_segment]
+        peak_store = self.create_peak_store(i_segment, T_pred)
+        if len(peak_store.spans_inter) > 0:
+            loss_tp = np.minimum(peak_store.errors_tp - peak_store.f_dice*peak_store.norms_tp, 0.)
+        else:
+            loss_tp = np.zeros(0)
+
+        if len(peak_store.spans_fp) > 0:
+            centres_obs = np.mean(peak_store.spans_obs, axis=1)
+            centres_pred = np.mean(peak_store.spans_fp, axis=1)
             side = np.zeros(len(centres_pred), dtype="i4")
             inds_r = np.searchsorted(centres_obs, centres_pred)
             inds_l = inds_r - 1
@@ -805,20 +796,23 @@ class PeakManager:
             x_left = centres_obs[inds_l]
             x_left[cond] = freq[0]
             side[cond] = -1
-            loss += np.sum(linear_deacy(centres_pred, x_left, x_right, side, errors_fp))
+            loss_fp = linear_deacy(centres_pred, x_left, x_right, side, peak_store.errors_fp)
+        else:
+            loss_fp = np.zeros(0)
 
-        return loss
+        return loss_fp, loss_tp
 
 
-@np.vectorize
-def linear_deacy(x, x_left, x_right, side, height):
-    if side == 1:
-        return height*(x - x_left)/(x_right - x_left)
-    if side == -1:
-        return height*(x_right - x)/(x_right - x_left)
-
-    x_mid = .5*(x_left + x_right)
-    if x < x_mid:
-        return height*(x - x_left)/(x_mid - x_left)
-    else:
-        return height*(x_right - x)/(x_right - x_mid)
+@dataclass
+class PeakStore:
+    spans_obs: np.ndarray
+    spans_pred: np.ndarray = field(default_factory=partial(np.zeros, (0, 2)))
+    spans_inter: np.ndarray = field(default_factory=partial(np.zeros, (0, 2)))
+    inds_inter_obs: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    inds_inter_pred: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    errors_tp: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    norms_tp: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    f_dice: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    spans_fp: np.ndarray = field(default_factory=partial(np.zeros, (0, 2)))
+    errors_fp: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    norms_fp: np.ndarray = field(default_factory=partial(np.zeros, 0))
