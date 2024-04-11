@@ -49,16 +49,17 @@ def identify_file(idn, fname, config):
 
 def identify_without_base(idn, dirname, config):
     pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=True)
-    res_list = []
+    res_dict = {}
     for data in pred_data_list:
+        assert len(data["mol_store"].mol_list) == 1
+        key = data["mol_store"].mol_list[0]["id"]
         res = idn.identify(
             data["mol_store"], config["sl_model"], data["params_best"],
         )
         if len(res.df_mol) == 0:
-            continue
-        res = res.extract_sub(data["mol_store"].mol_list[0]["id"])
-        res_list.append(res)
-    return concat_identify_result(res_list)
+            res = None
+        res_dict[key] = res
+    return res_dict
 
 
 def identify_with_base(idn, dirname, fname_base, config):
@@ -72,7 +73,7 @@ def identify_with_base(idn, dirname, fname_base, config):
     )
 
     pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=True)
-    res_list = []
+    res_dict = {}
     for data in pred_data_list:
         mol_store_combine, params_combine = combine_mol_stores(
             [mol_store_base, data["mol_store"]],
@@ -88,11 +89,12 @@ def identify_with_base(idn, dirname, fname_base, config):
         )
         if len(res.df_mol) == 0:
             continue
+        assert len(data["mol_store"].mol_list) == 1
+        key = data["mol_store"].mol_list[0]["id"]
         try:
-            res = res.extract_sub(data["mol_store"].mol_list[0]["id"])
+            res = res.extract_sub(key)
         except KeyError:
             res = None
-        if res is not None:
-            res_list.append(res)
-    return concat_identify_result(res_list)
+        res_dict[key] = res
+    return res_dict
 
