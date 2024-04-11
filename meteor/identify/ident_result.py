@@ -93,7 +93,8 @@ class LineTable:
                 inds, num = sparsity
                 arr_tmp = getattr(line_table, name)
                 arr_new = np.full(num, np.nan)
-                arr_new[inds] = arr_tmp
+                if len(inds) > 0:
+                    arr_new[inds] = arr_tmp
             setattr(self, name, np.append(getattr(self, name), arr_new))
 
         for name in ["frac", "id", "name"]:
@@ -119,8 +120,9 @@ class IdentResult:
 
     def __post_init__(self):
         mol_dict = defaultdict(list)
-        for i_id, name in zip(self.df_mol["id"], self.df_mol["name"]):
-            mol_dict[i_id].append(name)
+        if len(self.df_mol) > 0:
+            for i_id, name in zip(self.df_mol["id"], self.df_mol["name"]):
+                mol_dict[i_id].append(name)
         self._mol_dict = dict(mol_dict)
         df_mol = self.df_mol
         if len(df_mol) > 0:
@@ -165,11 +167,11 @@ class IdentResult:
     def extract_sub(self, key):
         df_mol_new = deepcopy(self.df_mol[self.df_mol["id"] == key])
         #
-        inds = self.filter_name_list(set((key,)), self.line_table["id"])
+        inds = self.filter_name_list(set((key,)), self.line_table.id)
         line_table_ = {key: arr[inds] for key, arr in self.line_table.items()}
         line_table_new = {key: deepcopy(line_table_)}
         #
-        inds = self.filter_name_list(set((key,)), self.line_table_fp["id"])
+        inds = self.filter_name_list(set((key,)), self.line_table_fp.id)
         line_table_fp_ = {key: arr[inds] for key, arr in self.line_table_fp.items()}
         line_table_fp_new = {key: deepcopy(line_table_fp_)}
         #
