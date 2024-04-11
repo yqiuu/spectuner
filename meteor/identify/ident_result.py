@@ -107,6 +107,25 @@ class LineTable:
                     list_new[idx] = val
             getattr(self, name).extend(list_new)
 
+    def extract(self, inds, is_sparse):
+        if is_sparse:
+            line_table_new = deepcopy(self)
+            for name in ["loss", "score", "error", "norm"]:
+                getattr(self, name)[inds] = np.nan
+            for name in ["frac", "id", "name"]:
+                for idx in inds:
+                    getattr(line_table_new, name)[idx] = None
+        else:
+            line_table_new = LineTable()
+            for name in ["loss", "score", "error", "norm"]:
+                setattr(line_table_new, name, getattr(self, name)[inds])
+            for name in ["frac", "id", "name"]:
+                tmp = []
+                for idx in inds:
+                    tmp.append(getattr(self, name)[idx])
+                setattr(line_table_new, name, tmp)
+        return line_table_new
+
 
 @dataclass
 class IdentResult:
@@ -164,16 +183,23 @@ class IdentResult:
 
         return stats_dict
 
-    def extract_sub(self, key):
+    def extract(self, key):
+        def filter_name_list(target_set, name_list):
+            inds = []
+            for idx, names in enumerate(name_list):
+                if names is None:
+                    continue
+                if not target_set.isdisjoint(set(names)):
+                    inds.append(idx)
+            return inds
+
         df_mol_new = deepcopy(self.df_mol[self.df_mol["id"] == key])
         #
-        inds = self.filter_name_list(set((key,)), self.line_table.id)
-        line_table_ = {key: arr[inds] for key, arr in self.line_table.items()}
-        line_table_new = {key: deepcopy(line_table_)}
+        inds = filter_name_list(set((key,)), self.line_table.id)
+        line_table_new = self.line_table.extract(inds, is_sparse=True)
         #
-        inds = self.filter_name_list(set((key,)), self.line_table_fp.id)
-        line_table_fp_ = {key: arr[inds] for key, arr in self.line_table_fp.items()}
-        line_table_fp_new = {key: deepcopy(line_table_fp_)}
+        inds = filter_name_list(set((key,)), self.line_table_fp.id)
+        line_table_fp_new = self.line_table.extract(inds, is_sparse=False)
         #
         T_single_dict_new = {key: deepcopy(self.T_single_dict[key])}
         return IdentResult(
@@ -190,12 +216,3 @@ class IdentResult:
         if key is not None and name is not None:
             return self.T_single_dict[key][name]
         return sum_T_single_data(self.T_single_dict, self.T_back, key)
-
-    def filter_name_list(self, target_set, name_list):
-        inds = []
-        for idx, names in enumerate(name_list):
-            if names is None:
-                continue
-            if not target_set.isdisjoint(set(names)):
-                inds.append(idx)
-        return inds
