@@ -817,6 +817,50 @@ class PeakManager:
 
         return score_tp, score_fp
 
+    def identify(self, mol_store, config_slm, params, T_single_dict=None):
+        line_table, line_table_fp = self.derive_line_table(
+            mol_store, config_slm, params, T_single_dict
+        )
+        param_dict = self.derive_param_dict(mol_store, config_slm, params)
+        id_set = set()
+        id_set.update(self.derive_mol_set(line_table.id))
+        id_set.update(self.derive_mol_set(line_table_fp.id))
+        name_set = set()
+        name_set.update(self.derive_mol_set(line_table.name))
+        name_set.update(self.derive_mol_set(line_table_fp.name))
+        df_mol = self.derive_mol_table(mol_store, param_dict, id_set, name_set)
+        return df_mol
+
+    def derive_mol_table(self, mol_store, param_dict, id_set, mol_set):
+        data_list = []
+        for item in mol_store.mol_list:
+            i_id = item["id"]
+            if i_id not in id_set:
+                continue
+            for mol in item["molecules"]:
+                if mol not in mol_set:
+                    continue
+                cols = {"id": i_id, "master_name": item["root"], "name": mol}
+                cols.update(param_dict[i_id][mol])
+                data_list.append(cols)
+        return pd.DataFrame.from_dict(data_list)
+
+    def derive_param_dict(self, mol_store, config_slm, params):
+        param_mgr = mol_store.create_parameter_manager(config_slm)
+        params_ = param_mgr.scaler.derive_params(param_mgr, params)
+        params_mol = param_mgr.derive_mol_params(params_)
+
+        param_names = ["size", "T_ex", "den", "delta_v", "v_lsr"]
+        param_dict = defaultdict(dict)
+        idx = 0
+        for item in mol_store.mol_list:
+            for mol in item["molecules"]:
+                param_dict[item["id"]][mol] \
+                    = {key: par for key, par in zip(param_names, params_mol[idx])}
+                idx += 1
+        param_dict = dict(param_dict)
+        return param_dict
+
     def derive_line_table(self, mol_store, config_slm, params, T_single_dict):
         if T_single_dict is None:
             T_single_dict = compute_T_single_data(mol_store, config_slm, params, self.freq_data)
@@ -831,6 +875,14 @@ class PeakManager:
             line_table.append(line_table_sub)
             line_table_fp.append(line_table_fp_sub)
         return line_table, line_table_fp
+
+    def derive_mol_set(self, lines):
+        mol_set = set()
+        for name in lines:
+            if name is None:
+                continue
+            mol_set.update(set(name))
+        return mol_set
 
     def _derive_line_table_sub(self, i_segment, T_pred, T_single_dict):
         peak_store = self.create_peak_store(i_segment, T_pred)
