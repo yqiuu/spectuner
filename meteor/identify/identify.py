@@ -20,7 +20,7 @@ def identify(config, parent_dir, target):
     obs_data = load_preprocess(config["files"], T_back)
     prominence = config["pm_loss"]["prominence"]
     rel_height =  config["pm_loss"]["rel_height"]
-    idn = Identification(obs_data, T_back, prominence, rel_height)
+    idn = PeakManager(obs_data, T_back, prominence, rel_height)
 
     if target == "single":
         fname_base = config.get("fname_base", None)
@@ -818,7 +818,7 @@ class PeakManager:
         return score_tp, score_fp
 
     def identify(self, mol_store, config_slm, params, T_single_dict=None):
-        line_table, line_table_fp = self.derive_line_table(
+        line_table, line_table_fp, T_single_dict = self.derive_line_table(
             mol_store, config_slm, params, T_single_dict
         )
         param_dict = self.derive_param_dict(mol_store, config_slm, params)
@@ -829,7 +829,10 @@ class PeakManager:
         name_set.update(self.derive_mol_set(line_table.name))
         name_set.update(self.derive_mol_set(line_table_fp.name))
         df_mol = self.derive_mol_table(mol_store, param_dict, id_set, name_set)
-        return df_mol
+        return IdentResult(
+            df_mol, line_table, line_table_fp, T_single_dict,
+            self.freq_data, self.T_back, is_sep=False
+        )
 
     def derive_mol_table(self, mol_store, param_dict, id_set, mol_set):
         data_list = []
@@ -874,7 +877,7 @@ class PeakManager:
                 = self._derive_line_table_sub(i_segment, T_pred, T_single_dict)
             line_table.append(line_table_sub)
             line_table_fp.append(line_table_fp_sub)
-        return line_table, line_table_fp
+        return line_table, line_table_fp, T_single_dict
 
     def derive_mol_set(self, lines):
         mol_set = set()

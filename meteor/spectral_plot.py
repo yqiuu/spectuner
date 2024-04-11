@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from collections import defaultdict
 
-from .preprocess import load_preprocess, get_freq_data, get_T_data
+from .preprocess import get_freq_data, get_T_data
 
 
 class SpectralPlot:
@@ -100,13 +100,13 @@ class SpectralPlot:
 
         if key is None:
             self.plot_names(
-                ident_result.line_dict["freq"],
-                ident_result.line_dict["name"],
+                ident_result.line_table.freq,
+                ident_result.line_table.name,
                 y_min, y_max
             )
             self.plot_names(
-                ident_result.false_line_dict["freq"],
-                ident_result.false_line_dict["name"],
+                ident_result.line_table_fp.freq,
+                ident_result.line_table_fp.name,
                 y_min, y_max, color="b"
             )
             return
@@ -116,21 +116,21 @@ class SpectralPlot:
         else:
             name_set = set((name,))
         if ident_result.is_sep:
-            line_dict = ident_result.line_dict[key]
-            false_line_dict = ident_result.false_line_dict[key]
+            line_table = ident_result.line_table[key]
+            line_table_fp = ident_result.line_table_fp[key]
         else:
-            line_dict = ident_result.line_dict
-            false_line_dict = ident_result.false_line_dict
-        inds = ident_result.filter_name_list(name_set, line_dict["name"])
-        spans = line_dict["freq"][inds]
-        name_list = line_dict["name"][inds]
+            line_table = ident_result.line_table
+            line_table_fp = ident_result.line_table_fp
+        inds = ident_result.filter_name_list(name_set, line_table.name)
+        spans = line_table.freq[inds]
+        name_list = line_table.name[inds]
         self.plot_names(
             spans, name_list, y_min, y_max,
             offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
         )
-        inds = ident_result.filter_name_list(name_set, false_line_dict["name"])
-        spans = false_line_dict["freq"][inds]
-        name_list = false_line_dict["name"][inds]
+        inds = ident_result.filter_name_list(name_set, line_table_fp.name)
+        spans = line_table_fp.freq[inds]
+        name_list = line_table_fp.name[inds]
         self.plot_names(
             spans, name_list, y_min, y_max, color="b",
             offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
@@ -138,7 +138,7 @@ class SpectralPlot:
 
     def plot_unknown_lines(self, ident_result, y_min, y_max, color="grey", linestyle="-"):
         freqs = []
-        for freq, names in zip(ident_result.line_dict["freq"], ident_result.line_dict["name"]):
+        for freq, names in zip(ident_result.line_table.freq, ident_result.line_table.name):
             if names is None:
                 freqs.append(freq)
         self.vlines(freqs, y_min, y_max, colors=color, linestyles=linestyle)
