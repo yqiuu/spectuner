@@ -804,6 +804,19 @@ class PeakManager:
 
         return loss_tp, loss_fp
 
+    def compute_score(self, peak_store):
+        if len(peak_store.spans_inter) > 0:
+            score_tp = np.maximum(1 - peak_store.errors_tp/peak_store.norms_tp, 0.)
+        else:
+            score_tp = np.zeros(0)
+
+        if len(peak_store.spans_fp) > 0:
+            score_fp = -peak_store.errors_fp/peak_store.norms_fp
+        else:
+            score_fp = np.zeros(0)
+
+        return score_tp, score_fp
+
     def derive_line_table(self, mol_store, config_slm, params, T_single_dict):
         if T_single_dict is None:
             T_single_dict = compute_T_single_data(mol_store, config_slm, params, self.freq_data)
@@ -823,6 +836,7 @@ class PeakManager:
         peak_store = self.create_peak_store(i_segment, T_pred)
         freqs = np.mean(peak_store.spans_obs, axis=1)
         loss_tp, loss_fp = self.compute_loss(i_segment, peak_store)
+        score_tp, score_fp = self.compute_score(peak_store)
         frac_list_tp, id_list_tp, name_list_tp = self._compute_fractions(
             i_segment, T_single_dict, peak_store.spans_inter
         )
@@ -830,6 +844,7 @@ class PeakManager:
         line_table_tmp = LineTable(
             freq=freqs,
             loss=loss_tp,
+            score=score_tp,
             frac=frac_list_tp,
             id=id_list_tp,
             name=name_list_tp,
@@ -846,6 +861,7 @@ class PeakManager:
         line_table_fp = LineTable(
             freq=freq_fp,
             loss=loss_fp,
+            score=score_fp,
             frac=frac_list_fp,
             id=id_list_fp,
             name=name_list_fp,
@@ -902,6 +918,7 @@ class PeakStore:
 class LineTable:
     freq: np.ndarray = field(default_factory=partial(np.zeros, 0))
     loss: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    score: np.ndarray = field(default_factory=partial(np.zeros, 0))
     frac: np.ndarray = field(default_factory=list)
     id: np.ndarray = field(default_factory=list)
     name: np.ndarray = field(default_factory=list)
@@ -911,7 +928,7 @@ class LineTable:
     def append(self, line_table, sparsity=None):
         self.freq = np.append(self.freq, line_table.freq)
 
-        for name in ["loss", "error", "norm"]:
+        for name in ["loss", "score", "error", "norm"]:
             if sparsity is None:
                 arr_new = getattr(line_table, name)
             else:
