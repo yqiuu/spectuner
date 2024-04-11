@@ -56,7 +56,7 @@ def identify_without_base(idn, dirname, config):
         res = idn.identify(
             data["mol_store"], config["sl_model"], data["params_best"],
         )
-        if len(res.df_mol) == 0:
+        if res.is_empty() == 0:
             res = None
         res_dict[key] = res
     return res_dict
