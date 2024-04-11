@@ -103,7 +103,7 @@ class LineTable:
 
 @dataclass
 class IdentResult:
-    df_mol: pd.DataFrame
+    mol_data: dict
     line_table: LineTable
     line_table_fp: LineTable
     T_single_dict: dict
@@ -112,29 +112,21 @@ class IdentResult:
     is_sep: bool
 
     def __post_init__(self):
-        mol_dict = defaultdict(list)
-        if len(self.df_mol) > 0:
-            for i_id, name in zip(self.df_mol["id"], self.df_mol["name"]):
-                mol_dict[i_id].append(name)
-        self._mol_dict = dict(mol_dict)
-        df_mol = self.df_mol
-        if len(df_mol) > 0:
-            self._master_name_dict = {key: name for key, name
-                                      in zip(df_mol["id"], df_mol["master_name"])}
-        else:
-            self._master_name_dict = {}
+        pass
 
     def __repr__(self):
         text = "Molecules:\n"
-        for key, name_list in self._mol_dict.items():
-            text += "id={}, {}\n".format(key, self._master_name_dict[key])
-            for name in name_list:
+        for key, sub_dict in self.mol_data.items():
+            for cols in sub_dict.values():
+                master_name = cols["master_name"]
+                break
+            text += "id={}, {}\n".format(key, master_name)
+            for name in sub_dict:
                 text += " - {}\n".format(name)
         return text
 
-    @property
-    def mol_dict(self):
-        return self._mol_dict
+    def is_empty(self):
+        return len(self.mol_data) == 0
 
     def derive_stats_dict(self):
         stats_dict = {}
@@ -167,7 +159,7 @@ class IdentResult:
                     inds.append(idx)
             return inds
 
-        df_mol_new = deepcopy(self.df_mol[self.df_mol["id"] == key])
+        mol_data_new = deepcopy(self.mol_data[key])
         #
         inds = filter_name_list(set((key,)), self.line_table.id)
         line_table_new = self.line_table.extract(inds, is_sparse=True)
@@ -177,7 +169,7 @@ class IdentResult:
         #
         T_single_dict_new = {key: deepcopy(self.T_single_dict[key])}
         return IdentResult(
-            df_mol=df_mol_new,
+            mol_data=mol_data_new,
             line_table=line_table_new,
             line_table_fp=line_table_fp_new,
             T_single_dict=T_single_dict_new,

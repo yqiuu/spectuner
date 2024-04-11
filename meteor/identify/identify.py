@@ -87,7 +87,7 @@ def identify_with_base(idn, dirname, fname_base, config):
         res = idn.identify(
             mol_store_combine, config_slm, params_combine, T_single_dict
         )
-        if len(res.df_mol) == 0:
+        if res.is_empty() == 0:
             continue
         assert len(data["mol_store"].mol_list) == 1
         key = data["mol_store"].mol_list[0]["id"]

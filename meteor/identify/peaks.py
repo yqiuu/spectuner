@@ -699,14 +699,14 @@ class PeakManager:
         name_set = set()
         name_set.update(self.derive_mol_set(line_table.name))
         name_set.update(self.derive_mol_set(line_table_fp.name))
-        df_mol = self.derive_mol_table(mol_store, param_dict, id_set, name_set)
+        mol_data = self.derive_mol_data(mol_store, param_dict, id_set, name_set)
         return IdentResult(
-            df_mol, line_table, line_table_fp, T_single_dict,
+            mol_data, line_table, line_table_fp, T_single_dict,
             self.freq_data, self.T_back, is_sep=False
         )
 
-    def derive_mol_table(self, mol_store, param_dict, id_set, mol_set):
-        data_list = []
+    def derive_mol_data(self, mol_store, param_dict, id_set, mol_set):
+        data_tree = defaultdict(dict)
         for item in mol_store.mol_list:
             i_id = item["id"]
             if i_id not in id_set:
@@ -714,10 +714,10 @@ class PeakManager:
             for mol in item["molecules"]:
                 if mol not in mol_set:
                     continue
-                cols = {"id": i_id, "master_name": item["root"], "name": mol}
+                cols = {"master_name": item["root"]}
                 cols.update(param_dict[i_id][mol])
-                data_list.append(cols)
-        return pd.DataFrame.from_dict(data_list)
+                data_tree[i_id][mol] = cols
+        return dict(data_tree)
 
     def derive_param_dict(self, mol_store, config_slm, params):
         param_mgr = mol_store.create_parameter_manager(config_slm)
