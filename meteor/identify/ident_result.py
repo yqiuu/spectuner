@@ -148,10 +148,10 @@ class IdentResult:
             recall = 0.
         else:
             n_idn = 0
-            for names in self.line_table["name"]:
+            for names in self.line_table.name:
                 if names is not None:
                     n_idn += 1
-            n_tot = len(self.line_table["freq"])
+            n_tot = len(self.line_table.freq)
             recall = n_idn/n_tot
         stats_dict.update(n_tot=n_tot, n_idn=n_idn, recall=recall)
 
