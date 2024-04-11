@@ -46,32 +46,6 @@ def sum_T_single_data(T_single_dict, T_back, key=None):
     return T_ret_data
 
 
-def concat_identify_result(res_list):
-    if len(res_list) == 0:
-        return
-
-    res_list = [res for res in res_list if len(res.df_mol) > 0]
-    df_mol = pd.concat([res.df_mol for res in res_list])
-    line_table = {}
-    line_table_fp = {}
-    T_single_dict = {}
-    for res in res_list:
-        line_table.update(deepcopy(res.line_table))
-        line_table_fp.update(deepcopy(res.line_table_fp))
-        T_single_dict.update(deepcopy(res.T_single_dict))
-    #df_mol.sort_values(["num_tp_i", "score"], ascending=False, inplace=True)
-    df_mol.reset_index(drop=True, inplace=True)
-    return IdentResult(
-        df_mol=df_mol,
-        line_table=line_table,
-        line_table_fp=line_table_fp,
-        T_single_dict=T_single_dict,
-        freq_data=res.freq_data,
-        T_back=res.T_back,
-        is_sep=True
-    )
-
-
 @dataclass
 class LineTable:
     freq: np.ndarray = field(default_factory=partial(np.zeros, 0))

@@ -2,7 +2,7 @@ import pickle
 from copy import deepcopy
 from pathlib import Path
 
-from .ident_result import compute_T_single_data, concat_identify_result
+from .ident_result import compute_T_single_data
 from .peaks import PeakManager
 from ..utils import load_pred_data
 from ..xclass_wrapper import combine_mol_stores
