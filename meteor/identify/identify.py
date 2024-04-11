@@ -92,7 +92,7 @@ def identify_with_base(idn, dirname, fname_base, config):
         assert len(data["mol_store"].mol_list) == 1
         key = data["mol_store"].mol_list[0]["id"]
         try:
-            res = res.extract_sub(key)
+            res = res.extract(key)
         except KeyError:
             res = None
         res_dict[key] = res
