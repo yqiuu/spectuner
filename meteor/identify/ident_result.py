@@ -112,7 +112,7 @@ class IdentResult:
     is_sep: bool
 
     def __post_init__(self):
-        pass
+        self._add_score_data()
 
     def __repr__(self):
         text = "Molecules:\n"
@@ -127,6 +127,34 @@ class IdentResult:
 
     def is_empty(self):
         return len(self.mol_data) == 0
+
+    def _add_score_data(self):
+        def increase_score_dict(line_table, score_dict):
+            scores = line_table.score
+            losses = line_table.loss
+            frac_list = line_table.frac
+            id_list = line_table.id
+            name_list = line_table.name
+            for i_line in range(len(frac_list)):
+                if id_list[i_line] is None:
+                    continue
+                for i_blen in range(len(frac_list[i_line])):
+                    key = id_list[i_line][i_blen]
+                    name = name_list[i_line][i_blen]
+                    frac = frac_list[i_line][i_blen]
+                    loss = losses[i_line]*frac
+                    score = scores[i_line]*frac
+                    score_dict[key][name]["loss"] += loss
+                    score_dict[key][name]["score"] += score
+
+        dict_factory = lambda: {"loss": 0., "score": 0.}
+        score_dict = defaultdict(lambda: defaultdict(dict_factory))
+        increase_score_dict(self.line_table, score_dict)
+        increase_score_dict(self.line_table_fp, score_dict)
+
+        for key, sub_dict in self.mol_data.items():
+            for name, cols in sub_dict.items():
+                cols.update(score_dict[key][name])
 
     def derive_stats_dict(self):
         stats_dict = {}
