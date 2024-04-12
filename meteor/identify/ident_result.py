@@ -113,6 +113,7 @@ class IdentResult:
 
     def __post_init__(self):
         self._add_score_data()
+        self._add_count_data()
 
     def __repr__(self):
         text = "Molecules:\n"
@@ -124,9 +125,6 @@ class IdentResult:
             for name in sub_dict:
                 text += " - {}\n".format(name)
         return text
-
-    def is_empty(self):
-        return len(self.mol_data) == 0
 
     def _add_score_data(self):
         def increase_score_dict(line_table, score_dict):
@@ -151,10 +149,37 @@ class IdentResult:
         score_dict = defaultdict(lambda: defaultdict(dict_factory))
         increase_score_dict(self.line_table, score_dict)
         increase_score_dict(self.line_table_fp, score_dict)
+        self.update_mol_data(score_dict)
 
+    def _add_count_data(self):
+        def increase_count_dict(line_table, count_dict, target):
+            for id_list, name_list in zip(line_table.id, line_table.name):
+                if id_list is None:
+                    continue
+                for key, name in zip(id_list, name_list):
+                    count_dict[key][name][target] += 1
+
+        def increase_count_i_dict(line_table, count_dict, target):
+            for id_list, name_list in zip(line_table.id, line_table.name):
+                if id_list is None:
+                    continue
+                if len(id_list) == 1:
+                    count_dict[id_list[0]][name_list[0]][target] += 1
+
+        dict_factory = lambda: {"num_tp": 0, "num_tp_i": 0, "num_fp": 0}
+        count_dict = defaultdict(lambda: defaultdict(dict_factory))
+        increase_count_dict(self.line_table, count_dict, "num_tp")
+        increase_count_dict(self.line_table_fp, count_dict, "num_fp")
+        increase_count_i_dict(self.line_table, count_dict, "num_tp_i")
+        self.update_mol_data(count_dict)
+
+    def is_empty(self):
+        return len(self.mol_data) == 0
+
+    def update_mol_data(self, data):
         for key, sub_dict in self.mol_data.items():
             for name, cols in sub_dict.items():
-                cols.update(score_dict[key][name])
+                cols.update(data[key][name])
 
     def derive_stats_dict(self):
         stats_dict = {}
