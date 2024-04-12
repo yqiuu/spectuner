@@ -181,6 +181,9 @@ class IdentResult:
             for name, cols in sub_dict.items():
                 cols.update(data[key][name])
 
+    def get_aggregate_prop(self, key, prop_name):
+        return sum([cols[prop_name] for cols in self.mol_data[key].values()])
+
     def derive_stats_dict(self):
         stats_dict = {}
         n_mol = len(self.df_mol)
