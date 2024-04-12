@@ -12,7 +12,7 @@ from ..preprocess import load_preprocess, get_freq_data
 from ..xclass_wrapper import combine_mol_stores
 from ..identify import (
     filter_moleclues, derive_peaks_multi, derive_intersections,
-    Identification,
+    PeakManager,
 )
 from ..identify.identify import identify
 from ..fitting_model import create_fitting_model
@@ -74,7 +74,7 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
     rel_height = config["pm_loss"]["rel_height"]
     height = T_back + prominence
     freq_data = get_freq_data(obs_data)
-    idn = Identification(obs_data, T_back, prominence, rel_height)
+    peak_mgr = PeakManager(obs_data, T_back, prominence, rel_height)
 
     if pack_base is None:
         pack_curr = pack_list[0]
@@ -116,12 +116,9 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
             params_combine, freq_data, config_slm
         )
 
-        res = idn.identify(mol_store_combine, config_slm, params_combine)
+        res = peak_mgr.identify(mol_store_combine, config_slm, params_combine)
         id_new = mol_store_new.mol_list[0]["id"]
-        score_new = None
-        for id_, score in zip(res.df_mol["id"], res.df_mol["score"]):
-            if id_ == id_new:
-                score_new = score
+        score_new = res.get_aggregate_prop(id_new, "score")
 
         if force_merge or (score_new is not None and score_new > config_opt["score_cut"]):
             spans_combine = derive_peaks_multi(
