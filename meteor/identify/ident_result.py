@@ -109,7 +109,6 @@ class IdentResult:
     T_single_dict: dict
     freq_data: list
     T_back: float
-    is_sep: bool
 
     def __post_init__(self):
         self._add_score_data()
@@ -190,17 +189,12 @@ class IdentResult:
         n_master = len(set(self.df_mol["id"]))
         stats_dict.update(n_master=n_master, n_mol=n_mol)
 
-        if self.is_sep:
-            n_idn = 0
-            n_tot = 0
-            recall = 0.
-        else:
-            n_idn = 0
-            for names in self.line_table.name:
-                if names is not None:
-                    n_idn += 1
-            n_tot = len(self.line_table.freq)
-            recall = n_idn/n_tot
+        n_idn = 0
+        for names in self.line_table.name:
+            if names is not None:
+                n_idn += 1
+        n_tot = len(self.line_table.freq)
+        recall = n_idn/n_tot
         stats_dict.update(n_tot=n_tot, n_idn=n_idn, recall=recall)
 
         return stats_dict
@@ -231,7 +225,6 @@ class IdentResult:
             T_single_dict=T_single_dict_new,
             freq_data=self.freq_data,
             T_back=self.T_back,
-            is_sep=True
         )
 
     def get_T_pred(self, key=None, name=None):

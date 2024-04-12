@@ -364,7 +364,7 @@ class Identification:
 
         return IdentResult(
             df_mol, df_sub_dict, true_pos_dict_sparse, false_pos_dict,
-            T_single_dict, self.freq_data, self.T_back, is_sep=False
+            T_single_dict, self.freq_data, self.T_back
         )
 
     def derive_param_dict(self, mol_store, config_slm, params):
@@ -702,7 +702,7 @@ class PeakManager:
         mol_data = self.derive_mol_data(mol_store, param_dict, id_set, name_set)
         return IdentResult(
             mol_data, line_table, line_table_fp, T_single_dict,
-            self.freq_data, self.T_back, is_sep=False
+            self.freq_data, self.T_back
         )
 
     def derive_mol_data(self, mol_store, param_dict, id_set, mol_set):

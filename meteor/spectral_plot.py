@@ -115,12 +115,9 @@ class SpectralPlot:
             name_set = set(ident_result.T_single_dict[key])
         else:
             name_set = set((name,))
-        if ident_result.is_sep:
-            line_table = ident_result.line_table[key]
-            line_table_fp = ident_result.line_table_fp[key]
-        else:
-            line_table = ident_result.line_table
-            line_table_fp = ident_result.line_table_fp
+
+        line_table = ident_result.line_table
+        line_table_fp = ident_result.line_table_fp
         inds = ident_result.filter_name_list(name_set, line_table.name)
         spans = line_table.freq[inds]
         name_list = line_table.name[inds]
