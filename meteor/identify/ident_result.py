@@ -199,6 +199,33 @@ class IdentResult:
 
         return stats_dict
 
+    def derive_df_mol(self):
+        data = []
+        for key, sub_dict in self.mol_data.items():
+            for name, cols in sub_dict.items():
+                data.append({"id": key, "name": name, **cols})
+        df = pd.DataFrame.from_dict(data)
+        df.sort_values(
+            ["id", "num_tp_i", "score"],
+            ascending=[True, False, False],
+            inplace=True
+        )
+        return df
+
+    def derive_df_mol_master(self):
+        data = []
+        for key, sub_dict in self.mol_data.items():
+            for cols in sub_dict.values():
+                master_name = cols["master_name"]
+                break
+            cols = {"id": key, "master_name": master_name}
+            for prop_name in ["loss", "score", "num_tp", "num_tp_i", "num_fp"]:
+                cols[prop_name] = self.get_aggregate_prop(key, prop_name)
+            data.append(cols)
+        df = pd.DataFrame.from_dict(data)
+        df.sort_values("id")
+        return df
+
     def extract(self, key):
         def filter_name_list(target_set, name_list):
             inds = []
