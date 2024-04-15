@@ -125,14 +125,14 @@ class SpectralPlot:
         line_table_fp = ident_result.line_table_fp
         inds = ident_result.filter_name_list(name_set, line_table.name)
         spans = line_table.freq[inds]
-        name_list = line_table.name[inds]
+        name_list = np.array(line_table.name, dtype=object)[inds]
         self.plot_names(
             spans, name_list, y_min, y_max,
             offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
         )
         inds = ident_result.filter_name_list(name_set, line_table_fp.name)
         spans = line_table_fp.freq[inds]
-        name_list = line_table_fp.name[inds]
+        name_list = np.array(line_table_fp.name, dtype=object)[inds]
         self.plot_names(
             spans, name_list, y_min, y_max, color="b",
             offset_0=offset_0, offset_1=offset_1, fontsize=fontsize

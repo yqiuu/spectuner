@@ -227,21 +227,12 @@ class IdentResult:
         return df
 
     def extract(self, key):
-        def filter_name_list(target_set, name_list):
-            inds = []
-            for idx, names in enumerate(name_list):
-                if names is None:
-                    continue
-                if not target_set.isdisjoint(set(names)):
-                    inds.append(idx)
-            return inds
-
         mol_data_new = deepcopy(self.mol_data[key])
         #
-        inds = filter_name_list(set((key,)), self.line_table.id)
+        inds = self.filter_name_list(set((key,)), self.line_table.id)
         line_table_new = self.line_table.extract(inds, is_sparse=True)
         #
-        inds = filter_name_list(set((key,)), self.line_table_fp.id)
+        inds = self.filter_name_list(set((key,)), self.line_table_fp.id)
         line_table_fp_new = self.line_table.extract(inds, is_sparse=False)
         #
         T_single_dict_new = {key: deepcopy(self.T_single_dict[key])}
@@ -253,6 +244,15 @@ class IdentResult:
             freq_data=self.freq_data,
             T_back=self.T_back,
         )
+
+    def filter_name_list(self, target_set, name_list):
+        inds = []
+        for idx, names in enumerate(name_list):
+            if names is None:
+                continue
+            if not target_set.isdisjoint(set(names)):
+                inds.append(idx)
+        return inds
 
     def get_T_pred(self, key=None, name=None):
         if key is not None and name is not None:
