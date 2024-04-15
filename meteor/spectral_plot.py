@@ -8,10 +8,24 @@ from .preprocess import get_freq_data, get_T_data
 
 class SpectralPlot:
     def __init__(self, freq_data, freq_per_row=1000., width=15., height=3., sharey=True):
+        bounds = self._derive_bounds(freq_data, freq_per_row)
+        n_axe = len(bounds)
+        fig, axes = plt.subplots(figsize=(width, n_axe*height), nrows=n_axe, sharey=sharey)
+        axes = np.ravel(axes)
+        for i_ax, ax in enumerate(axes):
+            ax.set_xlim(*bounds[i_ax])
+
+        self._fig = fig
+        self._axes = axes
+        self._bounds = bounds
+
+    def _derive_bounds(self, freq_data, freq_per_row):
         freq_data = freq_data.copy()
         freq_data.sort(key=lambda item: item[0])
         freq_min = freq_data[0][0]
         freq_max = freq_data[-1][-1]
+        if freq_max - freq_min < freq_per_row:
+            return [(freq_min, freq_max),]
 
         bounds_dict = {}
         slice_dict = defaultdict(list)
@@ -35,16 +49,7 @@ class SpectralPlot:
                 i_segment += 1
                 idx_b = 0
         bounds = [args for args in bounds_dict.values()]
-
-        n_axe = len(slice_dict)
-        fig, axes = plt.subplots(figsize=(width, n_axe*height), nrows=n_axe, sharey=sharey)
-        axes = np.ravel(axes)
-        for i_ax, ax in enumerate(axes):
-            ax.set_xlim(*bounds[i_ax])
-
-        self._fig = fig
-        self._axes = axes
-        self._bounds = bounds
+        return bounds
 
     def _get_axe_idx(self, freq):
         idx = 0
