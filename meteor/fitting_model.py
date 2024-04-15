@@ -62,11 +62,13 @@ class FittingModel:
         else:
             raise ValueError(f"Unknown loss function {loss_fn}.")
         #
-        config_pm_loss = config.get("pm_loss", None)
-        if config_pm_loss is None:
-            self.pm_loss_fn = None
+        config_peak_mgr = config["peak_manager"].copy()
+        use_pm_loss = config_peak_mgr.pop("use_pm_loss", True)
+        if use_pm_loss:
+            self.pm_loss_fn = PeakManager(obs_data, T_back, **config_peak_mgr)
         else:
-            self.pm_loss_fn = PeakManager(obs_data, T_back, **config_pm_loss)
+            self.pm_loss_fn = None
+
         #
         config_thr_loss=config.get("thr_loss", None)
         if config_thr_loss is None:

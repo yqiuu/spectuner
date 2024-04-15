@@ -28,8 +28,8 @@ def run_combine(config, parent_dir, need_identify=True):
     config_opt = config["opt_combine"]
     config_slm = config["sl_model"]
     pool = Pool(config_opt["n_process"])
-    prominence = config["pm_loss"]["prominence"]
-    rel_height = config["pm_loss"]["rel_height"]
+    prominence = config["peak_manager"]["prominence"]
+    rel_height = config["peak_manager"]["rel_height"]
 
     #
     parent_dir = Path(parent_dir)
@@ -70,8 +70,8 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
     config_opt = config["opt_combine"]
     config_slm = config["sl_model"]
     T_back = config["sl_model"].get("tBack", 0.)
-    prominence = config["pm_loss"]["prominence"]
-    rel_height = config["pm_loss"]["rel_height"]
+    prominence = config["peak_manager"]["prominence"]
+    rel_height = config["peak_manager"]["rel_height"]
     height = T_back + prominence
     freq_data = get_freq_data(obs_data)
     peak_mgr = PeakManager(obs_data, T_back, prominence, rel_height)

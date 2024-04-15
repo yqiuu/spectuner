@@ -12,8 +12,8 @@ from ..preprocess import load_preprocess
 def identify(config, parent_dir, target):
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(config["files"], T_back)
-    prominence = config["pm_loss"]["prominence"]
-    rel_height =  config["pm_loss"]["rel_height"]
+    prominence = config["peak_manager"]["prominence"]
+    rel_height =  config["peak_manager"]["rel_height"]
     idn = PeakManager(obs_data, T_back, prominence, rel_height)
 
     if target == "single":
