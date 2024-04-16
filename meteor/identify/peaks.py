@@ -604,10 +604,19 @@ class PeakManager:
 
         self.frac_cut = frac_cut
 
-    def __call__(self, i_segment, T_pred):
-        peak_store = self.create_peak_store(i_segment, T_pred)
-        loss_tp, loss_fp = self.compute_loss(i_segment, peak_store)
-        return np.sum(loss_tp) + np.sum(loss_fp)
+    def __call__(self, T_pred_data):
+        loss_delta = 0.
+        for T_obs, T_pred in zip(self.T_obs_data, T_pred_data):
+            loss_delta += np.mean(np.abs(T_obs - T_pred))
+        loss_delta /= len(T_pred_data)
+
+        loss_ex = 0.
+        for i_segment, T_pred in enumerate(T_pred_data):
+            peak_store = self.create_peak_store(i_segment, T_pred)
+            loss_tp, loss_fp = self.compute_loss(i_segment, peak_store)
+            loss_ex += np.sum(loss_tp) + np.sum(loss_fp)
+
+        return loss_delta + loss_ex
 
     def create_peak_store(self, i_segment, T_pred):
         freq = self.freq_data[i_segment]
@@ -647,7 +656,8 @@ class PeakManager:
     def compute_loss(self, i_segment, peak_store):
         freq = self.freq_data[i_segment]
         if len(peak_store.spans_inter) > 0:
-            loss_tp = np.minimum(peak_store.errors_tp - peak_store.f_dice*peak_store.norms_tp, 0.)
+            loss_tp = peak_store.errors_tp - peak_store.f_dice*peak_store.norms_tp
+            loss_tp = np.minimum(loss_tp, 0.)
         else:
             loss_tp = np.zeros(0)
 
@@ -669,7 +679,10 @@ class PeakManager:
             x_left = centres_obs[inds_l]
             x_left[cond] = freq[0]
             side[cond] = -1
-            loss_fp = linear_deacy(centres_pred, x_left, x_right, side, peak_store.errors_fp)
+            #
+            loss_fp = linear_deacy(
+                centres_pred, x_left, x_right, side, peak_store.errors_fp
+            )
         else:
             loss_fp = np.zeros(0)
 
