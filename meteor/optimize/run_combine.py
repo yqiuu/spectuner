@@ -118,7 +118,10 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
 
         res = peak_mgr.identify(mol_store_combine, config_slm, params_combine)
         id_new = mol_store_new.mol_list[0]["id"]
-        score_new = res.get_aggregate_prop(id_new, "score")
+        if id_new in res.mol_data:
+            score_new = res.get_aggregate_prop(id_new, "score")
+        else:
+            score_new = None
 
         if force_merge or (score_new is not None and score_new > config_opt["score_cut"]):
             spans_combine = derive_peaks_multi(
