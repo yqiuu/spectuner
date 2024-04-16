@@ -184,10 +184,10 @@ class IdentResult:
         return sum([cols[prop_name] for cols in self.mol_data[key].values()])
 
     def derive_stats_dict(self):
-        stats_dict = {}
-        n_mol = len(self.df_mol)
-        n_master = len(set(self.df_mol["id"]))
-        stats_dict.update(n_master=n_master, n_mol=n_mol)
+        stats_dict = {
+            "n_master": len(self.mol_data),
+            "n_mol": sum([len(sub_dict) for sub_dict in self.mol_data.values()])
+        }
 
         n_idn = 0
         for names in self.line_table.name:
