@@ -45,7 +45,7 @@ def filter_moleclues(mol_store, config_slm, params,
                 if T_single is None:
                     continue
                 names.append(name)
-                fracs.append(compute_peak_norms(spans_pred, freq, T_pred))
+                fracs.append(compute_peak_norms(spans_pred, freq, T_single))
         fracs = compute_contributions(fracs, T_back)
         names = np.array(names, dtype=object)
         for cond in fracs.T > frac_cut:
