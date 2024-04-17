@@ -56,7 +56,7 @@ def identify_without_base(idn, dirname, config):
         res = idn.identify(
             data["mol_store"], config["sl_model"], data["params_best"],
         )
-        if res.is_empty() == 0:
+        if res.is_empty():
             res = None
         res_dict[key] = res
     return res_dict
@@ -87,7 +87,7 @@ def identify_with_base(idn, dirname, fname_base, config):
         res = idn.identify(
             mol_store_combine, config_slm, params_combine, T_single_dict
         )
-        if res.is_empty() == 0:
+        if res.is_empty():
             continue
         assert len(data["mol_store"].mol_list) == 1
         key = data["mol_store"].mol_list[0]["id"]
