@@ -304,7 +304,7 @@ def linear_deacy(x, x_left, x_right, side, height):
 
 
 class PeakManager:
-    def __init__(self, obs_data, T_back, prominence, rel_height, frac_cut=.05):
+    def __init__(self, obs_data, T_back, prominence, rel_height, pfactor=1., frac_cut=.05):
         height = T_back + prominence
         self.freq_data, self.T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
@@ -313,13 +313,14 @@ class PeakManager:
         self.height = height
         self.prominence = prominence
         self.rel_height = rel_height
+        self.pfactor = pfactor
 
         self.frac_cut = frac_cut
 
     def __call__(self, T_pred_data):
         loss_delta = 0.
         for T_obs, T_pred in zip(self.T_obs_data, T_pred_data):
-            loss_delta += np.mean(np.abs(T_obs - T_pred))
+            loss_delta += np.mean(self.transform(np.abs(T_obs - T_pred)))
         loss_delta /= len(T_pred_data)
 
         loss_ex = 0.
@@ -368,7 +369,8 @@ class PeakManager:
     def compute_loss(self, i_segment, peak_store):
         freq = self.freq_data[i_segment]
         if len(peak_store.spans_inter) > 0:
-            loss_tp = peak_store.errors_tp - peak_store.f_dice*peak_store.norms_tp
+            loss_tp = self.transform(peak_store.errors_tp) \
+                  - peak_store.f_dice*self.transform(peak_store.norms_tp)
             loss_tp = np.minimum(loss_tp, 0.)
         else:
             loss_tp = np.zeros(0)
@@ -392,13 +394,19 @@ class PeakManager:
             x_left[cond] = freq[0]
             side[cond] = -1
             #
-            loss_fp = linear_deacy(
-                centres_pred, x_left, x_right, side, peak_store.errors_fp
-            )
+            values = self.transform(peak_store.errors_fp)
+            loss_fp = linear_deacy(centres_pred, x_left, x_right, side, values)
         else:
             loss_fp = np.zeros(0)
 
         return loss_tp, loss_fp
+
+    def transform(self, x):
+        if self.pfactor is None:
+            return x
+
+        scale = self.pfactor*self.prominence
+        return scale*np.log(1 + x/scale)
 
     def compute_score(self, peak_store):
         if len(peak_store.spans_inter) > 0:
