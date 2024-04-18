@@ -227,7 +227,7 @@ class IdentResult:
         return df
 
     def extract(self, key):
-        mol_data_new = deepcopy(self.mol_data[key])
+        mol_data_new = {key: deepcopy(self.mol_data[key])}
         #
         inds = self.filter_name_list(set((key,)), self.line_table.id)
         line_table_new = self.line_table.extract(inds, is_sparse=True)
