@@ -107,12 +107,14 @@ class SpectralPlot:
             self.plot_names(
                 ident_result.line_table.freq,
                 ident_result.line_table.name,
-                y_min, y_max
+                y_min, y_max,
+                offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
             )
             self.plot_names(
                 ident_result.line_table_fp.freq,
                 ident_result.line_table_fp.name,
-                y_min, y_max, color="b"
+                y_min, y_max, color="b",
+                offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
             )
             return
 
