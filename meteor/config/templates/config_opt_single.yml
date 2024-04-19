@@ -1,15 +1,15 @@
 optimizer: "abc"
 bounds_mol: [
   [-1., 2.],
-  [0., 3.5],
-  [0., 1.],
+  [0., 3.],
+  [0., 1.5],
   [-10., 10.],
 ]
 bounds_iso: [12., 20.]
 n_process: 32
-n_cycle_min: 50
+n_cycle_min: 100
 n_cycle_max: 500
-n_stop: 10
+n_stop: 15
 tol_stop: 1.e-5
 kwargs_opt:
   nswarm: 32

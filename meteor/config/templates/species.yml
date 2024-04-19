@@ -21,7 +21,7 @@ molecules:
   - CH3OCHO
   - CH3CHO
   - CH3OCH3
-  - CH2OCH2
+  - c-C2H4O
   - CH3SH
   - CH3CN
   - C2H3CN
@@ -37,5 +37,5 @@ molecules:
 exclude_list: null
 rename_dict: null
 ElowMin: 0.0
-ElowMax: 5000.
+ElowMax: 10000.
 base_only: False
