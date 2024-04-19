@@ -57,6 +57,9 @@ class LineTable:
     error: np.ndarray = field(default_factory=partial(np.zeros, 0))
     norm: np.ndarray = field(default_factory=partial(np.zeros, 0))
 
+    def __len__(self):
+        return len(self.freq)
+
     def append(self, line_table, sparsity=None):
         self.freq = np.append(self.freq, line_table.freq)
 
@@ -84,10 +87,11 @@ class LineTable:
     def extract(self, inds, is_sparse):
         if is_sparse:
             line_table_new = deepcopy(self)
+            inds_c = [idx for idx in range(len(self)) if idx not in inds]
             for name in ["loss", "score", "error", "norm"]:
-                getattr(self, name)[inds] = np.nan
+                getattr(self, name)[inds_c] = np.nan
             for name in ["frac", "id", "name"]:
-                for idx in inds:
+                for idx in inds_c:
                     getattr(line_table_new, name)[idx] = None
         else:
             line_table_new = LineTable()

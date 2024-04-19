@@ -72,7 +72,7 @@ def identify_with_base(idn, dirname, fname_base, config):
         mol_store_base, config_slm, params_base, data["freq"]
     )
 
-    pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=True)
+    pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=False)
     res_dict = {}
     for data in pred_data_list:
         mol_store_combine, params_combine = combine_mol_stores(
