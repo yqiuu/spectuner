@@ -49,12 +49,11 @@ def exec_fit():
 def exec_modify():
     parser = ArgumentParser()
     parser.add_argument("config", type=str)
+    parser.add_argument("target", type=str)
     args = parser.parse_args()
 
     config = load_config(args.config)
-    idx = get_lst_dir_index(args.config)
-    dirname = Path(args.config)/f"cycle_{idx}"
-    modify(config, dirname)
+    modify(config, args.target)
 
 
 def exec_identify():
