@@ -17,33 +17,27 @@ def exec_config():
 def exec_fit():
     parser = ArgumentParser()
     parser.add_argument("config", type=str)
-    parser.add_argument("--target", type=str, default="full")
-    parser.add_argument("--new_cycle", action="store_true", default=False)
+    parser.add_argument("target", type=str)
+    parser.add_argument("--mode", type=str, default="entire")
+    parser.add_argument("--fbase", type=str, default="")
     args = parser.parse_args()
 
     config = load_config(args.config)
-    idx = get_lst_dir_index(args.config)
-    if args.new_cycle or idx == -1:
-        idx += 1
     # Set fname_base
-    if idx > 0:
-        fname_base = Path(args.config)/f"cycle_{idx - 1}"/"combine"/"combine_final.pickle"
-        print(fname_base)
-        if not fname_base.exists():
-            raise ValueError("Finalize the last cycle before staring a new one.")
-        config["fname_base"] = fname_base
+    if args.fbase != "":
+        config["fname_base"] = args.fbase
 
-    save_dir = Path(args.config)/f"cycle_{idx}"
+    save_dir = Path(args.target)
     save_dir.mkdir(parents=True, exist_ok=True)
-    if args.target == "single":
+    if args.mode == "single":
         run_single(config, save_dir)
-    elif args.target == "combine":
+    elif args.mode == "combine":
         run_combine(config, save_dir)
-    elif args.target == "full":
+    elif args.mode == "entire":
         run_single(config, save_dir, need_identify=False)
         run_combine(config, save_dir)
     else:
-        raise ValueError(f"Unknown target: {args.target}.")
+        raise ValueError(f"Unknown mode: {args.mode}.")
 
 
 def exec_modify():
