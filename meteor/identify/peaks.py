@@ -3,7 +3,6 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 import numpy as np
-import pandas as pd
 from scipy import signal
 
 from .ident_result import (
@@ -348,6 +347,7 @@ class PeakManager:
                 spans_inter, inds_pred, inds_obs
             )
         else:
+            spans_inter = np.zeros((0, 2))
             errors_tp = np.zeros(0)
             norms_tp = np.zeros(0)
             f_dice = np.zeros(0)
@@ -358,6 +358,7 @@ class PeakManager:
                 freq, T_obs, T_pred, self.T_back, spans_fp
             )
         else:
+            spans_fp = np.zeros((0, 2))
             errors_fp = np.zeros(0)
             norms_fp = np.zeros(0)
 
@@ -530,6 +531,12 @@ class PeakManager:
         return line_table, line_table_fp
 
     def _compute_fractions(self, i_segment, T_single_dict, spans_inter):
+        frac_list = []
+        id_list = []
+        name_list = []
+        if len(spans_inter) == 0:
+            return frac_list, id_list, name_list
+
         fracs = []
         ids = []
         names = []
@@ -546,9 +553,7 @@ class PeakManager:
         ids = np.array(ids)
         names = np.array(names, dtype=object)
 
-        frac_list = []
-        id_list = []
-        name_list = []
+        #
         for i_inter, cond in enumerate(fracs.T > self.frac_cut):
             fracs_sub = fracs[cond, i_inter]
             fracs_sub = fracs_sub/np.sum(fracs_sub)
