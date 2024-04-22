@@ -45,7 +45,7 @@ def run_combine(config, parent_dir, need_identify=True):
     pack_list = []
     for pred_data in pred_data_list:
         pack_list.append(prepare_properties(
-            pred_data, config_slm, T_back, prominence, rel_height, need_filter=True))
+            pred_data, config_slm, T_back, prominence, rel_height, need_filter=False))
 
     fname_base = config.get("fname_base", None)
     if fname_base is not None:
