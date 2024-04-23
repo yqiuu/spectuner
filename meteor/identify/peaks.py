@@ -503,6 +503,7 @@ class PeakManager:
         line_table = LineTable()
         line_table_tmp = LineTable(
             freq=freqs,
+            span=peak_store.spans_obs,
             loss=loss_tp,
             score=score_tp,
             frac=frac_list_tp,
@@ -520,6 +521,7 @@ class PeakManager:
         )
         line_table_fp = LineTable(
             freq=freq_fp,
+            span=peak_store.spans_fp,
             loss=loss_fp,
             score=score_fp,
             frac=frac_list_fp,

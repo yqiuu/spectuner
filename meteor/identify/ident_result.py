@@ -49,6 +49,7 @@ def sum_T_single_data(T_single_dict, T_back, key=None):
 @dataclass
 class LineTable:
     freq: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    span: np.ndarray = field(default_factory=partial(np.zeros, (0, 2)))
     loss: np.ndarray = field(default_factory=partial(np.zeros, 0))
     score: np.ndarray = field(default_factory=partial(np.zeros, 0))
     frac: np.ndarray = field(default_factory=list)
@@ -62,6 +63,7 @@ class LineTable:
 
     def append(self, line_table, sparsity=None):
         self.freq = np.append(self.freq, line_table.freq)
+        self.span = np.vstack([self.span, line_table.span])
 
         for name in ["loss", "score", "error", "norm"]:
             if sparsity is None:
@@ -95,7 +97,7 @@ class LineTable:
                     getattr(line_table_new, name)[idx] = None
         else:
             line_table_new = LineTable()
-            for name in ["freq", "loss", "score", "error", "norm"]:
+            for name in ["freq", "span", "loss", "score", "error", "norm"]:
                 setattr(line_table_new, name, getattr(self, name)[inds])
             for name in ["frac", "id", "name"]:
                 tmp = []
