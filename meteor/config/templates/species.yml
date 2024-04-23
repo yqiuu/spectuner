@@ -34,6 +34,7 @@ molecules:
   - HCCCCCN
   - CH3NH2
   - NH2CN
+iso_mode: "separate"
 exclude_list: null
 rename_dict: null
 ElowMin: 0.0

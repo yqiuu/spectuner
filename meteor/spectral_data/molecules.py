@@ -12,8 +12,9 @@ from .atoms import MolecularDecomposer
 
 
 def select_molecules(freq_data, ElowMin, ElowMax,
-                     elements, molecules, base_only=False,
-                     exclude_list=None, rename_dict=None):
+                     elements, molecules,
+                     iso_mode="separate", base_only=False,
+                     exclude_list=None, rename_dict=None,):
     rename_dict_ = {
         "NH2CN": "H2NCN",
         "H2CCHCN-15": "CH2CHCN-15",
@@ -38,6 +39,7 @@ def select_molecules(freq_data, ElowMin, ElowMax,
             FreqMax=freq[-1],
             ElowMin=ElowMin,
             ElowMax=ElowMax,
+            iso_mode=iso_mode,
             elements=elements,
             moleclues=molecules,
             exclude_list=exclude_list_,
@@ -70,7 +72,8 @@ def select_molecules(freq_data, ElowMin, ElowMax,
 
 
 def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
-                         elements, moleclues, exclude_list, rename_dict):
+                         elements, moleclues, exclude_list,
+                         rename_dict, iso_mode):
     if exclude_list is None:
         exclude_list = []
     if rename_dict is None:
@@ -101,33 +104,70 @@ def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
     for key, val in mol_dict.items():
         mol_names.append(";".join([key, val[0]]))
 
+    mol_data = derive_mol_data(mol_names, rename_dict)
+
     if moleclues is not None:
-        moleclues = [derive_normal_form(name, rename_dict)[0] for name in moleclues]
+        fm_root_set, fm_set \
+            = list(zip(*[derive_normal_form(name, rename_dict)[:2] for name in moleclues]))
 
     # Filter elements and molecules
     elements = set(elements)
     normal_dict = defaultdict(list)
-    for name in mol_names:
-        fm_normal, atom_set = derive_normal_form(name, rename_dict)
-        if len(atom_set - elements) == 0 and (moleclues is None or fm_normal in moleclues):
-            normal_dict[fm_normal].append(name)
+    for fm_root, fm, atom_set, mol in mol_data:
+        if len(atom_set - elements) != 0:
+            continue
+
+        if iso_mode == "manual" and (moleclues is None or fm in fm_set):
+            normal_dict[fm].append(mol)
+            continue
+
+        if iso_mode == "separate" and (moleclues is None or fm_root in fm_root_set):
+            normal_dict[fm].append(mol)
+            continue
+
+        if iso_mode == "combined" and (moleclues is None or fm_root in fm_root_set):
+            normal_dict[fm_root].append(mol)
+            continue
+
     return normal_dict
 
 
+def derive_mol_data(mol_list, rename_dict):
+    mol_data = []
+    for mol in mol_list:
+        name = mol.split(";")[0] # HCCCN;v=0; > HCCCN
+        fm_root, fm, atom_set = derive_normal_form(name, rename_dict)
+        mol_data.append((fm_root, fm, atom_set, mol))
+    return mol_data
+
+
 def derive_normal_form(mol_name, rename_dict):
+    def expand(fm):
+        """Expand formulae.
+            HC3N > HCCCN
+            CH3CN > CHHHCN
+        """
+        for pattern in re.findall("[A-Z][a-z]?\d", fm):
+            fm = fm.replace(pattern, pattern[:-1]*int(pattern[-1]))
+        return fm
+
     fm, *_ = mol_name.split(";")
     if fm in rename_dict:
         fm = rename_dict[fm]
 
-    atom_dict = MolecularDecomposer(fm).ShatterFormula()
+    # Remove iso
+    pattern = r"-([0-9])([0-9])[-]?"
+    fm_root = re.sub(pattern, "", fm)
+    fm_root = fm_root.replace("D", "H")
+
+    #
+    fm = expand(fm)
+    fm_root = expand(fm_root)
+
+    atom_dict = MolecularDecomposer(fm_root).ShatterFormula()
     atom_set = set(atom_dict.keys())
 
-    pattern = r"-([0-9])([0-9])[-]?"
-    fm = re.sub(pattern, "", fm)
-    for pattern in re.findall("[A-Z][a-z]?\d", fm):
-        fm = fm.replace(pattern, pattern[:-1]*int(pattern[-1]))
-    fm = fm.replace("D", "H")
-    return fm, atom_set
+    return fm_root, fm, atom_set
 
 
 def replace_with_master_name(normal_dict, base_only):
@@ -135,12 +175,12 @@ def replace_with_master_name(normal_dict, base_only):
     master_name_dict = {}
     for normal_name, name_list in normal_dict.items():
         name_list.sort()
-        master_name = select_master_name(name_list, base_only)
+        master_name = select_master_name(name_list)
         master_name_dict[normal_name] = master_name
         if master_name is None:
             continue
         for name in name_list:
-            if base_only and name.split(";")[1] != "v=0":
+            if base_only and is_ground_state(name):
                 continue
             if name == master_name:
                 mol_dict[master_name]
@@ -156,26 +196,27 @@ def replace_with_master_name(normal_dict, base_only):
     return mol_list, master_name_dict
 
 
-def select_master_name(name_list, base_only):
-    master_name_list = []
-    for name in name_list:
-        is_master = True
-        pattern = r"-([0-9])([0-9])[-]?"
-        if re.search(pattern, name) is not None:
-            is_master = False
-        if "D" in name:
-            is_master = False
-        if name.split(";")[1] != "v=0":
-            is_master = False
-        if is_master:
-            master_name_list.append(name)
-    if len(master_name_list) == 0:
-        if base_only:
-            master_name = None
-        else:
-            master_name = name_list[0]
-    elif len(master_name_list) == 1:
-        master_name = master_name_list[0]
-    else:
-        raise ValueError("Multiple master name", master_name_list)
-    return master_name
+def select_master_name(name_list):
+    name_list_1 = tuple(filter(is_ground_state, name_list))
+    if len(name_list_1) == 0:
+        return name_list[0]
+    if len(name_list_1) == 1:
+        return name_list_1[0]
+
+    name_list_2 = tuple(filter(lambda name: not has_isotope(name), name_list_1))
+    if len(name_list_2) == 0:
+        return name_list_1[0]
+    if len(name_list_2) == 1:
+        return name_list_2[0]
+
+    raise ValueError("Multiple master name", name_list_2)
+
+
+
+def is_ground_state(name):
+    return name.split(";")[1] == "v=0"
+
+
+def has_isotope(name):
+    pattern = r"-([0-9])([0-9])[-]?"
+    return re.search(pattern, name) is not None or "D" in name

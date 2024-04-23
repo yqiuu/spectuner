@@ -1,4 +1,6 @@
 import glob
+from copy import deepcopy
+
 import numpy as np
 
 from .spectral_data import select_molecules
@@ -6,16 +8,11 @@ from .spectral_data import select_molecules
 
 def load_preprocess_select(config):
     file_spec = config["files"]
-    config_spec = config["species"]
-    ElowMin = config_spec["ElowMin"]
-    ElowMax = config_spec["ElowMax"]
+    config_spec = deepcopy(config["species"])
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(file_spec, T_back)
     mol_list, include_dict = select_molecules(
-        get_freq_data(obs_data), ElowMin, ElowMax,
-        config_spec["elements"], config_spec["molecules"],
-        config_spec["base_only"], config_spec["exclude_list"],
-        config_spec["rename_dict"]
+        get_freq_data(obs_data), **config_spec,
     )
     return obs_data, mol_list, include_dict
 
