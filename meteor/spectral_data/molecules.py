@@ -11,10 +11,9 @@ except ImportError:
 from .atoms import MolecularDecomposer
 
 
-def select_molecules(freq_data, ElowMin, ElowMax,
-                     elements, molecules,
-                     iso_mode="separate", base_only=False,
-                     exclude_list=None, rename_dict=None,):
+def select_molecules(freq_data, ElowMin, ElowMax, molecules,
+                     iso_mode="separate", elements=None, base_only=False,
+                     exclude_list=None, rename_dict=None):
     rename_dict_ = {
         "NH2CN": "H2NCN",
         "H2CCHCN-15": "CH2CHCN-15",
@@ -40,8 +39,8 @@ def select_molecules(freq_data, ElowMin, ElowMax,
             ElowMin=ElowMin,
             ElowMax=ElowMax,
             iso_mode=iso_mode,
-            elements=elements,
             moleclues=molecules,
+            elements=elements,
             exclude_list=exclude_list_,
             rename_dict=rename_dict_
         ))
@@ -72,8 +71,8 @@ def select_molecules(freq_data, ElowMin, ElowMax,
 
 
 def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
-                         elements, moleclues, exclude_list,
-                         rename_dict, iso_mode):
+                         moleclues, elements, iso_mode,
+                         exclude_list, rename_dict):
     if exclude_list is None:
         exclude_list = []
     if rename_dict is None:
@@ -111,10 +110,13 @@ def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
             = list(zip(*[derive_normal_form(name, rename_dict)[:2] for name in moleclues]))
 
     # Filter elements and molecules
-    elements = set(elements)
+    if elements is not None:
+        elements = set(elements)
+        if "H" in elements:
+            elements.add("D")
     normal_dict = defaultdict(list)
     for fm_root, fm, atom_set, mol in mol_data:
-        if len(atom_set - elements) != 0:
+        if elements is not None and len(atom_set - elements) != 0:
             continue
 
         if iso_mode == "manual" and (moleclues is None or fm in fm_set):
