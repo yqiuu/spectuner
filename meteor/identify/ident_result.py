@@ -95,7 +95,7 @@ class LineTable:
                     getattr(line_table_new, name)[idx] = None
         else:
             line_table_new = LineTable()
-            for name in ["loss", "score", "error", "norm"]:
+            for name in ["freq", "loss", "score", "error", "norm"]:
                 setattr(line_table_new, name, getattr(self, name)[inds])
             for name in ["frac", "id", "name"]:
                 tmp = []
@@ -237,7 +237,7 @@ class IdentResult:
         line_table_new = self.line_table.extract(inds, is_sparse=True)
         #
         inds = self.filter_name_list(set((key,)), self.line_table_fp.id)
-        line_table_fp_new = self.line_table.extract(inds, is_sparse=False)
+        line_table_fp_new = self.line_table_fp.extract(inds, is_sparse=False)
         #
         T_single_dict_new = {key: deepcopy(self.T_single_dict[key])}
         return IdentResult(
