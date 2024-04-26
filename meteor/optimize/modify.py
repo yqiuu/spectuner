@@ -46,7 +46,7 @@ def modify(config, parent_dir):
             mol_store_list.append(mol_store)
             params_list.append(params)
         mol_store_new, params_new \
-            = combine_mol_stores(mol_store_list, params_list, config_slm)
+            = combine_mol_stores(mol_store_list, params_list)
 
     T_pred_data = mol_store_new.compute_T_pred_data(params_new, freq_data, config_slm)
     save_dict = {

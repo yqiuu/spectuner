@@ -7,15 +7,15 @@ import numpy as np
 import pandas as pd
 
 
-def compute_T_single_data(mol_store, config_slm, params, freq_data):
-    pm = mol_store.create_parameter_manager(config_slm)
+def compute_T_single_data(mol_store, config, params, freq_data):
+    param_mgr = mol_store.create_parameter_manager(config)
     T_single_data = defaultdict(dict)
     for item in mol_store.mol_list:
         for mol in item["molecules"]:
-            params_single = pm.get_single_params(mol, params)
-            mol_store_single = mol_store.select_single(mol)
+            params_single = param_mgr.get_subset_params([mol], params)
+            mol_store_single = mol_store.select_subset([mol])
             T_single_data[item["id"]][mol] \
-                = mol_store_single.compute_T_pred_data(params_single, freq_data, config_slm)
+                = mol_store_single.compute_T_pred_data(params_single, freq_data, config)
     T_single_data = dict(T_single_data)
     return T_single_data
 

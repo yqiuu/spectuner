@@ -6,11 +6,9 @@ from .identify import PeakManager
 
 
 def create_fitting_model(obs_data, mol_store, config, config_opt, T_base_data):
-    pm = mol_store.create_parameter_manager(config["sl_model"])
+    param_mgr = mol_store.create_parameter_manager(config)
     # TODO: better way to create bounds?
-    bounds = pm.scaler.derive_bounds(
-        pm, config_opt["bounds_mol"], config_opt["bounds_iso"], {}
-    )
+    bounds = param_mgr.derive_bounds(config_opt["bounds"])
     model = FittingModel(
         obs_data, mol_store, bounds, config, T_base_data=T_base_data
     )
@@ -21,7 +19,7 @@ class FittingModel:
     def __init__(self, obs_data, mol_store, bounds, config, T_base_data=None):
         self.mol_store = mol_store
         self.include_list = mol_store.include_list
-        self.sl_model = mol_store.create_spectral_line_model(config["sl_model"])
+        self.sl_model = mol_store.create_spectral_line_model(config)
         T_back = self.sl_model.pm.T_back
         self.freq_range_data, self.freq_data, self.T_obs_data \
             = self._preprocess_spectra(obs_data)

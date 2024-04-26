@@ -11,7 +11,7 @@ from .ident_result import (
 )
 
 
-def filter_moleclues(mol_store, config_slm, params,
+def filter_moleclues(mol_store, config, params,
                      freq_data, T_pred_data, T_back, prominence, rel_height,
                      frac_cut=.05):
     """Select molecules that have emission lines.
@@ -26,7 +26,7 @@ def filter_moleclues(mol_store, config_slm, params,
         params (array): None if no emission lines.
     """
     height = T_back + prominence
-    T_single_dict = compute_T_single_data(mol_store, config_slm, params, freq_data)
+    T_single_dict = compute_T_single_data(mol_store, config, params, freq_data)
     names_pos = set()
 
     for i_segment in range(len(T_pred_data)):
@@ -52,14 +52,7 @@ def filter_moleclues(mol_store, config_slm, params,
 
     if len(names_pos) == 0:
         return None, None
-    return mol_store.select_subset_with_params(names_pos, params, config_slm)
-
-
-def select_mol_store(mol_store, config_slm, params, names_pos):
-    mol_store_sub = mol_store.select_subset(names_pos)
-    pm = mol_store.create_parameter_manager(config_slm)
-    params_sub = pm.get_subset_params(names_pos, params)
-    return mol_store_sub, params_sub
+    return mol_store.select_subset_with_params(names_pos, params, config)
 
 
 def derive_intersections(spans_a, spans_b):
@@ -422,11 +415,11 @@ class PeakManager:
 
         return score_tp, score_fp
 
-    def identify(self, mol_store, config_slm, params, T_single_dict=None):
+    def identify(self, mol_store, config, params, T_single_dict=None):
         line_table, line_table_fp, T_single_dict = self.derive_line_table(
-            mol_store, config_slm, params, T_single_dict
+            mol_store, config, params, T_single_dict
         )
-        param_dict = self.derive_param_dict(mol_store, config_slm, params)
+        param_dict = self.derive_param_dict(mol_store, config, params)
         id_set = set()
         id_set.update(self.derive_mol_set(line_table.id))
         id_set.update(self.derive_mol_set(line_table_fp.id))
@@ -453,10 +446,9 @@ class PeakManager:
                 data_tree[i_id][mol] = cols
         return dict(data_tree)
 
-    def derive_param_dict(self, mol_store, config_slm, params):
-        param_mgr = mol_store.create_parameter_manager(config_slm)
-        params_ = param_mgr.scaler.derive_params(param_mgr, params)
-        params_mol = param_mgr.derive_mol_params(params_)
+    def derive_param_dict(self, mol_store, config, params):
+        param_mgr = mol_store.create_parameter_manager(config)
+        params_mol = param_mgr.derive_mol_params(params)
 
         param_names = ["size", "T_ex", "den", "delta_v", "v_lsr"]
         param_dict = defaultdict(dict)
@@ -469,9 +461,9 @@ class PeakManager:
         param_dict = dict(param_dict)
         return param_dict
 
-    def derive_line_table(self, mol_store, config_slm, params, T_single_dict):
+    def derive_line_table(self, mol_store, config, params, T_single_dict):
         if T_single_dict is None:
-            T_single_dict = compute_T_single_data(mol_store, config_slm, params, self.freq_data)
+            T_single_dict = compute_T_single_data(mol_store, config, params, self.freq_data)
         T_pred_data = sum_T_single_data(T_single_dict, self.T_back)
         line_table = LineTable()
         line_table_fp = LineTable()

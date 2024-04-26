@@ -4,7 +4,7 @@ from multiprocessing import Pool
 
 from .optimize import optimize
 from ..preprocess import load_preprocess_select
-from ..xclass_wrapper import MoleculeStore, Scaler
+from ..xclass_wrapper import MoleculeStore
 from ..identify.identify import identify
 from ..fitting_model import create_fitting_model
 
@@ -32,7 +32,7 @@ def run_single(config, parent_dir, need_identify=True):
     for item in mol_list:
         name = item["root"]
         item["id"] = item["id"] + id_offset
-        mol_store = MoleculeStore([item], include_dict[name], Scaler())
+        mol_store = MoleculeStore([item], include_dict[name])
         model = create_fitting_model(obs_data, mol_store, config, config["opt_single"], base_data)
         ret_dict = optimize(model, config["opt_single"], pool)
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))

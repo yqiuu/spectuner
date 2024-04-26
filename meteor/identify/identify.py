@@ -42,7 +42,7 @@ def identify(config, parent_dir, target):
 def identify_file(idn, fname, config):
     data = pickle.load(open(fname, "rb"))
     res = idn.identify(
-        data["mol_store"], config["sl_model"], data["params_best"],
+        data["mol_store"], config, data["params_best"],
     )
     return res
 
@@ -54,7 +54,7 @@ def identify_without_base(idn, dirname, config):
         assert len(data["mol_store"].mol_list) == 1
         key = data["mol_store"].mol_list[0]["id"]
         res = idn.identify(
-            data["mol_store"], config["sl_model"], data["params_best"],
+            data["mol_store"], config, data["params_best"],
         )
         if res.is_empty():
             res = None
@@ -63,13 +63,11 @@ def identify_without_base(idn, dirname, config):
 
 
 def identify_with_base(idn, dirname, fname_base, config):
-    config_slm = config["sl_model"]
-
     data = pickle.load(open(fname_base, "rb"))
     mol_store_base = data["mol_store"]
     params_base = data["params_best"]
     T_single_dict_base = compute_T_single_data(
-        mol_store_base, config_slm, params_base, data["freq"]
+        mol_store_base, config, params_base, data["freq"]
     )
 
     pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=False)
@@ -78,14 +76,13 @@ def identify_with_base(idn, dirname, fname_base, config):
         mol_store_combine, params_combine = combine_mol_stores(
             [mol_store_base, data["mol_store"]],
             [params_base, data["params_best"]],
-            config["sl_model"]
         )
         T_single_dict = deepcopy(T_single_dict_base)
         T_single_dict.update(compute_T_single_data(
-            data["mol_store"], config_slm, data["params_best"], data["freq"]
+            data["mol_store"], config, data["params_best"], data["freq"]
         ))
         res = idn.identify(
-            mol_store_combine, config_slm, params_combine, T_single_dict
+            mol_store_combine, config, params_combine, T_single_dict
         )
         if res.is_empty():
             continue

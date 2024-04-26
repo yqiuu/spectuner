@@ -110,13 +110,12 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
         mol_store_combine, params_combine = combine_mol_stores(
             [pack_curr.mol_store, mol_store_new],
             [pack_curr.params, params_new],
-            config_slm,
         )
         T_pred_data_combine = mol_store_combine.compute_T_pred_data(
-            params_combine, freq_data, config_slm
+            params_combine, freq_data, config
         )
 
-        res = peak_mgr.identify(mol_store_combine, config_slm, params_combine)
+        res = peak_mgr.identify(mol_store_combine, config, params_combine)
         id_new = mol_store_new.mol_list[0]["id"]
         if id_new in res.mol_data:
             score_new = res.get_aggregate_prop(id_new, "score")

@@ -107,24 +107,15 @@ def extract_line_frequency(transitions):
     return trans_dict
 
 
-def combine_mol_stores(mol_store_list, params_list, config_slm):
+def combine_mol_stores(mol_store_list, params_list):
     mol_list = []
     include_list = [[] for _ in range(len(mol_store_list[0].include_list))]
     for mol_store in mol_store_list:
         mol_list.extend(mol_store.mol_list)
         for in_list_new, in_list in zip(include_list, mol_store.include_list):
             in_list_new.extend(in_list)
-    mol_store_new = MoleculeStore(mol_list, include_list, mol_store_list[0].scaler)
-
-    params_mol = []
-    params_den = []
-    for mol_store, params in zip(mol_store_list, params_list):
-        pm = mol_store.create_parameter_manager(config_slm)
-        params_mol.append(pm.get_all_mol_params(params))
-        params_den.append(pm.get_all_den_params(params))
-    params_mol = np.concatenate(params_mol)
-    params_den = np.concatenate(params_den)
-    params_new = np.append(params_mol, params_den)
+    mol_store_new = MoleculeStore(mol_list, include_list)
+    params_new = np.concatenate(params_list)
     return mol_store_new, params_new
 
 
@@ -215,230 +206,153 @@ class XCLASSWrapper:
 
 
 class ParameterManager:
-    def __init__(self, mol_list, scaler, xclass_kwargs):
-        n_param_per_mol = 5
-        idx_den = 2
-        misc_names = []
-        for var_name in ["tBack", "vLSR"]:
-            if not var_name in xclass_kwargs:
-                misc_names.append(var_name)
-        self._T_back = xclass_kwargs.get("tBack", 0.)
+    param_names = ["theta", "T_ex", "N_tot", "delta_v", "v_LSR"]
 
-        # Set indices
-        idx = 0
-        n_mol_param = len(mol_list)*(n_param_per_mol - 1)
-        self.inds_mol_param = slice(idx, n_mol_param)
-        idx += n_mol_param
-
-        n_den_param = 0
-        for item in mol_list:
-            n_den_param += len(item["molecules"])
-        self.inds_den_param = slice(idx, idx + n_den_param)
-        idx += n_den_param
-
-        self.inds_misc_param = slice(idx, idx + len(misc_names))
-        self.n_tot_param = idx + len(misc_names)
-
-        # Set inds_mp
-        inds_mp = list(range(n_param_per_mol))
-        inds_mp.remove(idx_den)
-        self.inds_mp = inds_mp
-
-        # mol_names
-        mol_names = []
-        for item in mol_list:
-            mol_names.extend(item["molecules"])
-        self.mol_names = mol_names
-
-        # Set id_list
-        self.id_list = [item["id"] for item in mol_list]
-
-        # Set den_inds
-        den_inds = {}
-        idx_b = 0
-        for item in mol_list:
-            mols = item["molecules"]
-            if len(mols) == 0:
-                continue
-
-            idx_e = idx_b + len(mols)
-            den_inds[item["id"]] = slice(idx_b, idx_e)
-            idx_b = idx_e
-        self.den_inds = den_inds
-
-        #
-        self.scaler = scaler
+    def __init__(self, mol_list, config_params, config_slm):
         self.mol_list = mol_list
-        self.n_mol = len(mol_list)
-        self.n_mol_param = n_mol_param
-        self.n_den_param = n_den_param
-        self.n_param_per_mol = n_param_per_mol
-
-        self.idx_den = idx_den
-        self.misc_names = misc_names
-        self.n_misc_param = len(misc_names)
+        self.mol_names = self._derive_mol_names()
+        #
+        self._T_back = config_slm.get("tBack", 0.)
+        #
+        inds_shared = []
+        inds_private = []
+        for idx, key in enumerate(self.param_names):
+            if config_params[key]["is_shared"]:
+                inds_shared.append(idx)
+            else:
+                inds_private.append(idx)
+        self._inds_shared = inds_shared
+        self._inds_private = inds_private
+        self._n_shared_per_mol = len(inds_shared)
+        self._n_private_per_mol = len(inds_private)
+        self._n_param_per_mol = len(config_params)
+        self._n_tot = self._derive_n_tot()
+        #
+        self._scales = [config_params[key]["is_log"] for key in self.param_names]
 
     @property
     def T_back(self):
         return self._T_back
 
     def derive_params(self, params):
-        if len(params) != self.n_tot_param:
-            raise ValueError(f"Total number of parameters should be {self.n_tot_param}.")
+        """Decode input parameters and apply scaling.
 
-        params = self.scaler.derive_params(self, params)
+        This is the primary method to interact with xclass.
+        """
         params_mol = self.derive_mol_params(params)
-        params_misc = params[self.inds_misc_param]
-        params_dict = {}
-        for key, val in zip(self.misc_names, params_misc):
-            params_dict[key] = val
-        return self.mol_names, params_mol, params_dict
+        return self.mol_names, params_mol, {}
 
     def derive_mol_params(self, params):
-        # params (N,)
-        params_mol, params_den, _ = self.split_params(params, need_reshape=True)
-        params_mol_ret = np.zeros([self.n_den_param, self.n_param_per_mol])
-        idx = 0
-        for idx_root, item in enumerate(self.mol_list):
-            n_mol = len(item["molecules"])
-            params_mol_ret[idx : idx+n_mol, self.inds_mp] = params_mol[idx_root]
-            idx += n_mol
-        params_mol_ret[:, self.idx_den] = params_den
-        return params_mol_ret
+        """Decode input parameters into a parameter list."""
+        assert len(params) == self._n_tot, \
+            f"Total number of parameters should be {self._n_tot}."
 
-    def split_params(self, params, need_reshape):
-        params_mol = self.get_all_mol_params(params)
-        if need_reshape:
-            params_mol = params_mol.reshape(-1, self.n_param_per_mol - 1)
-        params_den = self.get_all_den_params(params)
-        params_misc = self.get_all_misc_params(params)
-        return params_mol, params_den, params_misc
+        params_list = []
+        for item in self.mol_list:
+            params_sub, idx = self._derive_params_sub(params, len(item["molecules"]))
+            params_list.append(params_sub)
+            params = params[idx:]
+        params_mol = np.vstack(params_list)
+        for idx, is_log in enumerate(self._scales):
+            if is_log:
+                params_mol[:, idx] = 10**params_mol[:, idx]
+        return params_mol
 
-    def get_mol_slice(self, key):
-        idx = self.id_list.index(key)
-        n_param_per_mol = self.n_param_per_mol - 1
-        return slice(idx*n_param_per_mol, (idx + 1)*n_param_per_mol)
-
-    def get_den_slice(self, key):
-        if key in self.den_inds:
-            return self.den_inds[key]
-
-    def get_all_mol_params(self, params):
-        return params[self.inds_mol_param]
-
-    def get_all_den_params(self, params):
-        return params[self.inds_den_param]
-
-    def get_all_misc_params(self, params):
-        return params[self.inds_misc_param]
-
-    def get_misc_params(self, key, params):
-        params_misc = params[self.inds_misc_param]
-        idx = self.misc_names.index(key)
-        return params_misc[idx]
-
-    def get_single_params(self, name, params):
-        def find_item(name):
-            idx = 0
-            for item in self.mol_list:
-                for mol in item["molecules"]:
-                    if name == mol:
-                        return item, idx
-                    idx += 1
-        item, idx = find_item(name)
-        params_mol = params[self.get_mol_slice(item["id"])]
-        params_den = self.get_all_den_params(params)[idx]
-        params_single = np.append(params_mol, [params_den])
-        return params_single
+    def derive_bounds(self, bounds_dict):
+        bounds_list = []
+        shared_names = [self.param_names[idx] for idx in self._inds_shared]
+        private_names = [self.param_names[idx] for idx in self._inds_private]
+        for item in self.mol_list:
+            for name in shared_names:
+                bounds_list.append(bounds_dict[name])
+            for name in private_names:
+                bounds_list.extend([bounds_dict[name]]*len(item["molecules"]))
+        bounds = np.vstack(bounds_list)
+        return bounds
 
     def get_subset_params(self, names, params):
-        inds_id = []
-        inds_mol = []
-        idx_mol = 0
-        for idx_id, item in enumerate(self.mol_list):
-            inds_tmp = []
+        params_list = []
+        idx_b = 0
+        for item in self.mol_list:
+            #
+            idx_mol = 0
+            inds_mol = []
             for mol in item["molecules"]:
-                if mol in names:
-                    inds_tmp.append(idx_mol)
+                for name in names:
+                    if name == mol:
+                        inds_mol.append(idx_mol)
                 idx_mol += 1
-            if len(inds_tmp) > 0:
-                inds_id.append(idx_id)
-                inds_mol.extend(inds_tmp)
-        params_mol, params_den, _ = self.split_params(params, need_reshape=True)
-        params_mol = np.ravel(params_mol[inds_id])
-        params_den = params_den[inds_mol]
-        params_subset = np.append(params_mol, params_den)
-        return params_subset
+            #
+            n_mol = len(item["molecules"])
+            idx_e = idx_b + self._derive_n_param_sub(n_mol)
+            params_sub = params[idx_b:idx_e]
 
+            if len(inds_mol) > 0:
+                params_shared = params_sub[:self._n_shared_per_mol]
+                params_private = []
+                for idx_mol in inds_mol:
+                    idx_p = self._n_shared_per_mol + idx_mol
+                    for _ in range(self._n_private_per_mol):
+                        params_private.append(params_sub[idx_p])
+                        idx_p += n_mol
+                params_sub = np.append(params_shared, params_private)
+                params_list.append(params_sub)
+            #
+            idx_b = idx_e
+        if len(params_list) == 0:
+            raise ValueError(f"Fail to find {name}.")
+        return np.concatenate(params_list)
 
-class Scaler:
-    def derive_params(self, pm, params):
-        params_mol, params_den, params_misc = pm.split_params(params, need_reshape=True)
-        params_mol = params_mol.copy()
-        params_mol[:, :3] = 10**params_mol[:, :3]
-        params_den = 10**params_den
-        params_new = np.concatenate([np.ravel(params_mol), params_den, params_misc])
-        return params_new
+    def _derive_params_sub(self, params, n_mol):
+        """Decode input parameters into a parameter list.
 
-    def derive_bounds(self, pm, bounds_mol, bounds_den, bounds_misc):
-        # bounds_mol (5, 2)
-        # bounds_den (2,)
-        # bounds_misc (dict)
-        bounds_mol = np.tile(bounds_mol, (pm.n_mol, 1))
-        bounds_den = np.tile(bounds_den, (pm.n_den_param, 1))
+        For example, [123, AB, CD] > [[12AB3], [12CD3]].
+        """
+        params_ret = np.zeros([n_mol, self._n_param_per_mol])
+        #
+        params_ret[:, self._inds_shared] = params[:self._n_shared_per_mol]
+        #
+        idx = self._n_shared_per_mol
+        for idx_p in self._inds_private:
+            params_ret[:, idx_p] = params[idx : idx+n_mol]
+            idx += n_mol
+        return params_ret, idx
 
-        bounds_misc_ = []
-        for key in pm.misc_names:
-            bounds_misc_.append(bounds_misc[key])
-        if len(bounds_misc_) == 0:
-            bounds_misc = np.zeros((0, 2))
-        else:
-            bounds_misc = np.vstack(bounds_misc_)
+    def _derive_mol_names(self):
+        mol_names = []
+        for item in self.mol_list:
+            mol_names.extend(item["molecules"])
+        return mol_names
 
-        bounds = np.vstack([bounds_mol, bounds_den, bounds_misc])
-        return bounds
+    def _derive_n_tot(self):
+        n_tot = 0
+        for item in self.mol_list:
+            n_tot += self._derive_n_param_sub(len(item["molecules"]))
+        return n_tot
+
+    def _derive_n_param_sub(self, n_mol):
+        return self._n_shared_per_mol + n_mol*self._n_private_per_mol
 
 
 @dataclass(frozen=True)
 class MoleculeStore:
     mol_list: list
     include_list: list
-    scaler: object
 
-    def create_parameter_manager(self, xclass_kwargs):
-        return ParameterManager(self.mol_list, self.scaler, xclass_kwargs)
+    def create_parameter_manager(self, config):
+        return ParameterManager(self.mol_list, config["params"], config["sl_model"])
 
-    def create_spectral_line_model(self, xclass_kwargs):
-        pm = self.create_parameter_manager(xclass_kwargs)
-        sl_model = XCLASSWrapper(pm, **xclass_kwargs)
+    def create_spectral_line_model(self, config):
+        param_mgr = self.create_parameter_manager(config)
+        sl_model = XCLASSWrapper(param_mgr, **config["sl_model"])
         return sl_model
 
-    def compute_T_pred_data(self, params, freq_data, config_slm):
-        sl_model = self.create_spectral_line_model(config_slm)
+    def compute_T_pred_data(self, params, freq_data, config):
+        sl_model = self.create_spectral_line_model(config)
         iterator = sl_model.call_multi(
             freq_data, self.include_list, params, remove_dir=True
         )
         return [args[0] for args in iterator]
-
-    def select_single(self, name):
-        def find_item(name):
-            for item in self.mol_list:
-                for mol in item["molecules"]:
-                    if name == mol:
-                        return item
-        item = deepcopy(find_item(name))
-        item["root"] = name
-        item["molecules"] = [name]
-        mol_list_new = [item]
-        #
-        include_list_new = []
-        for in_list in self.include_list:
-            if name in in_list:
-                include_list_new.append([name])
-            else:
-                include_list_new.append([])
-
-        return MoleculeStore(mol_list_new, include_list_new, self.scaler)
 
     def select_subset(self, names):
         mol_list_new = []
@@ -453,10 +367,10 @@ class MoleculeStore:
         for in_list in self.include_list:
             include_list_new.append([mol for mol in in_list if mol in names])
 
-        return MoleculeStore(mol_list_new, include_list_new, self.scaler)
+        return MoleculeStore(mol_list_new, include_list_new)
 
-    def select_subset_with_params(self, names, params, config_slm):
+    def select_subset_with_params(self, names, params, config):
         mol_store_sub = self.select_subset(names)
-        pm = self.create_parameter_manager(config_slm)
-        params_sub = pm.get_subset_params(names, params)
+        param_mgr = self.create_parameter_manager(config)
+        params_sub = param_mgr.get_subset_params(names, params)
         return mol_store_sub, params_sub
