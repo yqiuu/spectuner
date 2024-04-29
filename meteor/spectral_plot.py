@@ -6,6 +6,63 @@ from collections import defaultdict
 from .preprocess import get_freq_data, get_T_data
 
 
+def plot_peaks(obs_data, T_pred_data, freqs, name_table, key,
+               width=100, n_col=5, plot_width=4, plot_height=3,
+               kwargs_obs=None, kwargs_pred=None):
+    kwargs_obs_ = {"color": "k"}
+    if kwargs_obs is not None:
+        kwargs_obs_.update(kwargs_obs)
+    kwargs_pred_ = {"color": "r"}
+    if kwargs_pred is not None:
+        kwargs_pred_.update(kwargs_pred)
+
+    span_list = []
+    for freq, id_list in zip(freqs, name_table):
+        if id_list is None:
+            continue
+        if key in id_list:
+            span_list.append([freq*(1 - width/3e5), freq*(1 + width/3e5)])
+    if len(span_list) == 0:
+        return None, None
+
+    # Merge inter peaks
+    spans_new = []
+    for lower, upper in span_list:
+        if len(spans_new) == 0 or spans_new[-1][-1] < lower:
+            spans_new.append([lower, upper])
+        else:
+            spans_new[-1][-1] = max(spans_new[-1][-1], upper)
+    span_list = spans_new
+
+    n_plot = len(span_list)
+    if n_plot < n_col:
+        n_row = 1
+        n_col = len(span_list)
+    else:
+        n_row = n_plot//n_col + int(n_plot%n_col != 0)
+
+    freq_data = get_freq_data(obs_data)
+    T_obs_data = get_T_data(obs_data)
+
+    fig, axes = plt.subplots(
+        figsize=(n_col*plot_width, n_row*plot_height), nrows=n_row, ncols=n_col
+    )
+    axes = np.atleast_1d(axes)
+    for i_a, ax in enumerate(axes.flat):
+        if i_a >= n_plot:
+            ax.axis("off")
+            continue
+
+        lower, upper = span_list[i_a]
+        freq_c = .5*(lower + upper)
+        for i_segment, freq in enumerate(freq_data):
+            if (freq_c >= freq[0]) & (freq_c <= freq[-1]):
+                cond = (freq >= lower) & (freq <= upper)
+                ax.plot(freq[cond], T_obs_data[i_segment][cond], **kwargs_obs_)
+                ax.plot(freq[cond], T_pred_data[i_segment][cond], **kwargs_pred_)
+    return fig, axes
+
+
 class SpectralPlot:
     def __init__(self, freq_data, freq_per_row=1000., width=15., height=3., sharey=True):
         bounds = self._derive_bounds(freq_data, freq_per_row)
