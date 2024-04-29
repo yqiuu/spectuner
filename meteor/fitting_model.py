@@ -63,8 +63,6 @@ class FittingModel:
         T_pred_data = []
         for i_segment, args in enumerate(iterator):
             T_pred = args[0]
-            if T_pred is None:
-                T_pred = np.full_like(self.T_obs_data[i_segment], self.T_back)
             T_base = self.T_base_data[i_segment]
             if T_base is not None:
                 T_pred = T_pred + T_base

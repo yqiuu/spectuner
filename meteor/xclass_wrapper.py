@@ -164,7 +164,8 @@ class XCLASSWrapper:
     def call_multi(self, freq_data, include_list, params, remove_dir=True):
         for freq, in_list in zip(freq_data, include_list):
             if len(in_list) == 0:
-                yield None, None, None, None, None
+                spec = self.get_default_spec()
+                yield spec, None, None, None, None
             else:
                 self.update_frequency(*derive_freq_range(freq))
                 self.update_include_list(in_list)
@@ -176,7 +177,7 @@ class XCLASSWrapper:
             mol_names, params_mol, params_dict, remove_dir
         )
         if len(spec) == 0:
-            spec = None
+            spec = self.get_default_spec()
         else:
             spec = spec[:, 1]
         return spec, log, trans, tau, job_dir
@@ -203,6 +204,10 @@ class XCLASSWrapper:
     def create_molfit_file(self, fname, params):
         mol_names, params_mol, _ = self.pm.derive_params(params)
         create_molfit_file(fname, mol_names, params_mol, self.include_list)
+
+    def get_default_spec(self):
+        freq = np.arange(self.freq_min, self.freq_max, self.freq_step)
+        return np.full_like(freq, self.pm.T_back)
 
 
 class ParameterManager:
