@@ -1,14 +1,14 @@
 optimizer: "abc"
-bounds_mol: [
-  [-1., 2.],
-  [0., 3.],
-  [0., 1.5],
-  [-10., 10.],
-]
-bounds_iso: [12., 20.]
+bounds:
+  theta: [0.7, 2]
+  T_ex: [10., 1000]
+  N_tot: [12., 20.]
+  delta_v: [0., 1.5]
+  v_LSR: [-10., 10.]
 n_process: 32
 n_cycle_min: 100
-n_cycle_max: 500
+n_cycle_max: 1000
+n_cycle_dim: 5
 n_stop: 15
 tol_stop: 1.e-5
 kwargs_opt:

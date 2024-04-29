@@ -24,6 +24,22 @@ sl_model:
   MaxElowSQL: 10000.
   # Minimum intensity.
   MingASQL: null
+params:
+  theta:
+    is_shared: True
+    is_log: True
+  T_ex:
+    is_shared: False
+    is_log: False
+  N_tot:
+    is_shared: False
+    is_log: True
+  delta_v:
+    is_shared: True
+    is_log: True
+  v_LSR:
+    is_shared: True
+    is_log: False
 peak_manager:
   prominence: null
   rel_height: 0.25
