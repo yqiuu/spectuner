@@ -11,7 +11,8 @@ from ..utils import load_pred_data
 from ..preprocess import load_preprocess, get_freq_data
 from ..xclass_wrapper import combine_mol_stores
 from ..identify import (
-    filter_moleclues, derive_peaks_multi, derive_intersections,
+    filter_moleclues, derive_peak_params,
+    derive_peaks_multi, derive_intersections,
     PeakManager,
 )
 from ..identify.identify import identify
@@ -68,11 +69,9 @@ def run_combine(config, parent_dir, need_identify=True):
 
 def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force_merge):
     config_opt = config["opt_combine"]
-    config_slm = config["sl_model"]
     T_back = config["sl_model"].get("tBack", 0.)
     prominence = config["peak_manager"]["prominence"]
     rel_height = config["peak_manager"]["rel_height"]
-    height = T_back + prominence
     freq_data = get_freq_data(obs_data)
     peak_mgr = PeakManager(obs_data, T_back, prominence, rel_height)
 
@@ -124,7 +123,8 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
 
         if force_merge or (score_new is not None and score_new > config_opt["score_cut"]):
             spans_combine = derive_peaks_multi(
-                freq_data, T_pred_data_combine, height, prominence, rel_height
+                freq_data, T_pred_data_combine,
+                peak_mgr.height_list, peak_mgr.prom_list, rel_height
             )[0]
             pack_curr = Pack(
                 mol_store_combine, params_combine,
@@ -180,16 +180,16 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
 
 
 def prepare_properties(pred_data, config_slm, T_back, prominence, rel_height, need_filter):
-    height = T_back + prominence
     mol_store = pred_data["mol_store"]
     params = pred_data["params_best"]
     T_pred_data = pred_data["T_pred"]
+    height_list, prom_list = derive_peak_params(prominence, T_back, len(T_pred_data))
     freq_data = pred_data["freq"]
     spans_pred = derive_peaks_multi(
         freq_data=freq_data,
         spec_data=T_pred_data,
-        height=height,
-        prominence=prominence,
+        height_list=height_list,
+        prom_list=prom_list,
         rel_height=rel_height
     )[0]
     # Filter molecules

@@ -88,10 +88,10 @@ def derive_complementary(spans, inds):
     return spans[inds_iso]
 
 
-def derive_peaks_multi(freq_data, spec_data, height, prominence, rel_height):
+def derive_peaks_multi(freq_data, spec_data, height_list, prom_list, rel_height):
     span_data = []
     cond_data = []
-    for freq, spec in zip(freq_data, spec_data):
+    for freq, spec, height, prominence in zip(freq_data, spec_data, height_list, prom_list):
         if spec is None:
             continue
         spans, heights = derive_peaks(freq, spec, height, prominence, rel_height)
@@ -164,11 +164,11 @@ def find_peaks_inters(x, height, prominence, rel_height):
     return spans_new, is_inter
 
 
-def derive_peaks_obs_data(obs_data, height, prominence, rel_height):
+def derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height):
     freq_data = []
     T_obs_data = []
     spans_obs_data = []
-    for spec in obs_data:
+    for spec, height, prominence in zip(obs_data, height_list, prom_list):
         freq = spec[:, 0]
         T_obs = spec[:, 1]
         freq_data.append(freq)
@@ -281,6 +281,17 @@ def compute_dice_score(spans_inter, spans_a, spans_b):
     return np.ravel(2*np.diff(spans_inter)/(np.diff(spans_a) + np.diff(spans_b)))
 
 
+def derive_peak_params(prominence, T_back, n_segment):
+    if isinstance(prominence, float):
+        prom_list = [prominence]*n_segment
+    else:
+        assert n_segment == len(prominence), \
+            "The Number of promiences must be equal to the number of segments."
+        prom_list = prominence
+    height_list = [T_back + prominence for prominence in prom_list]
+    return height_list, prom_list
+
+
 @np.vectorize
 def linear_deacy(x, x_left, x_right, side, height):
     if side == 1:
@@ -297,13 +308,13 @@ def linear_deacy(x, x_left, x_right, side, height):
 
 class PeakManager:
     def __init__(self, obs_data, T_back, prominence, rel_height, pfactor=1., frac_cut=.05):
-        height = T_back + prominence
+        height_list, prom_list = derive_peak_params(prominence, T_back, len(obs_data))
         self.freq_data, self.T_obs_data, self.spans_obs_data \
-            = derive_peaks_obs_data(obs_data, height, prominence, rel_height)
+            = derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height)
 
         self.T_back = T_back
-        self.height = height
-        self.prominence = prominence
+        self.height_list = height_list
+        self.prom_list = prom_list
         self.rel_height = rel_height
         self.pfactor = pfactor
 
@@ -311,8 +322,8 @@ class PeakManager:
 
     def __call__(self, T_pred_data):
         loss_delta = 0.
-        for T_obs, T_pred in zip(self.T_obs_data, T_pred_data):
-            loss_delta += np.mean(self.transform(np.abs(T_obs - T_pred)))
+        for T_obs, T_pred, prominence in zip(self.T_obs_data, T_pred_data, self.prom_list):
+            loss_delta += np.mean(self.transform(np.abs(T_obs - T_pred), prominence))
         loss_delta /= len(T_pred_data)
 
         loss_ex = 0.
@@ -328,7 +339,9 @@ class PeakManager:
         T_obs = self.T_obs_data[i_segment]
         spans_obs = self.spans_obs_data[i_segment]
         spans_pred, _ = derive_peaks(
-            freq, T_pred, self.height, self.prominence, self.rel_height
+            freq, T_pred,
+            self.height_list[i_segment], self.prom_list[i_segment],
+            self.rel_height
         )
         if len(spans_pred) == 0:
             return PeakStore(spans_obs)
@@ -362,9 +375,10 @@ class PeakManager:
 
     def compute_loss(self, i_segment, peak_store):
         freq = self.freq_data[i_segment]
+        prominence = self.prom_list[i_segment]
         if len(peak_store.spans_inter) > 0:
-            loss_tp = self.transform(peak_store.errors_tp) \
-                  - peak_store.f_dice*self.transform(peak_store.norms_tp)
+            loss_tp = self.transform(peak_store.errors_tp, prominence) \
+                  - peak_store.f_dice*self.transform(peak_store.norms_tp, prominence)
             loss_tp = np.minimum(loss_tp, 0.)
         else:
             loss_tp = np.zeros(0)
@@ -388,18 +402,18 @@ class PeakManager:
             x_left[cond] = freq[0]
             side[cond] = -1
             #
-            values = self.transform(peak_store.errors_fp)
+            values = self.transform(peak_store.errors_fp, prominence)
             loss_fp = linear_deacy(centres_pred, x_left, x_right, side, values)
         else:
             loss_fp = np.zeros(0)
 
         return loss_tp, loss_fp
 
-    def transform(self, x):
+    def transform(self, x, prominence):
         if self.pfactor is None:
             return x
 
-        scale = self.pfactor*self.prominence
+        scale = self.pfactor*prominence
         return scale*np.log(1 + x/scale)
 
     def compute_score(self, peak_store):
