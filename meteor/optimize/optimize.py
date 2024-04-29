@@ -17,7 +17,8 @@ def optimize(model, config_opt, pool):
     opt = cls_opt(model, model.bounds, pool=pool, **kwargs_opt)
     save_all = config_opt.get("save_all", False)
 
-    n_cycle_min = config_opt["n_cycle_min"]
+    n_cycle_min = config_opt["n_cycle_min"] \
+        + (len(model.bounds) - 5)*config_opt["n_cycle_dim"]
     n_cycle_max = config_opt["n_cycle_max"]
     n_stop = config_opt["n_stop"]
     tol_stop = config_opt["tol_stop"]
