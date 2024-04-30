@@ -163,11 +163,11 @@ class XCLASSWrapper:
 
     def call_multi(self, freq_data, include_list, params, remove_dir=True):
         for freq, in_list in zip(freq_data, include_list):
+            self.update_frequency(*derive_freq_range(freq))
             if len(in_list) == 0:
                 spec = self.get_default_spec()
                 yield spec, None, None, None, None
             else:
-                self.update_frequency(*derive_freq_range(freq))
                 self.update_include_list(in_list)
                 yield self.call(params, remove_dir)
 
