@@ -287,6 +287,7 @@ class ParameterManager:
                     if name == mol:
                         inds_mol.append(idx_mol)
                 idx_mol += 1
+            inds_mol = np.array(inds_mol)
             #
             n_mol = len(item["molecules"])
             idx_e = idx_b + self._derive_n_param_sub(n_mol)
@@ -295,11 +296,10 @@ class ParameterManager:
             if len(inds_mol) > 0:
                 params_shared = params_sub[:self._n_shared_per_mol]
                 params_private = []
-                for idx_mol in inds_mol:
-                    idx_p = self._n_shared_per_mol + idx_mol
-                    for _ in range(self._n_private_per_mol):
-                        params_private.append(params_sub[idx_p])
-                        idx_p += n_mol
+                offset = self._n_shared_per_mol
+                for _ in range(self._n_private_per_mol):
+                    params_private.append(params_sub[offset + inds_mol])
+                    offset += n_mol
                 params_sub = np.append(params_shared, params_private)
                 params_list.append(params_sub)
             #
