@@ -234,14 +234,16 @@ def derive_true_postive_props(freq, T_obs, T_pred, T_back, spans_obs, spans_pred
     return errors, norms, f_dice
 
 
-def derive_false_postive_props(freq, T_obs, T_pred, T_back, spans_fp):
+def derive_false_postive_props(freq, T_obs, T_pred, T_back, spans_fp, prominence):
     """Derive properties used to compute errors of false postive samples."""
     errors = np.zeros(len(spans_fp))
     norms = np.zeros(len(spans_fp))
     d_eval = np.ravel(np.diff(spans_fp, axis=1))
     iterator = enumerate(eval_spans(spans_fp, freq, T_obs, T_pred))
     for i_span, (x_eval, T_obs_eval, T_pred_eval) in iterator:
-        errors[i_span] = np.trapz(np.maximum(0, T_pred_eval - T_obs_eval), x_eval)
+        err_a = np.trapz(np.maximum(0, T_pred_eval - T_obs_eval), x_eval)
+        err_b = np.trapz(np.maximum(0, T_pred_eval - T_back - prominence))
+        errors[i_span] = min(err_a, err_b)
         norms[i_span] = np.trapz(T_pred_eval, x_eval)
     errors /= d_eval
     norms /= d_eval
@@ -361,7 +363,7 @@ class PeakManager:
         spans_fp = derive_complementary(spans_pred, inds_pred)
         if len(spans_fp) > 0:
             errors_fp, norms_fp = derive_false_postive_props(
-                freq, T_obs, T_pred, self.T_back, spans_fp
+                freq, T_obs, T_pred, self.T_back, spans_fp, self.prom_list[i_segment],
             )
         else:
             spans_fp = np.zeros((0, 2))
