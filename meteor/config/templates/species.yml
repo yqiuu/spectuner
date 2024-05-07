@@ -41,6 +41,8 @@ molecules:
   - SO
   - SO2
 iso_mode: "combined"
+sort_mode: "default"
+include_hyper: False
 exclude_list: null
 rename_dict: null
 ElowMin: 0.0

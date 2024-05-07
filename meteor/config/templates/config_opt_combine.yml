@@ -1,7 +1,7 @@
-optimizer: "abc"
+optimizer: "pso"
 bounds:
-  theta: [0, 2.3]
-  T_ex: [10., 1000]
+  theta: [0.7, 2.3]
+  T_ex: [10., 400.]
   N_tot: [12., 20.]
   delta_v: [0., 1.5]
   v_LSR: [-10., 10.]
