@@ -1,12 +1,16 @@
 molecules:
+  - CO
   - CS
   - CCS
   - CCCS
   - H2CO
+  - H2CCO
   - H2S
   - H2CS
-  - H2CCO
+  - HCOOH
   - HCO+
+  - HCS+
+  - HOC+
   - OCS
   - HCN
   - HCCN
@@ -14,13 +18,10 @@ molecules:
   - HCCCCCN
   - HNC
   - HNCO
-  - SiS
-  - SiO
-  - SO
-  - SO2
   - CCH
   - CCCH
   - c-C3H2
+  - CH2NH
   - CH3OH
   - CH3OCHO
   - CH3CHO
@@ -31,12 +32,14 @@ molecules:
   - C2H3CN
   - C2H5CN
   - C2H5OH
-  - C2H5CHO
   - CH3COCH3
   - CH3NH2
   - HC(O)NH2
   - NH3
   - NH2CN
+  - SiS
+  - SO
+  - SO2
 iso_mode: "combined"
 exclude_list: null
 rename_dict: null
