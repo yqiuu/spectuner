@@ -46,5 +46,5 @@ include_hyper: False
 exclude_list: null
 rename_dict: null
 ElowMin: 0.0
-ElowMax: 10000.
+ElowMax: 5000.
 base_only: False

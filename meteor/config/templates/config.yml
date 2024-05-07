@@ -21,7 +21,7 @@ sl_model:
   # - else: by trans. freq.
   TransOrderSQL: 1
   # Maximum lower energy.
-  MaxElowSQL: 10000.
+  MaxElowSQL: 5000.
   # Minimum intensity.
   MingASQL: null
 params:
