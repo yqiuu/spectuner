@@ -14,5 +14,5 @@ tol_stop: 1.e-5
 kwargs_opt:
   nswarm: 32
 save_history: True
-save_all: False
+save_all: True
 score_cut: 2.

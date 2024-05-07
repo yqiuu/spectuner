@@ -22,11 +22,12 @@ molecules:
   - CCCH
   - c-C3H2
   - CH2NH
-  - CH3OH
-  - CH3OCHO
-  - CH3CHO
-  - CH3OCH3
   - c-C2H4O
+  - CH3OH
+  - CH3CHO
+  - CH3CCH
+  - CH3OCHO
+  - CH3OCH3
   - CH3SH
   - CH3CN
   - C2H3CN
