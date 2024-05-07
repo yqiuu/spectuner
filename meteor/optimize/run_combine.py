@@ -26,7 +26,7 @@ def run_combine(config, parent_dir, need_identify=True):
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(config["files"], T_back)
 
-    config_opt = config["opt_combine"]
+    config_opt = config["opt"]
     config_slm = config["sl_model"]
     pool = Pool(config_opt["n_process"])
     prominence = config["peak_manager"]["prominence"]
@@ -68,7 +68,7 @@ def run_combine(config, parent_dir, need_identify=True):
 
 
 def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force_merge):
-    config_opt = config["opt_combine"]
+    config_opt = config["opt"]
     T_back = config["sl_model"].get("tBack", 0.)
     prominence = config["peak_manager"]["prominence"]
     rel_height = config["peak_manager"]["rel_height"]
@@ -211,7 +211,7 @@ def prepare_properties(pred_data, config_slm, T_back, prominence, rel_height, ne
 
 
 def optimize_with_base(pack, obs_data, T_base, config, pool):
-    config_opt = config["opt_combine"]
+    config_opt = config["opt"]
     model = create_fitting_model(
         obs_data, pack.mol_store, config, config_opt, T_base
     )
@@ -233,7 +233,7 @@ def derive_initial_pos(params, bounds, n_swarm):
 
 
 def get_save_dir(config):
-    return Path(config["save_dir"])/Path(config["opt_combine"]["dirname"])
+    return Path(config["save_dir"])/Path(config["opt"]["dirname"])
 
 
 @dataclass

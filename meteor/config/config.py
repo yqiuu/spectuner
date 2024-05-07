@@ -42,10 +42,9 @@ def load_config(dir):
 
 
 def iter_config_names():
-    keys = ["opt_single", "opt_combine", "species", "modify"]
+    keys = ["opt", "species", "modify"]
     file_names = [
-        "config_opt_single.yml",
-        "config_opt_combine.yml",
+        "config_opt.yml",
         "species.yml",
         "modify.yml"
     ]

@@ -14,7 +14,7 @@ __all__ = ["run_single"]
 
 def run_single(config, parent_dir, need_identify=True):
     obs_data, mol_list, include_dict = load_preprocess_select(config)
-    pool = Pool(config["opt_single"]["n_process"])
+    pool = Pool(config["opt"]["n_process"])
 
     id_offset = 0
     fname_base = config.get("fname_base", None)
@@ -33,8 +33,8 @@ def run_single(config, parent_dir, need_identify=True):
         name = item["root"]
         item["id"] = item["id"] + id_offset
         mol_store = MoleculeStore([item], include_dict[name])
-        model = create_fitting_model(obs_data, mol_store, config, config["opt_single"], base_data)
-        ret_dict = optimize(model, config["opt_single"], pool)
+        model = create_fitting_model(obs_data, mol_store, config, config["opt"], base_data)
+        ret_dict = optimize(model, config["opt"], pool)
         pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
     if need_identify:
