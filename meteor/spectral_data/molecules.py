@@ -12,7 +12,8 @@ from .atoms import MolecularDecomposer
 
 
 def select_molecules(freq_data, ElowMin, ElowMax, molecules,
-                     iso_mode="separate", elements=None, base_only=False,
+                     iso_mode="combined", elements=None, base_only=False,
+                     sort_mode="largest", include_hyper=False,
                      exclude_list=None, rename_dict=None):
     rename_dict_ = {
         "NH2CN": "H2NCN",
@@ -41,6 +42,8 @@ def select_molecules(freq_data, ElowMin, ElowMax, molecules,
             iso_mode=iso_mode,
             moleclues=molecules,
             elements=elements,
+            sort_mode=sort_mode,
+            include_hyper=include_hyper,
             exclude_list=exclude_list_,
             rename_dict=rename_dict_
         ))
@@ -72,6 +75,7 @@ def select_molecules(freq_data, ElowMin, ElowMax, molecules,
 
 def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
                          moleclues, elements, iso_mode,
+                         sort_mode, include_hyper,
                          exclude_list, rename_dict):
     if exclude_list is None:
         exclude_list = []
@@ -83,26 +87,7 @@ def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
         SelectMolecule=[], OutputDevice="quiet"
     )
 
-    mol_names = set()
-    for item in contents:
-        mol_names.add(item.split()[0])
-    mol_names = list(mol_names)
-    mol_names.sort()
-
-    mol_dict = defaultdict(list)
-    for name in mol_names:
-        if name in exclude_list:
-            continue
-        tmp = name.split(";")
-        # Ingore spin states
-        if tmp[-1] == "ortho" or tmp[-1] == "para":
-            continue
-        mol_dict[";".join(tmp[:-1])].append(tmp[-1])
-
-    mol_names = []
-    for key, val in mol_dict.items():
-        mol_names.append(";".join([key, val[0]]))
-
+    mol_names = choose_version(contents, exclude_list, sort_mode, include_hyper)
     mol_data = derive_mol_data(mol_names, rename_dict)
 
     if moleclues is not None:
@@ -132,6 +117,61 @@ def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
             continue
 
     return normal_dict
+
+
+def choose_version(contents, exclude_list, sort_mode, include_hyper):
+    counter = defaultdict(int)
+    for item in contents:
+        counter[item.split()[0]] += 1
+
+    mol_dict = defaultdict(list)
+    mol_dict_hyp = defaultdict(list)
+    for name, num in counter.items():
+        if name in exclude_list:
+            continue
+        tmp = name.split(";")
+        # Ingore spin states or A/E states
+        if tmp[-1].startswith("ortho") or tmp[-1].startswith("para") \
+            or "A" in tmp[-1] or "E" in tmp[-1]:
+            continue
+        if tmp[2].startswith("hyp"):
+            assert len(tmp) == 3, "Invalid entry: {}.".format(";".join(tmp))
+            if "#" in tmp[-1]:
+                tmp_a, tmp_b = tmp[-1].split("#")
+                tmp[-1] = tmp_a
+                tmp_b = f"#{tmp_b}"
+            else:
+                tmp_b = ""
+            mol_dict_hyp[";".join(tmp)].append((tmp_b, num))
+        else:
+            mol_dict[";".join(tmp[:-1])].append((tmp[-1], num))
+
+    if sort_mode == "default":
+        sort_key = lambda item: item[0]
+        is_reversed = False
+    elif sort_mode == "latest":
+        sort_key = lambda item: item[0]
+        is_reversed = True
+    elif sort_mode == "largest":
+        sort_key = lambda item: item[1] + int(item[0].split("#")[-1] if "#" in item[0] else 0)
+        is_reversed = True
+    else:
+        raise ValueError("Unknown mode: {}.".format(sort_mode))
+
+    mol_names = []
+    for prefix, post_list in mol_dict.items():
+        post_list.sort(key=sort_key, reverse=is_reversed)
+        mol_names.append(";".join([prefix, post_list[0][0]]))
+
+    if not include_hyper:
+        mol_names.sort()
+        return mol_names
+
+    for prefix, post_list in mol_dict_hyp.items():
+        post_list.sort(key=sort_key, reverse=is_reversed)
+        mol_names.append(prefix + post_list[0][0])
+    mol_names.sort()
+    return mol_names
 
 
 def derive_mol_data(mol_list, rename_dict):
@@ -200,23 +240,29 @@ def replace_with_master_name(normal_dict, base_only):
 
 def select_master_name(name_list):
     name_list_1 = tuple(filter(is_ground_state, name_list))
-    if len(name_list_1) == 0:
-        return name_list[0]
     if len(name_list_1) == 1:
         return name_list_1[0]
-
-    name_list_2 = tuple(filter(lambda name: not has_isotope(name), name_list_1))
-    if len(name_list_2) == 0:
-        return name_list_1[0]
-    if len(name_list_2) == 1:
-        return name_list_2[0]
-
-    raise ValueError("Multiple master name", name_list_2)
-
+    if len(name_list_1) > 1:
+        name_list_2 = tuple(filter(lambda name: not has_isotope(name), name_list_1))
+        if len(name_list_2) == 0:
+            return name_list_1[0]
+        if len(name_list_2) == 1:
+            return name_list_2[0]
+        if len(name_list_2) > 1:
+            name_list_3 = tuple(filter(lambda name: not is_hyper_state(name), name_list_2))
+            if len(name_list_3) == 0:
+                return name_list_2[0]
+            if len(name_list_3) == 1:
+                return name_list_3[0]
+            raise ValueError("Multiple master name", name_list_2)
 
 
 def is_ground_state(name):
     return name.split(";")[1] == "v=0"
+
+
+def is_hyper_state(name):
+    return name.split(";")[2].startswith("hyp")
 
 
 def has_isotope(name):
