@@ -146,7 +146,7 @@ class SpectralPlot:
         return self._bounds
 
     def plot_T_pred(self, ident_result, y_min, y_max, key=None, name=None,
-                    color_spec="r", show_lines=True, offset_0=1.5, offset_1=4,
+                    color_spec="r", show_lines=True, offset_0=1.5,
                     fontsize=12, T_base_data=None):
         T_data = ident_result.get_T_pred(key, name)
         if T_base_data is not None:
@@ -165,13 +165,13 @@ class SpectralPlot:
                 ident_result.line_table.freq,
                 ident_result.line_table.name,
                 y_min, y_max,
-                offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
+                offset_0=offset_0, fontsize=fontsize
             )
             self.plot_names(
                 ident_result.line_table_fp.freq,
                 ident_result.line_table_fp.name,
                 y_min, y_max, color="b",
-                offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
+                offset_0=offset_0, fontsize=fontsize
             )
             return
 
@@ -187,14 +187,14 @@ class SpectralPlot:
         name_list = np.array(line_table.name, dtype=object)[inds]
         self.plot_names(
             spans, name_list, y_min, y_max,
-            offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
+            offset_0=offset_0, fontsize=fontsize
         )
         inds = ident_result.filter_name_list(name_set, line_table_fp.name)
         spans = line_table_fp.freq[inds]
         name_list = np.array(line_table_fp.name, dtype=object)[inds]
         self.plot_names(
             spans, name_list, y_min, y_max, color="b",
-            offset_0=offset_0, offset_1=offset_1, fontsize=fontsize
+            offset_0=offset_0, fontsize=fontsize
         )
 
     def plot_unknown_lines(self, ident_result, y_min, y_max, color="grey", linestyle="-"):
@@ -232,7 +232,7 @@ class SpectralPlot:
 
     def plot_names(self, freqs, name_list, y_min, y_max, key=None,
                    color="k", color_blen="r", linestyles="--",
-                   offset_0=1.5, offset_1=4, frac=.95, fontsize=12):
+                   offset_0=1.5, frac=.95, fontsize=12):
         for freq_c, names in zip(freqs, name_list):
             if names is None or (key is not None and key not in names):
                 continue
@@ -243,13 +243,11 @@ class SpectralPlot:
             ax.vlines(freq_c, y_min, y_max, c, linestyles)
             y_show = y_min + frac*(y_max - y_min)
             x_show = freq_c + offset_0
-            for text in names:
-                ax.text(
-                    x_show, y_show, text,
-                    rotation="vertical", verticalalignment="top",
-                    fontsize=fontsize, c=c
-                )
-                x_show += offset_1
+            ax.text(
+                x_show, y_show, "\n".join(names),
+                rotation="vertical", verticalalignment="top",
+                fontsize=fontsize, c=c
+            )
 
     def plot_errors(self, freqs, errors, y_min, y_max, colors="k", linestyles="--", offset=3):
         for freq_c, err in zip(freqs, errors):
