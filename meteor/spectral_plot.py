@@ -230,15 +230,15 @@ class SpectralPlot:
                 i_segment += 1
                 idx_b = 0
 
-    def plot_names(self, freqs, name_list, y_min, y_max,
+    def plot_names(self, freqs, name_list, y_min, y_max, key=None,
                    color="k", color_blen="r", linestyles="--",
                    offset_0=1.5, offset_1=4, frac=.95, fontsize=12):
         for freq_c, names in zip(freqs, name_list):
-            idx_ax = self._get_axe_idx(freq_c)
-            ax = self.axes[idx_ax]
-            if names is None:
+            if names is None or (key is not None and key not in names):
                 continue
 
+            idx_ax = self._get_axe_idx(freq_c)
+            ax = self.axes[idx_ax]
             c = color if len(names) == 1 else color_blen
             ax.vlines(freq_c, y_min, y_max, c, linestyles)
             y_show = y_min + frac*(y_max - y_min)
