@@ -19,16 +19,13 @@ molecules:
   - HNC
   - HNCO
   - CCH
-  - CCCH
   - c-C3H2
-  - CH2NH
   - c-C2H4O
   - CH3OH
   - CH3CHO
   - CH3CCH
   - CH3OCHO
   - CH3OCH3
-  - CH3SH
   - CH3CN
   - C2H3CN
   - C2H5CN
@@ -37,10 +34,10 @@ molecules:
   - CH3NH2
   - HC(O)NH2
   - NH3
-  - NH2CN
-  - SiS
   - SO
   - SO2
+  - SiO
+  - SiS
 iso_mode: "combined"
 sort_mode: "default"
 include_hyper: False
