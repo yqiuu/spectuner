@@ -12,7 +12,8 @@ from .atoms import MolecularDecomposer
 
 
 def select_molecules(freq_data, ElowMin, ElowMax, molecules,
-                     iso_mode="combined", elements=None, base_only=False,
+                     elements=None, base_only=False,
+                     iso_mode="combined", iso_order=1,
                      sort_mode="largest", include_hyper=False,
                      exclude_list=None, rename_dict=None):
     rename_dict_ = {
@@ -39,9 +40,10 @@ def select_molecules(freq_data, ElowMin, ElowMax, molecules,
             FreqMax=freq[-1],
             ElowMin=ElowMin,
             ElowMax=ElowMax,
-            iso_mode=iso_mode,
             moleclues=molecules,
             elements=elements,
+            iso_mode=iso_mode,
+            iso_order=iso_order,
             sort_mode=sort_mode,
             include_hyper=include_hyper,
             exclude_list=exclude_list_,
@@ -74,7 +76,7 @@ def select_molecules(freq_data, ElowMin, ElowMax, molecules,
 
 
 def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
-                         moleclues, elements, iso_mode,
+                         moleclues, elements, iso_mode, iso_order,
                          sort_mode, include_hyper,
                          exclude_list, rename_dict):
     if exclude_list is None:
@@ -88,6 +90,7 @@ def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
     )
 
     mol_names = choose_version(contents, exclude_list, sort_mode, include_hyper)
+    mol_names = exclude_isotopes(mol_names, iso_order)
     mol_data = derive_mol_data(mol_names, rename_dict)
 
     if moleclues is not None:
@@ -174,6 +177,10 @@ def choose_version(contents, exclude_list, sort_mode, include_hyper):
     return mol_names
 
 
+def exclude_isotopes(mol_names, iso_order):
+    return [name for name in mol_names if count_iso_atoms(name) <= iso_order]
+
+
 def derive_mol_data(mol_list, rename_dict):
     mol_data = []
     for mol in mol_list:
@@ -255,6 +262,13 @@ def select_master_name(name_list):
             if len(name_list_3) == 1:
                 return name_list_3[0]
             raise ValueError("Multiple master name", name_list_2)
+
+
+def count_iso_atoms(name):
+    name = name.split(";")[0]
+    for pattern in re.findall("D\d", name):
+        name = name.replace(pattern, pattern[:-1]*int(pattern[-1]))
+    return name.count("D") + len(re.findall('-([0-9])([0-9])[-]?', name))
 
 
 def is_ground_state(name):
