@@ -309,7 +309,7 @@ def linear_deacy(x, x_left, x_right, side, height):
 
 
 class PeakManager:
-    def __init__(self, obs_data, T_back, prominence, rel_height, pfactor=1., frac_cut=.05):
+    def __init__(self, obs_data, T_back, prominence, rel_height, pfactor=10., frac_cut=.05):
         height_list, prom_list = derive_peak_params(prominence, T_back, len(obs_data))
         self.freq_data, self.T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height)
@@ -319,13 +319,17 @@ class PeakManager:
         self.prom_list = prom_list
         self.rel_height = rel_height
         self.pfactor = pfactor
-
         self.frac_cut = frac_cut
+
+        if pfactor is None:
+            self.scale = None
+        else:
+            self.scale = self._derive_scale(pfactor)
 
     def __call__(self, T_pred_data):
         loss_delta = 0.
-        for T_obs, T_pred, prominence in zip(self.T_obs_data, T_pred_data, self.prom_list):
-            loss_delta += np.mean(self.transform(np.abs(T_obs - T_pred), prominence))
+        for T_obs, T_pred in zip(self.T_obs_data, T_pred_data):
+            loss_delta += np.mean(self.transform(np.abs(T_obs - T_pred)))
         loss_delta /= len(T_pred_data)
 
         loss_ex = 0.
@@ -377,10 +381,9 @@ class PeakManager:
 
     def compute_loss(self, i_segment, peak_store):
         freq = self.freq_data[i_segment]
-        prominence = self.prom_list[i_segment]
         if len(peak_store.spans_inter) > 0:
-            loss_tp = self.transform(peak_store.errors_tp, prominence) \
-                  - peak_store.f_dice*self.transform(peak_store.norms_tp, prominence)
+            loss_tp = self.transform(peak_store.errors_tp) \
+                  - peak_store.f_dice*self.transform(peak_store.norms_tp)
             loss_tp = np.minimum(loss_tp, 0.)
         else:
             loss_tp = np.zeros(0)
@@ -404,19 +407,17 @@ class PeakManager:
             x_left[cond] = freq[0]
             side[cond] = -1
             #
-            values = self.transform(peak_store.errors_fp, prominence)
+            values = self.transform(peak_store.errors_fp)
             loss_fp = linear_deacy(centres_pred, x_left, x_right, side, values)
         else:
             loss_fp = np.zeros(0)
 
         return loss_tp, loss_fp
 
-    def transform(self, x, prominence):
-        if self.pfactor is None:
+    def transform(self, x):
+        if self.scale is None:
             return x
-
-        scale = self.pfactor*prominence
-        return scale*np.log(1 + x/scale)
+        return self.scale*np.log(1 + x/self.scale)
 
     def compute_score(self, peak_store):
         if len(peak_store.spans_inter) > 0:
@@ -499,6 +500,13 @@ class PeakManager:
                 continue
             mol_set.update(set(name))
         return mol_set
+
+    def _derive_scale(self, pfactor):
+        norms = []
+        for spans, freqs, T_obs in zip(self.spans_obs_data, self.freq_data, self.T_obs_data):
+            norms.append(compute_peak_norms(spans, freqs, T_obs - self.T_back))
+        norms = np.concatenate(norms)
+        return pfactor*np.median(norms)
 
     def _derive_line_table_sub(self, i_segment, T_pred, T_single_dict):
         peak_store = self.create_peak_store(i_segment, T_pred)
