@@ -219,6 +219,7 @@ class IdentResult:
         return df
 
     def derive_df_mol_master(self):
+        tx_score_dict = self.compute_tx_score(max_order=3)
         data = []
         for key, sub_dict in self.mol_data.items():
             for cols in sub_dict.values():
@@ -227,10 +228,33 @@ class IdentResult:
             cols = {"id": key, "master_name": master_name}
             for prop_name in ["loss", "score", "num_tp", "num_tp_i", "num_fp"]:
                 cols[prop_name] = self.get_aggregate_prop(key, prop_name)
+            cols.update(tx_score_dict[key])
             data.append(cols)
         df = pd.DataFrame.from_dict(data)
         df.sort_values("id")
         return df
+
+    def compute_tx_score(self, max_order):
+        def compute(score_list, order):
+            if len(score_list) < order:
+                return 0.
+            return score_list[order - 1]
+
+        score_list_dict = defaultdict(list)
+        iterator = zip(self.line_table.id, self.line_table.score, self.line_table.frac)
+        for id_list, score, frac in iterator:
+            if id_list is None:
+                continue
+            for key, score_sub in zip(id_list, score*frac):
+                score_list_dict[key].append(score_sub)
+
+        score_dict = {}
+        for key, score_list in score_list_dict.items():
+            score_list.sort(reverse=True)
+            score_dict[key] = {
+                f"t{order}_score": compute(score_list, order) for order in range(1, max_order + 1)
+            }
+        return score_dict
 
     def extract(self, key):
         mol_data_new = {key: deepcopy(self.mol_data[key])}
