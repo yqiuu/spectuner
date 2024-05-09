@@ -37,7 +37,6 @@ molecules:
   - SO
   - SO2
   - SiO
-  - SiS
 elements: null
 base_only: False
 iso_mode: "combined"
