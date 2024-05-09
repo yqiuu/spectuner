@@ -46,6 +46,17 @@ def sum_T_single_data(T_single_dict, T_back, key=None):
     return T_ret_data
 
 
+def derive_df_mol_master_from_res_dict(res_dict):
+    df_mol_master = pd.concat([
+        res.derive_df_mol_master() for res in res_dict.values() if res is not None
+    ])
+    df_mol_master.sort_values(
+        ["t3_score", "t2_score", "t1_score", "num_tp_i"], ascending=False, inplace=True
+    )
+    df_mol_master.reset_index(drop=True, inplace=True)
+    return df_mol_master
+
+
 @dataclass
 class LineTable:
     freq: np.ndarray = field(default_factory=partial(np.zeros, 0))
