@@ -425,7 +425,7 @@ class PeakManager:
 
     def compute_score(self, peak_store):
         if len(peak_store.spans_inter) > 0:
-            score_tp = np.maximum(1 - peak_store.errors_tp/peak_store.norms_tp, 0.)
+            score_tp = np.maximum(1 - peak_store.errors_tp/peak_store.norms_tp_obs, 0.)
         else:
             score_tp = np.zeros(0)
 
@@ -530,7 +530,7 @@ class PeakManager:
             id=id_list_tp,
             name=name_list_tp,
             error=peak_store.errors_tp,
-            norm=peak_store.norms_tp
+            norm=peak_store.norms_tp_obs
         )
         sparsity = (peak_store.inds_inter_obs, len(peak_store.spans_obs))
         line_table.append(line_table_tmp, sparsity=sparsity)
