@@ -221,17 +221,19 @@ def derive_true_postive_props(freq, T_obs, T_pred, T_back, spans_obs, spans_pred
                               spans_inter, inds_pred, inds_obs):
     """Derive properties used to compute errors of true postive samples."""
     errors = np.zeros(len(spans_inter))
-    norms = np.zeros(len(spans_inter))
+    norms_obs = np.zeros(len(spans_inter))
+    norms_pred = np.zeros(len(spans_inter))
     d_eval = np.ravel(np.diff(spans_inter, axis=1))
     iterator = enumerate(eval_spans(spans_inter, freq, T_obs, T_pred))
     for i_span, (x_eval, T_obs_eval, T_pred_eval) in iterator:
         errors[i_span] = np.trapz(np.abs(T_obs_eval - T_pred_eval), x_eval)
-        norms[i_span] = np.trapz(T_obs_eval, x_eval)
+        norms_obs[i_span] = np.trapz(T_obs_eval - T_back, x_eval)
+        norms_pred[i_span] = np.trapz(T_pred_eval - T_back, x_eval)
     errors /= d_eval
-    norms /= d_eval
-    norms -= T_back
+    norms_obs /= d_eval
+    norms_pred /= d_eval
     f_dice = compute_dice_score(spans_inter, spans_obs[inds_obs], spans_pred[inds_pred])
-    return errors, norms, f_dice
+    return errors, norms_obs, norms_pred, f_dice
 
 
 def derive_false_postive_props(freq, T_obs, T_pred, T_back, spans_fp, prominence):
@@ -244,10 +246,9 @@ def derive_false_postive_props(freq, T_obs, T_pred, T_back, spans_fp, prominence
         err_a = np.trapz(np.maximum(0, T_pred_eval - T_obs_eval), x_eval)
         err_b = np.trapz(np.maximum(0, T_pred_eval - T_back - prominence))
         errors[i_span] = min(err_a, err_b)
-        norms[i_span] = np.trapz(T_pred_eval, x_eval)
+        norms[i_span] = np.trapz(T_pred_eval - T_back, x_eval)
     errors /= d_eval
     norms /= d_eval
-    norms -= T_back
     return errors, norms
 
 
@@ -354,14 +355,15 @@ class PeakManager:
 
         spans_inter, inds_obs, inds_pred = derive_intersections(spans_obs, spans_pred)
         if len(spans_inter) > 0:
-            errors_tp, norms_tp, f_dice = derive_true_postive_props(
+            errors_tp, norms_tp_obs, norms_tp_pred, f_dice = derive_true_postive_props(
                 freq, T_obs, T_pred, self.T_back, spans_obs, spans_pred,
                 spans_inter, inds_pred, inds_obs
             )
         else:
             spans_inter = np.zeros((0, 2))
             errors_tp = np.zeros(0)
-            norms_tp = np.zeros(0)
+            norms_tp_obs = np.zeros(0)
+            norms_tp_pred = np.zeros(0)
             f_dice = np.zeros(0)
 
         spans_fp = derive_complementary(spans_pred, inds_pred)
@@ -376,15 +378,17 @@ class PeakManager:
 
         return PeakStore(
             spans_obs, spans_pred, spans_inter, inds_obs, inds_pred,
-            errors_tp, norms_tp, f_dice, spans_fp, errors_fp, norms_fp
+            errors_tp, norms_tp_obs, norms_tp_pred, f_dice,
+            spans_fp, errors_fp, norms_fp
         )
 
     def compute_loss(self, i_segment, peak_store):
         freq = self.freq_data[i_segment]
         if len(peak_store.spans_inter) > 0:
             loss_tp = self.transform(peak_store.errors_tp) \
-                  - peak_store.f_dice*self.transform(peak_store.norms_tp)
-            loss_tp = np.minimum(loss_tp, 0.)
+                  - peak_store.f_dice*self.transform(peak_store.norms_tp_obs)
+            cond = peak_store.norms_tp_pred < peak_store.norms_tp_obs
+            loss_tp[cond] = np.minimum(loss_tp[cond], 0)
         else:
             loss_tp = np.zeros(0)
 
@@ -589,7 +593,8 @@ class PeakStore:
     inds_inter_obs: np.ndarray = field(default_factory=partial(np.zeros, 0))
     inds_inter_pred: np.ndarray = field(default_factory=partial(np.zeros, 0))
     errors_tp: np.ndarray = field(default_factory=partial(np.zeros, 0))
-    norms_tp: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    norms_tp_obs: np.ndarray = field(default_factory=partial(np.zeros, 0))
+    norms_tp_pred: np.ndarray = field(default_factory=partial(np.zeros, 0))
     f_dice: np.ndarray = field(default_factory=partial(np.zeros, 0))
     spans_fp: np.ndarray = field(default_factory=partial(np.zeros, (0, 2)))
     errors_fp: np.ndarray = field(default_factory=partial(np.zeros, 0))
