@@ -1,19 +1,14 @@
 molecules:
   - CO
   - CS
-  - CCS
-  - CCCS
   - H2CO
   - H2CCO
   - H2S
   - H2CS
   - HCOOH
   - HCO+
-  - HCS+
-  - HOC+
   - OCS
   - HCN
-  - HCCN
   - HCCCN
   - HCCCCCN
   - HNC
@@ -23,7 +18,6 @@ molecules:
   - c-C2H4O
   - CH3OH
   - CH3CHO
-  - CH3CCH
   - CH3OCHO
   - CH3OCH3
   - CH3CN
@@ -31,12 +25,10 @@ molecules:
   - C2H5CN
   - C2H5OH
   - CH3COCH3
-  - CH3NH2
   - HC(O)NH2
   - NH3
   - SO
   - SO2
-  - SiO
 elements: null
 base_only: False
 iso_mode: "combined"
