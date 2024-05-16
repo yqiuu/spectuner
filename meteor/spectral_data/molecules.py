@@ -33,37 +33,23 @@ def select_molecules(freq_data, ElowMin, ElowMax, molecules,
     if exclude_list is not None:
         exclude_list_.extend(exclude_list)
 
+    mol_names = prepare_mol_names(
+        freq_data, ElowMin, ElowMax,
+        iso_order, sort_mode, include_hyper, exclude_list_
+    )
+    normal_dict = group_by_normal_form(mol_names, molecules, elements, iso_mode, rename_dict_)
+    mol_list, master_name_dict = replace_with_master_name(normal_dict, base_only)
+
+    # prepare include_dict
     normal_dict_list = []
-    for freq in freq_data:
-        normal_dict_list.append(group_by_normal_form(
-            FreqMin=freq[0],
-            FreqMax=freq[-1],
-            ElowMin=ElowMin,
-            ElowMax=ElowMax,
-            moleclues=molecules,
-            elements=elements,
-            iso_mode=iso_mode,
-            iso_order=iso_order,
-            sort_mode=sort_mode,
-            include_hyper=include_hyper,
-            exclude_list=exclude_list_,
-            rename_dict=rename_dict_
-        ))
-
-    # Merge all normal dict from different segment
-    normal_dict_all = defaultdict(list)
-    for normal_dict in normal_dict_list:
-        for key, name_list in normal_dict.items():
-            normal_dict_all[key].extend(name_list)
-    # Remove duplicated moleclues in the normal dict
-    for key in list(normal_dict_all.keys()):
-        tmp = list(set(normal_dict_all[key]))
-        tmp.sort()
-        normal_dict_all[key] = tmp
-
-    mol_list, master_name_dict \
-        = replace_with_master_name(normal_dict_all, base_only)
-
+    for freqs in freq_data:
+        mol_names = prepare_mol_names(
+            [freqs], ElowMin, ElowMax,
+            iso_order, sort_mode, include_hyper, exclude_list_
+        )
+        normal_dict_list.append(
+            group_by_normal_form(mol_names, molecules, elements, iso_mode, rename_dict_)
+        )
     incldue_dict = defaultdict(lambda: [[] for _ in range(len(freq_data))])
     for i_segment, normal_dict in enumerate(normal_dict_list):
         for name, iso_list in normal_dict.items():
@@ -75,22 +61,7 @@ def select_molecules(freq_data, ElowMin, ElowMax, molecules,
     return mol_list, incldue_dict
 
 
-def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
-                         moleclues, elements, iso_mode, iso_order,
-                         sort_mode, include_hyper,
-                         exclude_list, rename_dict):
-    if exclude_list is None:
-        exclude_list = []
-    if rename_dict is None:
-        rename_dict = {}
-
-    contents = task_ListDatabase.ListDatabase(
-        FreqMin, FreqMax, ElowMin, ElowMax,
-        SelectMolecule=[], OutputDevice="quiet"
-    )
-
-    mol_names = choose_version(contents, exclude_list, sort_mode, include_hyper)
-    mol_names = exclude_isotopes(mol_names, iso_order)
+def group_by_normal_form(mol_names, moleclues, elements, iso_mode, rename_dict):
     mol_data = derive_mol_data(mol_names, rename_dict)
 
     if moleclues is not None:
@@ -120,6 +91,21 @@ def group_by_normal_form(FreqMin, FreqMax, ElowMin, ElowMax,
             continue
 
     return normal_dict
+
+
+def prepare_mol_names(freq_data, E_low_min, E_low_max,
+                      iso_order=1, sort_mode="largest",
+                      include_hyper=False, exclude_list=None):
+    contents = []
+    for freqs in freq_data:
+        contents.extend(task_ListDatabase.ListDatabase(
+            freqs[0], freqs[-1], E_low_min, E_low_max,
+            SelectMolecule=[], OutputDevice="quiet"
+        ))
+
+    mol_names = choose_version(contents, exclude_list, sort_mode, include_hyper)
+    mol_names = exclude_isotopes(mol_names, iso_order)
+    return mol_names
 
 
 def choose_version(contents, exclude_list, sort_mode, include_hyper):
