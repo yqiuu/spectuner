@@ -1,5 +1,6 @@
 import pickle
 import shutil
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from multiprocessing import Pool
@@ -23,6 +24,9 @@ __all__ = ["run_combine"]
 
 
 def run_combine(config, parent_dir, need_identify=True):
+    config = deepcopy(config)
+    config["opt"]["n_cycle_dim"] = 0
+
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(config["files"], T_back)
 
@@ -31,7 +35,6 @@ def run_combine(config, parent_dir, need_identify=True):
     pool = Pool(config_opt["n_process"])
     prominence = config["peak_manager"]["prominence"]
     rel_height = config["peak_manager"]["rel_height"]
-
     #
     parent_dir = Path(parent_dir)
     single_dir = parent_dir/"single"
