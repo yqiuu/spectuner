@@ -198,10 +198,7 @@ class SpectralPlot:
         )
 
     def plot_unknown_lines(self, ident_result, y_min, y_max, color="grey", linestyle="-"):
-        freqs = []
-        for freq, names in zip(ident_result.line_table.freq, ident_result.line_table.name):
-            if names is None:
-                freqs.append(freq)
+        freqs = ident_result.get_unknown_lines()
         self.vlines(freqs, y_min, y_max, colors=color, linestyles=linestyle)
 
     def plot_spec(self, freq_list, spec_list, *args, color="C0", **kwargs):

@@ -304,3 +304,11 @@ class IdentResult:
         if key is not None and name is not None:
             return self.T_single_dict[key][name]
         return sum_T_single_data(self.T_single_dict, self.T_back, key)
+
+    def get_unknown_lines(self):
+        freqs = []
+        for freq, names in zip(self.line_table.freq, self.line_table.name):
+            if names is None:
+                freqs.append(freq)
+        freqs = np.asarray(freqs)
+        return freqs
