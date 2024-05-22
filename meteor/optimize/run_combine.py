@@ -3,11 +3,10 @@ import shutil
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from multiprocessing import Pool
 
 import numpy as np
 
-from .optimize import optimize
+from .optimize import optimize, create_pool
 from ..utils import load_pred_data
 from ..preprocess import load_preprocess, get_freq_data
 from ..xclass_wrapper import combine_mol_stores
@@ -24,45 +23,44 @@ __all__ = ["run_combine"]
 
 
 def run_combine(config, parent_dir, need_identify=True):
-    config = deepcopy(config)
-    config["opt"]["n_cycle_dim"] = 0
+    with create_pool(config["opt"]["n_process"], config["opt"]["use_mpi"]) as pool:
+        config = deepcopy(config)
+        config["opt"]["n_cycle_dim"] = 0
 
-    T_back = config["sl_model"].get("tBack", 0.)
-    obs_data = load_preprocess(config["files"], T_back)
+        T_back = config["sl_model"].get("tBack", 0.)
+        obs_data = load_preprocess(config["files"], T_back)
+        config_slm = config["sl_model"]
 
-    config_opt = config["opt"]
-    config_slm = config["sl_model"]
-    pool = Pool(config_opt["n_process"])
-    prominence = config["peak_manager"]["prominence"]
-    rel_height = config["peak_manager"]["rel_height"]
-    #
-    parent_dir = Path(parent_dir)
-    single_dir = parent_dir/"single"
-    save_dir = parent_dir/"combine"
-    save_dir.mkdir(exist_ok=True)
+        prominence = config["peak_manager"]["prominence"]
+        rel_height = config["peak_manager"]["rel_height"]
+        #
+        parent_dir = Path(parent_dir)
+        single_dir = parent_dir/"single"
+        save_dir = parent_dir/"combine"
+        save_dir.mkdir(exist_ok=True)
 
-    pred_data_list = load_pred_data(single_dir.glob("*.pickle"), reset_id=True)
-    if len(pred_data_list) == 0:
-        raise ValueError("Cannot find any individual fitting results.")
-    pred_data_list.sort(key=lambda item: item["cost_best"])
+        pred_data_list = load_pred_data(single_dir.glob("*.pickle"), reset_id=True)
+        if len(pred_data_list) == 0:
+            raise ValueError("Cannot find any individual fitting results.")
+        pred_data_list.sort(key=lambda item: item["cost_best"])
 
-    pack_list = []
-    for pred_data in pred_data_list:
-        pack_list.append(prepare_properties(
-            pred_data, config_slm, T_back, prominence, rel_height, need_filter=False))
+        pack_list = []
+        for pred_data in pred_data_list:
+            pack_list.append(prepare_properties(
+                pred_data, config_slm, T_back, prominence, rel_height, need_filter=False))
 
-    fname_base = config.get("fname_base", None)
-    if fname_base is not None:
-        base_data = pickle.load(open(fname_base, "rb"))
-        pack_base = prepare_properties(
-            base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
-    else:
-        pack_base = None
+        fname_base = config.get("fname_base", None)
+        if fname_base is not None:
+            base_data = pickle.load(open(fname_base, "rb"))
+            pack_base = prepare_properties(
+                base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
+        else:
+            pack_base = None
 
-    combine_greedy(
-        pack_list, pack_base, obs_data, config, pool, save_dir,
-        force_merge=False
-    )
+        combine_greedy(
+            pack_list, pack_base, obs_data, config, pool, save_dir,
+            force_merge=False
+        )
 
     if need_identify:
         save_name = save_dir/Path("combine.pickle")

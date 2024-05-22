@@ -1,3 +1,5 @@
+from multiprocessing import Pool
+
 import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 from tqdm import trange
@@ -82,6 +84,14 @@ def optimize(model, config_opt, pool):
     if config_opt.get("save_T_target", False):
         ret_dict["T_target"] = model.T_obs_data
     return ret_dict
+
+
+def create_pool(n_process, use_mpi):
+    if use_mpi:
+        from mpi4py.futures import MPIPoolExecutor
+        return MPIPoolExecutor(n_process)
+    else:
+        return Pool(n_process)
 
 
 def prepare_pred_data(model, pos):
