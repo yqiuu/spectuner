@@ -180,21 +180,9 @@ def derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_ex
 
     spans_data_new = []
     for spans in spans_obs_data:
-        spans_data_new.append(remove_spans(spans, freqs_exclude))
+        spans_new = np.delete(spans, match_spans(spans, freqs_exclude))
+        spans_data_new.append(spans_new)
     return freq_data, T_obs_data, spans_data_new
-
-
-def remove_spans(spans, freqs_exclude):
-    i_span, i_freq = 0, 0
-    inds_remove = []
-    while i_span < len(spans) and i_freq < len(freqs_exclude):
-        lower, upper = spans[i_span]
-        if (freqs_exclude[i_freq] >= lower) and (freqs_exclude[i_freq] < upper):
-            inds_remove.append(i_span)
-            i_span += 1
-        else:
-            i_freq += 1
-    return np.delete(spans, inds_remove, axis=0)
 
 
 def derive_blending_list(obs_data, pred_data_list, T_back, prominence, rel_height):
@@ -312,6 +300,31 @@ def derive_peak_params(prominence, T_back, n_segment):
         prom_list = prominence
     height_list = [T_back + prominence for prominence in prom_list]
     return height_list, prom_list
+
+
+def match_spans(spans, freqs):
+    i_span, i_freq = 0, 0
+    inds = []
+    while i_span < len(spans) and i_freq < len(freqs):
+        lower, upper = spans[i_span]
+        if (freqs[i_freq] >= lower) and (freqs[i_freq] < upper):
+            inds.append(i_span)
+            i_span += 1
+        else:
+            i_freq += 1
+    return inds
+
+
+def create_spans(freqs, v_min, v_max):
+    """Create spans using minimum and maximum velocities."""
+    freqs_min = compute_shift(freqs, v_min)
+    freqs_max = compute_shift(freqs, v_max)
+    return np.vstack([freqs_min, freqs_max]).T
+
+
+def compute_shift(freq, vel):
+    c = 3e5 # speed of light [km/s]
+    return freq*(1 + vel/c)
 
 
 @np.vectorize

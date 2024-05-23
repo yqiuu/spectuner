@@ -3,19 +3,22 @@ import warnings
 from collections import defaultdict
 from copy import deepcopy
 
+import numpy as np
 try:
     from xclass import task_ListDatabase
 except ImportError:
     warnings.warn("XCLASS is not installed.")
 
 from .atoms import MolecularDecomposer
+from ..identify import create_spans, compute_shift
 
 
-def select_molecules(freq_data, ElowMin, ElowMax,
-                     spans=None, molecules=None, elements=None,
-                     base_only=False, iso_mode="combined", iso_order=1,
-                     sort_mode="largest", include_hyper=False,
-                     exclude_list=None, rename_dict=None):
+def query_molecules(freq_data, ElowMin, ElowMax,
+                    v_LSR=0., freqs_include=None, v_range=None,
+                    molecules=None, elements=None,
+                    base_only=False, iso_mode="combined", iso_order=1,
+                    sort_mode="largest", include_hyper=False,
+                    exclude_list=None, rename_dict=None):
     rename_dict_ = {
         "NH2CN": "H2NCN",
         "H2CCHCN-15": "CH2CHCN-15",
@@ -33,10 +36,8 @@ def select_molecules(freq_data, ElowMin, ElowMax,
     if exclude_list is not None:
         exclude_list_.extend(exclude_list)
 
-    if spans is None:
-        spans = freq_data
     mol_names = prepare_mol_names(
-        spans, ElowMin, ElowMax,
+        freq_data, ElowMin, ElowMax, v_LSR, freqs_include, v_range,
         iso_order, sort_mode, include_hyper, exclude_list_
     )
     normal_dict = group_by_normal_form(mol_names, molecules, elements, iso_mode, rename_dict_)
@@ -46,7 +47,7 @@ def select_molecules(freq_data, ElowMin, ElowMax,
     normal_dict_list = []
     for freqs in freq_data:
         mol_names = prepare_mol_names(
-            [freqs], ElowMin, ElowMax,
+            [freqs], ElowMin, ElowMax, v_LSR, freqs_include, v_range,
             iso_order, sort_mode, include_hyper, exclude_list_
         )
         normal_dict_list.append(
@@ -98,18 +99,36 @@ def group_by_normal_form(mol_names, moleclues, elements, iso_mode, rename_dict):
 
 
 def prepare_mol_names(freq_data, E_low_min, E_low_max,
+                      v_LSR=0., freqs_include=None, v_range=None,
                       iso_order=1, sort_mode="largest",
                       include_hyper=False, exclude_list=None):
     contents = []
     for freqs in freq_data:
+        freq_min = compute_shift(freqs[0], v_LSR)
+        freq_max = compute_shift(freqs[-1], v_LSR)
         contents.extend(task_ListDatabase.ListDatabase(
-            freqs[0], freqs[-1], E_low_min, E_low_max,
+            freq_min, freq_max, E_low_min, E_low_max,
             SelectMolecule=[], OutputDevice="quiet"
         ))
+    if freqs_include is not None:
+        contents = check_spans(
+            contents, compute_shift(freqs_include, v_LSR), v_range
+        )
 
     mol_names = choose_version(contents, exclude_list, sort_mode, include_hyper)
     mol_names = exclude_isotopes(mol_names, iso_order)
     return mol_names
+
+
+def check_spans(contents, freqs, v_range):
+    freqs_mol = np.array([float(line.split()[3]) for line in contents])
+    freqs_mol = np.sort(freqs_mol)
+    spans = create_spans(freqs_mol, *v_range)
+    inds = np.searchsorted(freqs, spans[:, 0])
+    cond = inds != len(freqs)
+    inds[~cond] = len(freqs) - 1
+    cond &= spans[:, 1] >= freqs[inds]
+    return [item for idx, item in enumerate(contents) if cond[idx]]
 
 
 def choose_version(contents, exclude_list, sort_mode, include_hyper):
