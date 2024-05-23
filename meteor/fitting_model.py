@@ -5,18 +5,21 @@ from .xclass_wrapper import derive_freq_range
 from .identify import PeakManager
 
 
-def create_fitting_model(obs_data, mol_store, config, config_opt, T_base_data):
+def create_fitting_model(obs_data, mol_store, config,
+                         config_opt, T_base_data, freqs_exclude):
     param_mgr = mol_store.create_parameter_manager(config)
     # TODO: better way to create bounds?
     bounds = param_mgr.derive_bounds(config_opt["bounds"])
     model = FittingModel(
-        obs_data, mol_store, bounds, config, T_base_data=T_base_data
+        obs_data, mol_store, bounds, config,
+        T_base_data=T_base_data, freqs_exclude=freqs_exclude
     )
     return model
 
 
 class FittingModel:
-    def __init__(self, obs_data, mol_store, bounds, config, T_base_data=None):
+    def __init__(self, obs_data, mol_store, bounds, config,
+                 T_base_data=None, freqs_exclude=None):
         self.mol_store = mol_store
         self.include_list = mol_store.include_list
         self.sl_model = mol_store.create_spectral_line_model(config)
@@ -27,7 +30,10 @@ class FittingModel:
         #
         loss_fn = config.get("loss_fn", "pm")
         if loss_fn == "pm":
-            self.loss_fn = PeakManager(obs_data, T_back, **config["peak_manager"])
+            self.loss_fn = PeakManager(
+                obs_data, T_back,
+                **config["peak_manager"], freqs_exclude=freqs_exclude
+            )
         elif loss_fn == "mse":
             self.loss_fn = MSE(obs_data)
         else:

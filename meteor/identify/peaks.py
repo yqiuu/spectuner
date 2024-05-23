@@ -164,7 +164,7 @@ def find_peaks_inters(x, height, prominence, rel_height):
     return spans_new, is_inter
 
 
-def derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height):
+def derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_exclude):
     freq_data = []
     T_obs_data = []
     spans_obs_data = []
@@ -175,12 +175,31 @@ def derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height):
         T_obs_data.append(T_obs)
         spans_obs = derive_peaks(freq, T_obs, height, prominence, rel_height)[0]
         spans_obs_data.append(spans_obs)
-    return freq_data, T_obs_data, spans_obs_data
+    if freqs_exclude is None:
+        return freq_data, T_obs_data, spans_obs_data
+
+    spans_data_new = []
+    for spans in spans_obs_data:
+        spans_data_new.append(remove_spans(spans, freqs_exclude))
+    return freq_data, T_obs_data, spans_data_new
+
+
+def remove_spans(spans, freqs_exclude):
+    i_span, i_freq = 0, 0
+    inds_remove = []
+    while i_span < len(spans) and i_freq < len(freqs_exclude):
+        lower, upper = spans[i_span]
+        if (freqs_exclude[i_freq] >= lower) and (freqs_exclude[i_freq] < upper):
+            inds_remove.append(i_span)
+            i_span += 1
+        else:
+            i_freq += 1
+    return np.delete(spans, inds_remove, axis=0)
 
 
 def derive_blending_list(obs_data, pred_data_list, T_back, prominence, rel_height):
     height = T_back + prominence
-    spans_obs_data = derive_peaks_obs_data(obs_data, height, prominence, rel_height)[-1]
+    spans_obs_data = derive_peaks_obs_data(obs_data, height, prominence, rel_height, None)[-1]
     spans_obs = np.vstack(spans_obs_data)
     spans_obs = spans_obs[np.argsort(spans_obs[:, 0])]
 
@@ -310,10 +329,11 @@ def linear_deacy(x, x_left, x_right, side, height):
 
 
 class PeakManager:
-    def __init__(self, obs_data, T_back, prominence, rel_height, pfactor=10., frac_cut=.05):
+    def __init__(self, obs_data, T_back, prominence, rel_height,
+                 pfactor=10., frac_cut=.05, freqs_exclude=None):
         height_list, prom_list = derive_peak_params(prominence, T_back, len(obs_data))
         self.freq_data, self.T_obs_data, self.spans_obs_data \
-            = derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height)
+            = derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_exclude)
 
         self.T_back = T_back
         self.height_list = height_list

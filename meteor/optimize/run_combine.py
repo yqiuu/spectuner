@@ -51,7 +51,8 @@ def run_combine(config, parent_dir, need_identify=True):
 
         fname_base = config.get("fname_base", None)
         if fname_base is not None:
-            base_data = pickle.load(open(fname_base, "rb"))
+            res = pickle.load(open(fname_base, "rb"))
+            base_data = res.get_T_pred()
             pack_base = prepare_properties(
                 base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
         else:

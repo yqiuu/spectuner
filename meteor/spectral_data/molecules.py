@@ -11,9 +11,9 @@ except ImportError:
 from .atoms import MolecularDecomposer
 
 
-def select_molecules(freq_data, ElowMin, ElowMax, molecules,
-                     elements=None, base_only=False,
-                     iso_mode="combined", iso_order=1,
+def select_molecules(freq_data, ElowMin, ElowMax,
+                     spans=None, molecules=None, elements=None,
+                     base_only=False, iso_mode="combined", iso_order=1,
                      sort_mode="largest", include_hyper=False,
                      exclude_list=None, rename_dict=None):
     rename_dict_ = {
@@ -33,8 +33,10 @@ def select_molecules(freq_data, ElowMin, ElowMax, molecules,
     if exclude_list is not None:
         exclude_list_.extend(exclude_list)
 
+    if spans is None:
+        spans = freq_data
     mol_names = prepare_mol_names(
-        freq_data, ElowMin, ElowMax,
+        spans, ElowMin, ElowMax,
         iso_order, sort_mode, include_hyper, exclude_list_
     )
     normal_dict = group_by_normal_form(mol_names, molecules, elements, iso_mode, rename_dict_)
@@ -53,6 +55,8 @@ def select_molecules(freq_data, ElowMin, ElowMax, molecules,
     incldue_dict = defaultdict(lambda: [[] for _ in range(len(freq_data))])
     for i_segment, normal_dict in enumerate(normal_dict_list):
         for name, iso_list in normal_dict.items():
+            if name not in master_name_dict:
+                continue
             master_name = master_name_dict[name]
             if master_name is not None:
                 incldue_dict[master_name][i_segment]= deepcopy(iso_list)

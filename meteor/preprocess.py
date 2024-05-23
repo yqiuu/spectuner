@@ -1,20 +1,6 @@
 import glob
-from copy import deepcopy
 
 import numpy as np
-
-from .spectral_data import select_molecules
-
-
-def load_preprocess_select(config):
-    file_spec = config["files"]
-    config_spec = deepcopy(config["species"])
-    T_back = config["sl_model"].get("tBack", 0.)
-    obs_data = load_preprocess(file_spec, T_back)
-    mol_list, include_dict = select_molecules(
-        get_freq_data(obs_data), **config_spec,
-    )
-    return obs_data, mol_list, include_dict
 
 
 def load_preprocess(file_spec, T_back):
