@@ -204,7 +204,7 @@ def prepare_properties(pred_data, config_slm, T_back_data,
             params=params,
             freq_data=freq_data,
             T_pred_data=T_pred_data,
-            T_back=T_back,
+            T_back=T_back_data,
             prominence=prominence,
             rel_height=rel_height
         )
