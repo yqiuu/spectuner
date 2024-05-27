@@ -7,10 +7,11 @@ bounds:
   v_LSR: [-10., 10.]
 n_process: 32
 use_mpi: False
+n_trail: 1
 n_cycle_min: 100
 n_cycle_max: 1000
 n_cycle_dim: 5
-n_stop: 20
+n_stop: 15
 tol_stop: 1.e-5
 kwargs_opt:
   nswarm: 32

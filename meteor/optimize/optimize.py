@@ -8,6 +8,13 @@ from ..xclass_wrapper import extract_line_frequency
 
 
 def optimize(model, config_opt, pool):
+    res_list = []
+    for _ in range(config_opt["n_trail"]):
+        res_list.append(optimize_sub(model, config_opt, pool))
+    return min(res_list, key=lambda x: x["cost_best"])
+
+
+def optimize_sub(model, config_opt, pool):
     opt_name = config_opt["optimizer"]
     if opt_name == "pso":
         cls_opt = ParticleSwarm
