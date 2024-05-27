@@ -343,7 +343,7 @@ def linear_deacy(x, x_left, x_right, side, height):
 
 class PeakManager:
     def __init__(self, obs_data, T_back, prominence, rel_height,
-                 pfactor=10., frac_cut=.05, freqs_exclude=None):
+                 alpha_tp=2., pfactor=None, frac_cut=.05, freqs_exclude=None):
         height_list, prom_list = derive_peak_params(prominence, T_back, len(obs_data))
         self.freq_data, self.T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_exclude)
@@ -352,6 +352,7 @@ class PeakManager:
         self.height_list = height_list
         self.prom_list = prom_list
         self.rel_height = rel_height
+        self.alpha_tp = alpha_tp
         self.pfactor = pfactor
         self.frac_cut = frac_cut
 
@@ -419,7 +420,7 @@ class PeakManager:
         freq = self.freq_data[i_segment]
         if len(peak_store.spans_inter) > 0:
             loss_tp = self.transform(peak_store.errors_tp) \
-                  - peak_store.f_dice*self.transform(peak_store.norms_tp_obs)
+                - self.alpha_tp*peak_store.f_dice*self.transform(peak_store.norms_tp_obs)
             cond = peak_store.norms_tp_pred < peak_store.norms_tp_obs
             loss_tp[cond] = np.minimum(loss_tp[cond], 0)
         else:
