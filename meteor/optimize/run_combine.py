@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .optimize import optimize, create_pool
+from .optimize import load_base_data, optimize, create_pool
 from ..utils import load_pred_data
 from ..preprocess import load_preprocess, get_freq_data
 from ..xclass_wrapper import combine_mol_stores
@@ -50,17 +50,16 @@ def run_combine(config, parent_dir, need_identify=True):
                 pred_data, config_slm, T_back, prominence, rel_height, need_filter=False))
 
         fname_base = config.get("fname_base", None)
+        T_base_data, freqs_exclude, * _ = load_base_data(fname_base)
         if fname_base is not None:
-            res = pickle.load(open(fname_base, "rb"))
-            base_data = res.get_T_pred()
             pack_base = prepare_properties(
-                base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
+                T_base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
         else:
             pack_base = None
 
         combine_greedy(
-            pack_list, pack_base, obs_data, config, pool, save_dir,
-            force_merge=False
+            pack_list, pack_base, obs_data, freqs_exclude, config,
+            pool, save_dir, force_merge=False
         )
 
     if need_identify:
@@ -69,7 +68,8 @@ def run_combine(config, parent_dir, need_identify=True):
         identify(config, parent_dir, "combine")
 
 
-def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force_merge):
+def combine_greedy(pack_list, pack_base, obs_data, freqs_exclude,
+                   config, pool, save_dir, force_merge):
     config_opt = config["opt"]
     T_back = config["sl_model"].get("tBack", 0.)
     prominence = config["peak_manager"]["prominence"]
@@ -94,7 +94,7 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
         spans_inter = derive_intersections(pack_curr.spans, pack.spans)[0]
         if len(spans_inter) > 0 and need_opt:
             res_dict = optimize_with_base(
-                pack, obs_data, pack_curr.T_pred_data, config, pool
+                pack, obs_data, pack_curr.T_pred_data, freqs_exclude, config, pool
             )
             params_new =  res_dict["params_best"]
             mol_store_new = pack.mol_store
@@ -162,7 +162,7 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
         save_name = save_dir/Path("{}_{}.pickle".format(item["id"], item["root"]))
         if idx < idx_restart:
             res_dict = optimize_with_base(
-                pack, obs_data, pack_curr.T_pred_data, config, pool
+                pack, obs_data, pack_curr.T_pred_data, freqs_exclude, config, pool
             )
             pickle.dump(res_dict, open(save_name, "wb"))
         else:
@@ -181,11 +181,13 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir, force
     return pack_curr
 
 
-def prepare_properties(pred_data, config_slm, T_back, prominence, rel_height, need_filter):
+def prepare_properties(pred_data, config_slm, T_back_data,
+                       prominence, rel_height, need_filter):
     mol_store = pred_data["mol_store"]
     params = pred_data["params_best"]
     T_pred_data = pred_data["T_pred"]
-    height_list, prom_list = derive_peak_params(prominence, T_back, len(T_pred_data))
+    height_list, prom_list \
+        = derive_peak_params(prominence, T_back_data, len(T_pred_data))
     freq_data = pred_data["freq"]
     spans_pred = derive_peaks_multi(
         freq_data=freq_data,
@@ -212,10 +214,10 @@ def prepare_properties(pred_data, config_slm, T_back, prominence, rel_height, ne
     return Pack(mol_store_new, params_new, T_pred_data, spans_pred)
 
 
-def optimize_with_base(pack, obs_data, T_base, config, pool):
+def optimize_with_base(pack, obs_data, T_base_data, freqs_exclude, config, pool):
     config_opt = config["opt"]
     model = create_fitting_model(
-        obs_data, pack.mol_store, config, config_opt, T_base
+        obs_data, pack.mol_store, config, config_opt, T_base_data, freqs_exclude
     )
     initial_pos = derive_initial_pos(
         pack.params, model.bounds, config_opt["kwargs_opt"]["nswarm"],
