@@ -1,6 +1,5 @@
 import pickle
 from pathlib import Path
-from copy import deepcopy
 
 import numpy as np
 
@@ -8,7 +7,7 @@ from .optimize import load_base_data, optimize, create_pool
 from ..preprocess import load_preprocess, get_freq_data
 from ..spectral_data import query_molecules
 from ..xclass_wrapper import MoleculeStore
-from ..identify import create_spans, PeakManager
+from ..identify import PeakManager
 from ..identify.identify import identify
 from ..fitting_model import create_fitting_model
 
