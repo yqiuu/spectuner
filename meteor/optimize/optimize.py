@@ -1,3 +1,5 @@
+import pickle
+from copy import deepcopy
 from multiprocessing import Pool
 
 import numpy as np
@@ -5,6 +7,7 @@ from swing import ParticleSwarm, ArtificialBeeColony
 from tqdm import trange
 
 from ..xclass_wrapper import extract_line_frequency
+from ..identify import create_spans
 
 
 def optimize(model, config_opt, pool):
@@ -115,6 +118,35 @@ def prepare_pred_data(model, pos):
         else:
             trans_data_ret.append(extract_line_frequency(trans))
     return T_pred_data, trans_data_ret
+
+
+def load_base_data(fname):
+    id_offset = 0
+    T_base_data = None
+    freqs = None
+    spans = None
+    if fname is not None:
+        res = pickle.load(open(fname, "rb"))
+        T_base_data = res.get_T_pred()
+        freqs = res.get_unknown_lines()
+        spans = create_spans(freqs, *config["opt"]["bounds"]["v_LSR"])
+        config = deepcopy(config)
+        config_species = config["species"]
+        if config_species["exclude_list"] is None:
+            config_species["exclude_list"] = []
+        config_species["exclude_list"].extend(derive_exclude_list(res))
+        for key in res.mol_data:
+            id_offset = max(id_offset, key)
+        id_offset += 1
+    return T_base_data, freqs, spans, id_offset
+
+
+def derive_exclude_list(res):
+    exclude_list = []
+    for sub_dict in res.mol_data.values():
+        for key in sub_dict:
+            exclude_list.append(key)
+    return exclude_list
 
 
 def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
