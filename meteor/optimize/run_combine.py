@@ -72,10 +72,8 @@ def combine_greedy(pack_list, pack_base, obs_data, freqs_exclude,
                    config, pool, save_dir, force_merge):
     config_opt = config["opt"]
     T_back = config["sl_model"].get("tBack", 0.)
-    prominence = config["peak_manager"]["prominence"]
-    rel_height = config["peak_manager"]["rel_height"]
     freq_data = get_freq_data(obs_data)
-    peak_mgr = PeakManager(obs_data, T_back, prominence, rel_height)
+    peak_mgr = PeakManager(obs_data, T_back, **config["peak_manager"])
 
     if pack_base is None:
         pack_curr = pack_list[0]
@@ -84,28 +82,36 @@ def combine_greedy(pack_list, pack_base, obs_data, freqs_exclude,
     else:
         pack_curr = pack_base
         need_opt = False
-    is_include_list = []
+    cand_list = []
 
     for pack in pack_list:
         if pack.mol_store is None:
-            is_include_list.append(False)
             continue
 
-        spans_inter = derive_intersections(pack_curr.spans, pack.spans)[0]
-        if len(spans_inter) > 0 and need_opt:
+        if has_intersections(pack_curr.spans, pack.spans) and need_opt:
             res_dict = optimize_with_base(
-                pack, obs_data, pack_curr.T_pred_data, freqs_exclude, config, pool
+                pack, obs_data, pack_curr.T_pred_data, freqs_exclude, config, pool,
+                need_init=True, need_trail=False
             )
-            params_new =  res_dict["params_best"]
             mol_store_new = pack.mol_store
+            params_new = res_dict["params_best"]
+            T_pred_data_new = res_dict["T_pred"]
+            spans_new = derive_peaks_multi(
+                freq_data, T_pred_data_new,
+                peak_mgr.height_list, peak_mgr.prom_list, peak_mgr.rel_height
+            )[0]
+            pack_new = Pack(
+                mol_store_new, params_new, T_pred_data_new, spans_new
+            )
 
             # Save opt results
             item = pack.mol_store.mol_list[0]
-            save_name = save_dir/Path("tmp_{}_{}.pickle".format(item["id"], item["root"]))
+            save_name = save_dir/Path("tmp_{}_{}.pickle".format(item["root"], item["id"]))
             pickle.dump(res_dict, open(save_name, "wb"))
         else:
             params_new = pack.params
             mol_store_new = pack.mol_store
+            pack_new = pack
 
         # Merge results
         mol_store_combine, params_combine = combine_mol_stores(
@@ -126,58 +132,48 @@ def combine_greedy(pack_list, pack_base, obs_data, freqs_exclude,
         if force_merge or (score_new is not None and score_new > config_opt["score_cut"]):
             spans_combine = derive_peaks_multi(
                 freq_data, T_pred_data_combine,
-                peak_mgr.height_list, peak_mgr.prom_list, rel_height
+                peak_mgr.height_list, peak_mgr.prom_list, peak_mgr.rel_height
             )[0]
             pack_curr = Pack(
                 mol_store_combine, params_combine,
                 T_pred_data_combine, spans_combine
             )
             need_opt = True
-            is_include_list.append(True)
         else:
-            is_include_list.append(False)
+            cand_list.append(pack_new)
 
     # Save results
     save_dict = {
         "mol_store": pack_curr.mol_store,
-        "freq": get_freq_data(obs_data),
+        "freq": freq_data,
         "T_pred": pack_curr.T_pred_data,
         "params_best": pack_curr.params,
     }
     save_name = save_dir/Path("combine.pickle")
     pickle.dump(save_dict, open(save_name, "wb"))
 
-    # Derive restart index
-    idx_restart = 0
-    for idx, is_include in enumerate(is_include_list):
-        if is_include:
-            idx_restart = idx
-
     #
-    for idx, pack in enumerate(pack_list):
-        if is_include_list[idx] or pack.mol_store is None:
-            continue
-
+    for pack in enumerate(cand_list):
         item = pack.mol_store.mol_list[0]
-        save_name = save_dir/Path("{}_{}.pickle".format(item["id"], item["root"]))
-        if idx < idx_restart:
+        save_name = save_dir/Path("{}_{}.pickle".format(item["root"], item["id"]))
+        if has_intersections(pack_curr.spans, pack.spans):
             res_dict = optimize_with_base(
-                pack, obs_data, pack_curr.T_pred_data, freqs_exclude, config, pool
+                pack, obs_data, pack_curr.T_pred_data, freqs_exclude, config, pool,
+                need_init=False, need_trail=True
             )
             pickle.dump(res_dict, open(save_name, "wb"))
         else:
-            src_name = save_dir/Path("tmp_{}_{}.pickle".format(item["id"], item["root"]))
+            src_name = save_dir/Path("tmp_{}_{}.pickle".format(item["root"], item["id"]))
             if src_name.exists():
                 shutil.copy(src_name, save_name)
             else:
                 res_dict = {
                     "mol_store": pack.mol_store,
-                    "freq": get_freq_data(obs_data),
+                    "freq": freq_data,
                     "T_pred": pack.T_pred_data,
                     "params_best": pack.params,
                 }
                 pickle.dump(res_dict, open(save_name, "wb"))
-
     return pack_curr
 
 
@@ -214,15 +210,19 @@ def prepare_properties(pred_data, config_slm, T_back_data,
     return Pack(mol_store_new, params_new, T_pred_data, spans_pred)
 
 
-def optimize_with_base(pack, obs_data, T_base_data, freqs_exclude, config, pool):
-    config_opt = config["opt"]
+def optimize_with_base(pack, obs_data, T_base_data, freqs_exclude,
+                       config, pool, need_init, need_trail):
+    config_opt = deepcopy(config["opt"])
     model = create_fitting_model(
         obs_data, pack.mol_store, config, config_opt, T_base_data, freqs_exclude
     )
-    initial_pos = derive_initial_pos(
-        pack.params, model.bounds, config_opt["kwargs_opt"]["nswarm"],
-    )
-    config_opt["kwargs_opt"]["initial_pos"] = initial_pos
+    if need_init:
+        initial_pos = derive_initial_pos(
+            pack.params, model.bounds, config_opt["kwargs_opt"]["nswarm"],
+        )
+        config_opt["kwargs_opt"]["initial_pos"] = initial_pos
+    if not need_trail:
+        config_opt["n_trail"] = 1
     res_dict = optimize(model, config_opt, pool)
     return res_dict
 
@@ -234,6 +234,10 @@ def derive_initial_pos(params, bounds, n_swarm):
     initial_pos = lb + (ub - lb)*np.random.rand(n_swarm - 1, 1)
     initial_pos = np.vstack([params, initial_pos])
     return initial_pos
+
+
+def has_intersections(spans_a, spans_b):
+    return len(derive_intersections(spans_a, spans_b)[0]) > 0
 
 
 def get_save_dir(config):
