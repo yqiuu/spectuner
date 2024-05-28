@@ -58,8 +58,7 @@ def run_combine(config, parent_dir, need_identify=True):
             pack_base = None
 
         combine_greedy(
-            pack_list, pack_base, obs_data, freqs_exclude, config,
-            pool, save_dir, force_merge=False
+            pack_list, pack_base, obs_data, freqs_exclude, config, pool, save_dir
         )
 
     if need_identify:
@@ -69,7 +68,7 @@ def run_combine(config, parent_dir, need_identify=True):
 
 
 def combine_greedy(pack_list, pack_base, obs_data, freqs_exclude,
-                   config, pool, save_dir, force_merge):
+                   config, pool, save_dir):
     config_opt = config["opt"]
     T_back = config["sl_model"].get("tBack", 0.)
     freq_data = get_freq_data(obs_data)
@@ -124,12 +123,7 @@ def combine_greedy(pack_list, pack_base, obs_data, freqs_exclude,
 
         res = peak_mgr.identify(mol_store_combine, config, params_combine)
         id_new = mol_store_new.mol_list[0]["id"]
-        if id_new in res.mol_data:
-            score_new = res.get_aggregate_prop(id_new, "score")
-        else:
-            score_new = None
-
-        if force_merge or (score_new is not None and score_new > config_opt["score_cut"]):
+        if check_criteria(res, id_new, config_opt["criteria"]):
             spans_combine = derive_peaks_multi(
                 freq_data, T_pred_data_combine,
                 peak_mgr.height_list, peak_mgr.prom_list, peak_mgr.rel_height
@@ -153,7 +147,7 @@ def combine_greedy(pack_list, pack_base, obs_data, freqs_exclude,
     pickle.dump(save_dict, open(save_name, "wb"))
 
     #
-    for pack in enumerate(cand_list):
+    for pack in cand_list:
         item = pack.mol_store.mol_list[0]
         save_name = save_dir/Path("{}_{}.pickle".format(item["root"], item["id"]))
         if has_intersections(pack_curr.spans, pack.spans):
@@ -234,6 +228,25 @@ def derive_initial_pos(params, bounds, n_swarm):
     initial_pos = lb + (ub - lb)*np.random.rand(n_swarm - 1, 1)
     initial_pos = np.vstack([params, initial_pos])
     return initial_pos
+
+
+def check_criteria(res, id_mol, criteria):
+    max_order = get_max_order(criteria)
+    if id_mol in res.mol_data:
+        score_dict = {"score": res.get_aggregate_prop(id_mol, "score")}
+        score_dict.update(res.compute_tx_score(max_order)[id_mol])
+    else:
+        return False
+
+    for key, cut in criteria.items():
+        if score_dict[key] <= cut:
+            return False
+    return True
+
+
+def get_max_order(criteria):
+    key_list = [key for key in criteria if key.startswith("t")]
+    return max(int(key.split("_")[0][1:]) for key in key_list)
 
 
 def has_intersections(spans_a, spans_b):
