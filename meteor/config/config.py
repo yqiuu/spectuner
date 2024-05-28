@@ -1,9 +1,12 @@
 import yaml
 import shutil
+from copy import deepcopy
 from pathlib import Path
 
+import numpy as np
 
-__all__ = ["create_config", "load_config"]
+
+__all__ = ["create_config", "load_config", "append_freqs_exclude"]
 
 
 def create_config(dir="./"):
@@ -23,6 +26,8 @@ def create_config(dir="./"):
     for _, fname in iter_config_names():
         shutil.copy(template_dir/fname, target_dir)
 
+    open(target_dir/"freqs_exclude.dat", "w")
+
     tmp_dir = target_dir/'tmp'
     tmp_dir.mkdir(exist_ok=True)
 
@@ -38,6 +43,11 @@ def load_config(dir):
         raise ValueError("'rel_height' cannot be None.")
     for key, fname in iter_config_names():
         config[key] = yaml.safe_load(open(dir/fname))
+    if open(dir/"freqs_exclude.dat").read() == "":
+        config["peak_manager"]["freqs_exclude"] = np.zeros(0)
+    else:
+        config["peak_manager"]["freqs_exclude"] \
+            = np.loadtxt(dir/"freqs_exclude.dat")
     return config
 
 
@@ -49,3 +59,10 @@ def iter_config_names():
         "modify.yml"
     ]
     return zip(keys, file_names)
+
+
+def append_freqs_exclude(config, freqs_exclude):
+    config = deepcopy(config)
+    config["peak_manager"]["freqs_exclude"] \
+        = np.append(config["peak_manager"]["freqs_exclude"], freqs_exclude)
+    return config

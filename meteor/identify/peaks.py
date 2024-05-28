@@ -175,12 +175,12 @@ def derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_ex
         T_obs_data.append(T_obs)
         spans_obs = derive_peaks(freq, T_obs, height, prominence, rel_height)[0]
         spans_obs_data.append(spans_obs)
-    if freqs_exclude is None:
+    if len(freqs_exclude) == 0:
         return freq_data, T_obs_data, spans_obs_data
 
     spans_data_new = []
     for spans in spans_obs_data:
-        spans_new = np.delete(spans, match_spans(spans, freqs_exclude))
+        spans_new = spans[match_spans(spans, freqs_exclude)]
         spans_data_new.append(spans_new)
     return freq_data, T_obs_data, spans_data_new
 
@@ -303,16 +303,11 @@ def derive_peak_params(prominence, T_back, n_segment):
 
 
 def match_spans(spans, freqs):
-    i_span, i_freq = 0, 0
-    inds = []
-    while i_span < len(spans) and i_freq < len(freqs):
-        lower, upper = spans[i_span]
-        if (freqs[i_freq] >= lower) and (freqs[i_freq] < upper):
-            inds.append(i_span)
-            i_span += 1
-        else:
-            i_freq += 1
-    return inds
+    inds = np.searchsorted(freqs, spans[:, 0])
+    cond = inds != len(freqs)
+    inds[~cond] = len(freqs) - 1
+    cond &= spans[:, 1] >= freqs[inds]
+    return ~cond
 
 
 def create_spans(freqs, v_min, v_max):

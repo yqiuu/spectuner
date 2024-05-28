@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ..config import append_freqs_exclude
 from .optimize import load_base_data, optimize, create_pool
 from ..utils import load_pred_data
 from ..preprocess import load_preprocess, get_freq_data
@@ -51,6 +52,7 @@ def run_combine(config, parent_dir, need_identify=True):
 
         fname_base = config.get("fname_base", None)
         T_base_data, freqs_exclude, * _ = load_base_data(fname_base)
+        config = append_freqs_exclude(config, freqs_exclude)
         if fname_base is not None:
             pack_base = prepare_properties(
                 T_base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
@@ -58,7 +60,7 @@ def run_combine(config, parent_dir, need_identify=True):
             pack_base = None
 
         combine_greedy(
-            pack_list, pack_base, obs_data, freqs_exclude, config, pool, save_dir
+            pack_list, pack_base, obs_data, config, pool, save_dir
         )
 
     if need_identify:
@@ -67,8 +69,7 @@ def run_combine(config, parent_dir, need_identify=True):
         identify(config, parent_dir, "combine")
 
 
-def combine_greedy(pack_list, pack_base, obs_data, freqs_exclude,
-                   config, pool, save_dir):
+def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
     config_opt = config["opt"]
     T_back = config["sl_model"].get("tBack", 0.)
     freq_data = get_freq_data(obs_data)
@@ -89,7 +90,7 @@ def combine_greedy(pack_list, pack_base, obs_data, freqs_exclude,
 
         if has_intersections(pack_curr.spans, pack.spans) and need_opt:
             res_dict = optimize_with_base(
-                pack, obs_data, pack_curr.T_pred_data, freqs_exclude, config, pool,
+                pack, obs_data, pack_curr.T_pred_data, config, pool,
                 need_init=True, need_trail=False
             )
             mol_store_new = pack.mol_store
@@ -152,7 +153,7 @@ def combine_greedy(pack_list, pack_base, obs_data, freqs_exclude,
         save_name = save_dir/Path("{}_{}.pickle".format(item["root"], item["id"]))
         if has_intersections(pack_curr.spans, pack.spans):
             res_dict = optimize_with_base(
-                pack, obs_data, pack_curr.T_pred_data, freqs_exclude, config, pool,
+                pack, obs_data, pack_curr.T_pred_data, config, pool,
                 need_init=False, need_trail=True
             )
             pickle.dump(res_dict, open(save_name, "wb"))
@@ -204,11 +205,11 @@ def prepare_properties(pred_data, config_slm, T_back_data,
     return Pack(mol_store_new, params_new, T_pred_data, spans_pred)
 
 
-def optimize_with_base(pack, obs_data, T_base_data, freqs_exclude,
+def optimize_with_base(pack, obs_data, T_base_data,
                        config, pool, need_init, need_trail):
     config_opt = deepcopy(config["opt"])
     model = create_fitting_model(
-        obs_data, pack.mol_store, config, config_opt, T_base_data, freqs_exclude
+        obs_data, pack.mol_store, config, T_base_data
     )
     if need_init:
         initial_pos = derive_initial_pos(

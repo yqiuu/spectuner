@@ -123,8 +123,8 @@ def prepare_pred_data(model, pos):
 def load_base_data(fname):
     id_offset = 0
     T_base_data = None
-    freqs = None
-    spans = None
+    freqs = np.zeros(0)
+    spans = np.zeros((0, 2))
     if fname is not None:
         res = pickle.load(open(fname, "rb"))
         T_base_data = res.get_T_pred()
