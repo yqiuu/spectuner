@@ -17,4 +17,6 @@ kwargs_opt:
   nswarm: 32
 save_history: True
 save_all: True
-score_cut: 2.
+criteria:
+  score: 2.
+  t2_score: 0.8
