@@ -136,10 +136,11 @@ def choose_version(contents, exclude_list, sort_mode, include_hyper):
     for item in contents:
         counter[item.split()[0]] += 1
 
+    exclude_list = decompose_exclude_list(exclude_list)
     mol_dict = defaultdict(list)
     mol_dict_hyp = defaultdict(list)
     for name, num in counter.items():
-        if name in exclude_list:
+        if check_exclude_list(name, exclude_list):
             continue
         tmp = name.split(";")
         # Ingore spin states or A/E states
@@ -184,6 +185,35 @@ def choose_version(contents, exclude_list, sort_mode, include_hyper):
         mol_names.append(prefix + post_list[0][0])
     mol_names.sort()
     return mol_names
+
+
+def decompose_exclude_list(exclude_list):
+    """Decompose an exclude_lsit, e.g.
+
+    [CH3OH, HNCO;v=0, C2H3CN, H2C-13-CHCN;v=0;]
+    -> [[CH3OH, C2H3CN], [HNCO;v=0], [H2C-13-CHCN;v=0;]]
+    """
+    exclude_list_new = [[], [], []]
+    for name in exclude_list:
+        num = len(name.split(";"))
+        if num == 1:
+            exclude_list_new[0].append(name)
+        elif num == 2:
+            exclude_list_new[1].append(name)
+        else:
+            exclude_list_new[2].append(name)
+    return exclude_list_new
+
+
+def check_exclude_list(name, exclude_list):
+    tmp = name.split(";")
+    if tmp[0] in exclude_list[0]:
+        return True
+    if ";".join(tmp[:2]) in exclude_list[1]:
+        return True
+    if name in exclude_list[2]:
+        return True
+    return False
 
 
 def exclude_isotopes(mol_names, iso_order):
