@@ -25,12 +25,13 @@ peak_manager:
   prominence: [0.01, 0.02]
 ```
 4. Set `tBack` in `workspace/config.yml` to the background temperature if it is not zero.
-5. Set the range of the source size in `workspace/config_opt.yml` according to the telescope parameters. The numbers are in logarithmic scale by default. For example,
+5. Set `vLSR` in `workspace/config.yml` if the input spectra are not corrected to the rest frame.
+6. Set the range of the source size in `workspace/config_opt.yml` according to the telescope parameters. The numbers are in logarithmic scale by default. For example,
 ```
 bounds:
   theta: [0.7, 2.3]
 ```
-6. Set `n_process` in `workspace/config_opt.yml`. This is the number of processes and should be a multiple of `nswarm` and smaller than `nswarm`.
+7. Set `n_process` in `workspace/config_opt.yml`. This is the number of processes and should be a multiple of `nswarm` and smaller than `nswarm`.
 
 #### Optional setting
 1. Set `n_trail` in `workspace/config_opt.yml`. The code runs the optimizer `n_trail` times. Larger `n_trail` may lead to better results but longer runtime.
