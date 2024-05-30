@@ -175,7 +175,7 @@ def derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_ex
         T_obs_data.append(T_obs)
         spans_obs = derive_peaks(freq, T_obs, height, prominence, rel_height)[0]
         spans_obs_data.append(spans_obs)
-    if len(freqs_exclude) == 0:
+    if freqs_exclude is None or len(freqs_exclude) == 0:
         return freq_data, T_obs_data, spans_obs_data
 
     spans_data_new = []
