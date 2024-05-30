@@ -120,7 +120,7 @@ def prepare_pred_data(model, pos):
     return T_pred_data, trans_data_ret
 
 
-def load_base_data(fname):
+def load_base_data(fname, config):
     id_offset = 0
     T_base_data = None
     freqs = np.zeros(0)

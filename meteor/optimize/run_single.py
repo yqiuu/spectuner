@@ -18,7 +18,7 @@ __all__ = ["run_single", "select_molecules"]
 
 def run_single(config, parent_dir, need_identify=True):
     fname_base = config.get("fname_base", None)
-    T_base_data, freqs, spans, id_offset = load_base_data(fname_base)
+    T_base_data, freqs, spans, id_offset = load_base_data(fname_base, config)
     config = append_freqs_exclude(config, freqs)
 
     obs_data = load_preprocess_from_config(config)
