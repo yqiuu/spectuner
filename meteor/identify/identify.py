@@ -61,6 +61,7 @@ def identify_without_base(idn, dirname, config):
 
 
 def identify_with_base(idn, dirname, fname_base, config):
+    fname_base = fname_base.with_name(fname_base.name.replace("identify_", ""))
     data = pickle.load(open(fname_base, "rb"))
     mol_store_base = data["mol_store"]
     params_base = data["params_best"]
