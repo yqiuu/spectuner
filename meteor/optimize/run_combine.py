@@ -51,7 +51,7 @@ def run_combine(config, parent_dir, need_identify=True):
                 pred_data, config_slm, T_back, prominence, rel_height, need_filter=False))
 
         fname_base = config.get("fname_base", None)
-        T_base_data, freqs_exclude, * _ = load_base_data(fname_base)
+        T_base_data, freqs_exclude, *_ = load_base_data(fname_base, config)
         config = append_freqs_exclude(config, freqs_exclude)
         if fname_base is not None:
             pack_base = prepare_properties(
