@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 
-__all__ = ["create_config", "load_config", "append_freqs_exclude"]
+__all__ = ["create_config", "load_config", "append_exclude_info"]
 
 
 def create_config(dir="./"):
@@ -59,8 +59,13 @@ def iter_config_names():
     return zip(keys, file_names)
 
 
-def append_freqs_exclude(config, freqs_exclude):
+def append_exclude_info(config, freqs_exclude, exlude_list):
     config = deepcopy(config)
+    if config["peak_manager"]["freqs_exclude"] is None:
+        config["peak_manager"]["freqs_exclude"] = np.zeros(0)
     config["peak_manager"]["freqs_exclude"] \
         = np.append(config["peak_manager"]["freqs_exclude"], freqs_exclude)
+    if config["species"]["exclude_list"] is None:
+        config["species"]["exclude_list"] = []
+    config["species"]["exclude_list"].extend(exlude_list)
     return config

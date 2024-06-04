@@ -3,8 +3,8 @@ from pathlib import Path
 
 import numpy as np
 
-from .optimize import load_base_data, optimize, create_pool
-from ..config import append_freqs_exclude
+from .optimize import prepare_base_props, optimize, create_pool
+from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
 from ..spectral_data import query_molecules
 from ..xclass_wrapper import MoleculeStore
@@ -18,11 +18,15 @@ __all__ = ["run_single", "select_molecules"]
 
 def run_single(config, parent_dir, need_identify=True):
     fname_base = config.get("fname_base", None)
-    T_base_data, freqs, spans, id_offset = load_base_data(fname_base, config)
-    config = append_freqs_exclude(config, freqs)
+    base_props = prepare_base_props(fname_base, config)
+    config = append_exclude_info(
+        config, base_props["freqs_exclude"], base_props["exclude_list"]
+    )
 
     obs_data = load_preprocess_from_config(config)
-    mol_list, include_dict = select_molecules(obs_data, spans, config)
+    mol_list, include_dict = select_molecules(
+        obs_data, base_props["spans_exclude"], config
+    )
 
     save_dir = Path(parent_dir)/"single"
     save_dir.mkdir(exist_ok=True)
@@ -30,10 +34,10 @@ def run_single(config, parent_dir, need_identify=True):
     with create_pool(config["opt"]["n_process"], config["opt"]["use_mpi"]) as pool:
         for item in mol_list:
             name = item["root"]
-            item["id"] = item["id"] + id_offset
+            item["id"] = item["id"] + base_props["id_offset"]
             mol_store = MoleculeStore([item], include_dict[name])
             model = create_fitting_model(
-                obs_data, mol_store, config, T_base_data
+                obs_data, mol_store, config, base_props["T_base"]
             )
             ret_dict = optimize(model, config["opt"], pool)
             pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))

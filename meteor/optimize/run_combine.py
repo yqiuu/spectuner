@@ -6,8 +6,8 @@ from pathlib import Path
 
 import numpy as np
 
-from ..config import append_freqs_exclude
-from .optimize import load_base_data, optimize, create_pool
+from ..config import append_exclude_info
+from .optimize import prepare_base_props, optimize, create_pool
 from ..utils import load_pred_data
 from ..preprocess import load_preprocess, get_freq_data
 from ..xclass_wrapper import combine_mol_stores
@@ -51,11 +51,14 @@ def run_combine(config, parent_dir, need_identify=True):
                 pred_data, config_slm, T_back, prominence, rel_height, need_filter=False))
 
         fname_base = config.get("fname_base", None)
-        T_base_data, freqs_exclude, *_ = load_base_data(fname_base, config)
-        config = append_freqs_exclude(config, freqs_exclude)
         if fname_base is not None:
+            base_data = pickle.load(open(fname_base, "rb"))
+            base_props = prepare_base_props(fname_base, config)
+            config = append_exclude_info(
+                config, base_props["freqs_exclude"], base_props["exclude_list"]
+            )
             pack_base = prepare_properties(
-                T_base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
+                base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
         else:
             pack_base = None
 

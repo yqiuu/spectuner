@@ -1,5 +1,5 @@
 import pickle
-from copy import deepcopy
+from pathlib import Path
 from multiprocessing import Pool
 
 import numpy as np
@@ -120,33 +120,42 @@ def prepare_pred_data(model, pos):
     return T_pred_data, trans_data_ret
 
 
-def load_base_data(fname, config):
-    id_offset = 0
-    T_base_data = None
-    freqs = np.zeros(0)
-    spans = np.zeros((0, 2))
+def prepare_base_props(fname, config):
     if fname is not None:
+        fname = Path(fname)
+        fname = fname.with_name(f"identify_{fname.name}")
         res = pickle.load(open(fname, "rb"))
         T_base_data = res.get_T_pred()
-        freqs = res.get_unknown_lines()
+        freqs = res.get_identified_lines()
         spans = create_spans(freqs, *config["opt"]["bounds"]["v_LSR"])
-        config = deepcopy(config)
-        config_species = config["species"]
-        if config_species["exclude_list"] is None:
-            config_species["exclude_list"] = []
-        config_species["exclude_list"].extend(derive_exclude_list(res))
+        exclude_list = derive_exclude_list(res)
+
+        id_offset = 0
         for key in res.mol_data:
             id_offset = max(id_offset, key)
         id_offset += 1
-    return T_base_data, freqs, spans, id_offset
+    else:
+        T_base_data = None
+        freqs = np.zeros(0)
+        spans = np.zeros((0, 2))
+        exclude_list = []
+        id_offset = 0
+
+    return {
+        "T_base": T_base_data,
+        "freqs_exclude": freqs,
+        "spans_exclude": spans,
+        "exclude_list": exclude_list,
+        "id_offset": id_offset
+    }
 
 
 def derive_exclude_list(res):
-    exclude_list = []
+    exclude_set = set()
     for sub_dict in res.mol_data.values():
         for key in sub_dict:
-            exclude_list.append(key)
-    return exclude_list
+            exclude_set.add(key.split(";")[0])
+    return list(exclude_set)
 
 
 def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
