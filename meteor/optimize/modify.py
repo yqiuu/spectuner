@@ -1,4 +1,5 @@
 import pickle
+import re
 from pathlib import Path
 
 from ..xclass_wrapper import combine_mol_stores
@@ -62,10 +63,10 @@ def modify(config, parent_dir):
 def load_data_list(target_dir, include_id_list):
     data_list = []
     for fname in target_dir.glob("*.pickle"):
-        key = str(fname.name).split("_")[0]
-        try:
-            key = int(key)
-        except:
+        match = re.search(r'_(\d+)\.pickle', str(fname))
+        if match:
+            key = int(match.group(1))
+        else:
             continue
         if key in include_id_list:
             data_list.append(pickle.load(open(fname, "rb")))
