@@ -229,8 +229,8 @@ class IdentResult:
         )
         return df
 
-    def derive_df_mol_master(self):
-        tx_score_dict = self.compute_tx_score(max_order=3)
+    def derive_df_mol_master(self, max_order=3):
+        tx_score_dict = self.compute_tx_score(max_order=max_order)
         data = []
         for key, sub_dict in self.mol_data.items():
             for cols in sub_dict.values():
