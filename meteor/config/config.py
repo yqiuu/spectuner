@@ -26,8 +26,6 @@ def create_config(dir="./"):
     for _, fname in iter_config_names():
         shutil.copy(template_dir/fname, target_dir)
 
-    open(target_dir/"freqs_exclude.dat", "w")
-
     tmp_dir = target_dir/'tmp'
     tmp_dir.mkdir(exist_ok=True)
 
@@ -43,11 +41,11 @@ def load_config(dir):
         raise ValueError("'rel_height' cannot be None.")
     for key, fname in iter_config_names():
         config[key] = yaml.safe_load(open(dir/fname))
-    if open(dir/"freqs_exclude.dat").read() == "":
+    if config["peak_manager"]["freqs_exclude"] is None:
         config["peak_manager"]["freqs_exclude"] = np.zeros(0)
     else:
         config["peak_manager"]["freqs_exclude"] \
-            = np.loadtxt(dir/"freqs_exclude.dat")
+            = np.loadtxt(config["peak_manager"]["freqs_exclude"])
     return config
 
 
