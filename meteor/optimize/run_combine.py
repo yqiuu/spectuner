@@ -40,7 +40,7 @@ def run_combine(config, parent_dir, need_identify=True):
         save_dir = parent_dir/"combine"
         save_dir.mkdir(exist_ok=True)
 
-        pred_data_list = load_pred_data(single_dir.glob("*.pickle"), reset_id=True)
+        pred_data_list = load_pred_data(single_dir.glob("*.pickle"), reset_id=False)
         if len(pred_data_list) == 0:
             raise ValueError("Cannot find any individual fitting results.")
         pred_data_list.sort(key=lambda item: item["cost_best"])
