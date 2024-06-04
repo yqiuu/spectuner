@@ -312,3 +312,11 @@ class IdentResult:
                 freqs.append(freq)
         freqs = np.asarray(freqs)
         return freqs
+
+    def get_identified_lines(self):
+        freqs = []
+        for freq, names in zip(self.line_table.freq, self.line_table.name):
+            if names is not None:
+                freqs.append(freq)
+        freqs = np.asarray(freqs)
+        return freqs
