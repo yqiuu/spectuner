@@ -65,6 +65,7 @@ class FittingModel:
         T_pred_data = []
         for i_segment, args in enumerate(iterator):
             T_pred = args[0]
+            T_pred = np.maximum(T_pred, self.T_back)
             T_base = self.T_base_data[i_segment]
             if T_base is not None:
                 T_pred = T_pred + T_base
