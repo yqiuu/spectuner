@@ -2,6 +2,7 @@ import pickle
 import re
 from pathlib import Path
 
+from ..utils import is_exclusive
 from ..xclass_wrapper import combine_mol_stores
 from ..identify.identify import identify
 
@@ -63,6 +64,8 @@ def modify(config, parent_dir):
 def load_data_list(target_dir, include_id_list):
     data_list = []
     for fname in target_dir.glob("*.pickle"):
+        if is_exclusive(fname):
+            continue
         match = re.search(r'_(\d+)\.pickle', str(fname))
         if match:
             key = int(match.group(1))
