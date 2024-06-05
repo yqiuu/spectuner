@@ -146,8 +146,8 @@ class SpectralPlot:
         return self._bounds
 
     def plot_T_pred(self, ident_result, y_min, y_max, key=None, name=None,
-                    color_spec="r", show_lines=True, offset_0=1.5,
-                    fontsize=12, T_base_data=None):
+                    show_lines=True, offset_0=1.5,
+                    fontsize=12, T_base_data=None, kwargs_spec=None):
         T_data = ident_result.get_T_pred(key, name)
         if T_base_data is not None:
             for i_segment, T_base in enumerate(T_base_data):
@@ -155,7 +155,9 @@ class SpectralPlot:
                     continue
                 T_data[i_segment] = T_data[i_segment] \
                     + T_base - ident_result.T_back
-        self.plot_spec(ident_result.freq_data, T_data, color=color_spec)
+        if kwargs_spec is None:
+            kwargs_spec = {}
+        self.plot_spec(ident_result.freq_data, T_data, **kwargs_spec)
 
         if not show_lines:
             return
