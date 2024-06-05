@@ -230,7 +230,7 @@ class SpectralPlot:
                 idx_b = 0
 
     def plot_names(self, freqs, name_list, y_min, y_max, key=None,
-                   color="k", color_blen="r", linestyles="--",
+                   color="k", color_blen="k", linestyles="--",
                    offset_0=1.5, frac=.95, fontsize=12):
         for freq_c, names in zip(freqs, name_list):
             if names is None or (key is not None and key not in names):
