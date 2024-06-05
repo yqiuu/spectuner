@@ -285,22 +285,25 @@ def replace_with_master_name(normal_dict, base_only):
 
 
 def select_master_name(name_list):
-    name_list_1 = tuple(filter(is_ground_state, name_list))
-    if len(name_list_1) == 1:
-        return name_list_1[0]
-    if len(name_list_1) > 1:
-        name_list_2 = tuple(filter(lambda name: not has_isotope(name), name_list_1))
-        if len(name_list_2) == 0:
-            return name_list_1[0]
-        if len(name_list_2) == 1:
-            return name_list_2[0]
-        if len(name_list_2) > 1:
-            name_list_3 = tuple(filter(lambda name: not is_hyper_state(name), name_list_2))
-            if len(name_list_3) == 0:
-                return name_list_2[0]
-            if len(name_list_3) == 1:
-                return name_list_3[0]
-            raise ValueError("Multiple master name", name_list_2)
+    def sort_key(name):
+        s = ""
+        if is_ground_state(name):
+            s += "0"
+        else:
+            s += "1"
+        if has_isotope(name):
+            s += "1"
+        else:
+            s += "0"
+        if is_hyper_state(name):
+            s += "1"
+        else:
+            s += "0"
+        return f"{s}{name}"
+
+    name_list_ = name_list.copy()
+    name_list_.sort(key=sort_key)
+    return name_list_[0]
 
 
 def count_iso_atoms(name):
