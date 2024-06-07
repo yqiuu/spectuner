@@ -38,9 +38,11 @@ def query_molecules(freq_data, ElowMin, ElowMax,
 
     mol_names = prepare_mol_names(
         freq_data, ElowMin, ElowMax, v_LSR, freqs_include, v_range,
-        iso_order, sort_mode, include_hyper, exclude_list_
+        iso_order, sort_mode, include_hyper
     )
-    normal_dict = group_by_normal_form(mol_names, molecules, elements, iso_mode, rename_dict_)
+    normal_dict = group_by_normal_form(
+        mol_names, molecules, elements, iso_mode, exclude_list_, rename_dict_
+    )
     mol_list, master_name_dict = replace_with_master_name(normal_dict, base_only)
 
     # prepare include_dict
@@ -48,11 +50,11 @@ def query_molecules(freq_data, ElowMin, ElowMax,
     for freqs in freq_data:
         mol_names = prepare_mol_names(
             [freqs], ElowMin, ElowMax, v_LSR, freqs_include, v_range,
-            iso_order, sort_mode, include_hyper, exclude_list_
+            iso_order, sort_mode, include_hyper
         )
-        normal_dict_list.append(
-            group_by_normal_form(mol_names, molecules, elements, iso_mode, rename_dict_)
-        )
+        normal_dict_list.append(group_by_normal_form(
+            mol_names, molecules, elements, iso_mode, exclude_list_, rename_dict_
+        ))
     incldue_dict = defaultdict(lambda: [[] for _ in range(len(freq_data))])
     for i_segment, normal_dict in enumerate(normal_dict_list):
         for name, iso_list in normal_dict.items():
@@ -66,12 +68,14 @@ def query_molecules(freq_data, ElowMin, ElowMax,
     return mol_list, incldue_dict
 
 
-def group_by_normal_form(mol_names, moleclues, elements, iso_mode, rename_dict):
+def group_by_normal_form(mol_names, moleclues, elements, iso_mode,
+                         exclude_list, rename_dict):
     mol_data = derive_mol_data(mol_names, rename_dict)
 
     if moleclues is not None:
-        fm_root_set, fm_set \
-            = list(zip(*[derive_normal_form(name, rename_dict)[:2] for name in moleclues]))
+        fm_set, fm_root_set \
+            = list(zip(*[derive_normal_formula(name, rename_dict) for name in moleclues]))
+    exclude_list = decompose_exclude_list(exclude_list, rename_dict)
 
     # Filter elements and molecules
     if elements is not None:
@@ -79,7 +83,10 @@ def group_by_normal_form(mol_names, moleclues, elements, iso_mode, rename_dict):
         if "H" in elements:
             elements.add("D")
     normal_dict = defaultdict(list)
-    for fm_root, fm, atom_set, mol in mol_data:
+    for fm_root, fm, mol_normal, atom_set, mol in mol_data:
+        if check_exclude_list(mol_normal, exclude_list):
+            continue
+
         if elements is not None and len(atom_set - elements) != 0:
             continue
 
@@ -100,8 +107,7 @@ def group_by_normal_form(mol_names, moleclues, elements, iso_mode, rename_dict):
 
 def prepare_mol_names(freq_data, E_low_min, E_low_max,
                       v_LSR=0., freqs_include=None, v_range=None,
-                      iso_order=1, sort_mode="largest",
-                      include_hyper=False, exclude_list=None):
+                      iso_order=1, sort_mode="largest", include_hyper=False):
     contents = []
     for freqs in freq_data:
         freq_min = compute_shift(freqs[0], v_LSR)
@@ -115,7 +121,7 @@ def prepare_mol_names(freq_data, E_low_min, E_low_max,
             contents, compute_shift(freqs_include, v_LSR), v_range
         )
 
-    mol_names = choose_version(contents, exclude_list, sort_mode, include_hyper)
+    mol_names = choose_version(contents, sort_mode, include_hyper)
     mol_names = exclude_isotopes(mol_names, iso_order)
     return mol_names
 
@@ -131,17 +137,14 @@ def check_spans(contents, freqs, v_range):
     return [item for idx, item in enumerate(contents) if cond[idx]]
 
 
-def choose_version(contents, exclude_list, sort_mode, include_hyper):
+def choose_version(contents, sort_mode, include_hyper):
     counter = defaultdict(int)
     for item in contents:
         counter[item.split()[0]] += 1
 
-    exclude_list = decompose_exclude_list(exclude_list)
     mol_dict = defaultdict(list)
     mol_dict_hyp = defaultdict(list)
     for name, num in counter.items():
-        if check_exclude_list(name, exclude_list):
-            continue
         tmp = name.split(";")
         # Ingore spin states or A/E states
         if tmp[-1].startswith("ortho") or tmp[-1].startswith("para") \
@@ -187,7 +190,7 @@ def choose_version(contents, exclude_list, sort_mode, include_hyper):
     return mol_names
 
 
-def decompose_exclude_list(exclude_list):
+def decompose_exclude_list(exclude_list, rename_dict):
     """Decompose an exclude_lsit, e.g.
 
     [CH3OH, HNCO;v=0, C2H3CN, H2C-13-CHCN;v=0;]
@@ -195,13 +198,14 @@ def decompose_exclude_list(exclude_list):
     """
     exclude_list_new = [[], [], []]
     for name in exclude_list:
-        num = len(name.split(";"))
+        mol_normal = derive_normal_formula(name, rename_dict)[2]
+        num = len(mol_normal.split(";"))
         if num == 1:
-            exclude_list_new[0].append(name)
+            exclude_list_new[0].append(mol_normal)
         elif num == 2:
-            exclude_list_new[1].append(name)
+            exclude_list_new[1].append(mol_normal)
         else:
-            exclude_list_new[2].append(name)
+            exclude_list_new[2].append(mol_normal)
     return exclude_list_new
 
 
@@ -223,13 +227,26 @@ def exclude_isotopes(mol_names, iso_order):
 def derive_mol_data(mol_list, rename_dict):
     mol_data = []
     for mol in mol_list:
-        name = mol.split(";")[0] # HCCCN;v=0; > HCCCN
-        fm_root, fm, atom_set = derive_normal_form(name, rename_dict)
-        mol_data.append((fm_root, fm, atom_set, mol))
+        fm, fm_root, mol_normal = derive_normal_formula(mol, rename_dict)
+        atom_set = derive_atom_set(fm_root)
+        mol_data.append((fm_root, fm, mol_normal, atom_set, mol))
     return mol_data
 
 
-def derive_normal_form(mol_name, rename_dict):
+def derive_normal_formula(mol_name, rename_dict):
+    """Expand and rename an input formula.
+
+    The function also checks isotopes in the formula.
+
+    Args:
+        mol_name (str): formula.
+        rename_dict (dict): Rename dictionary.
+
+    Returns:
+        fm (str): Normal formula.
+        fm_root (str): Normal formula with isotopes removed.
+        mol_normal (str): Molecule name replaced with normal formula.
+    """
     def expand(fm):
         """Expand formulae.
             HC3N > HCCCN
@@ -239,7 +256,8 @@ def derive_normal_form(mol_name, rename_dict):
             fm = fm.replace(pattern, pattern[:-1]*int(pattern[-1]))
         return fm
 
-    fm, *_ = mol_name.split(";")
+    tmp = mol_name.split(";")
+    fm = tmp[0]
     if fm in rename_dict:
         fm = rename_dict[fm]
 
@@ -251,11 +269,26 @@ def derive_normal_form(mol_name, rename_dict):
     #
     fm = expand(fm)
     fm_root = expand(fm_root)
+    tmp[0] = fm
+    mol_normal = ";".join(tmp)
+    return fm, fm_root, mol_normal
 
-    atom_dict = MolecularDecomposer(fm_root).ShatterFormula()
+
+def derive_atom_set(fm):
+    # Remove (Z-), E-, aGg-, AA-
+    fm_ = fm
+    for pattern in ["Z", "E", "GG", "GA", "AG", "AA", "G"]:
+        fm_ = fm_.replace(pattern, "")
+
+    atom_dict = MolecularDecomposer(fm_).ShatterFormula()
     atom_set = set(atom_dict.keys())
+    return atom_set
 
-    return fm_root, fm, atom_set
+
+def derive_normal_mol_name(mol_name, fm_normal):
+    tmp = mol_name.split(";")
+    tmp[0] = fm_normal
+    return ";".join(tmp)
 
 
 def replace_with_master_name(normal_dict, base_only):
