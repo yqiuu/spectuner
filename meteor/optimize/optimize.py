@@ -126,8 +126,10 @@ def prepare_base_props(fname, config):
         fname = fname.with_name(f"identify_{fname.name}")
         res = pickle.load(open(fname, "rb"))
         T_base_data = res.get_T_pred()
-        freqs = res.get_identified_lines()
-        spans = create_spans(freqs, *config["opt"]["bounds"]["v_LSR"])
+        freqs_exclude = res.get_identified_lines()
+        spans_include = create_spans(
+            res.get_unknown_lines(), *config["opt"]["bounds"]["v_LSR"]
+        )
         exclude_list = derive_exclude_list(res)
 
         id_offset = 0
@@ -136,15 +138,15 @@ def prepare_base_props(fname, config):
         id_offset += 1
     else:
         T_base_data = None
-        freqs = np.zeros(0)
-        spans = np.zeros((0, 2))
+        freqs_exclude = np.zeros(0)
+        spans_include = np.zeros((0, 2))
         exclude_list = []
         id_offset = 0
 
     return {
         "T_base": T_base_data,
-        "freqs_exclude": freqs,
-        "spans_exclude": spans,
+        "freqs_exclude": freqs_exclude,
+        "spans_include": spans_include,
         "exclude_list": exclude_list,
         "id_offset": id_offset
     }

@@ -25,7 +25,7 @@ def run_single(config, parent_dir, need_identify=True):
 
     obs_data = load_preprocess_from_config(config)
     mol_list, include_dict = select_molecules(
-        obs_data, base_props["spans_exclude"], config
+        obs_data, base_props["spans_include"], config
     )
 
     save_dir = Path(parent_dir)/"single"
