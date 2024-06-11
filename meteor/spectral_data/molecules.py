@@ -74,7 +74,7 @@ def group_by_normal_form(mol_names, moleclues, elements, iso_mode,
 
     if moleclues is not None:
         fm_set, fm_root_set \
-            = list(zip(*[derive_normal_formula(name, rename_dict) for name in moleclues]))
+            = list(zip(*[derive_normal_formula(name, rename_dict)[:2] for name in moleclues]))
     exclude_list = decompose_exclude_list(exclude_list, rename_dict)
 
     # Filter elements and molecules
