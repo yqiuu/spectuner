@@ -68,6 +68,7 @@ def run_combine(config, parent_dir, need_identify=True):
 
     if need_identify:
         save_name = save_dir/Path("combine.pickle")
+        config["peak_manager"]["freqs_exclude"] = np.zeros(0)
         identify(config, parent_dir, save_name)
         identify(config, parent_dir, "combine")
 
