@@ -54,7 +54,7 @@ def run_combine(config, parent_dir, need_identify=True):
         if fname_base is not None:
             base_data = pickle.load(open(fname_base, "rb"))
             base_props = prepare_base_props(fname_base, config)
-            config = append_exclude_info(
+            config_ = append_exclude_info(
                 config, base_props["freqs_exclude"], base_props["exclude_list"]
             )
             pack_base = prepare_properties(
@@ -63,12 +63,11 @@ def run_combine(config, parent_dir, need_identify=True):
             pack_base = None
 
         combine_greedy(
-            pack_list, pack_base, obs_data, config, pool, save_dir
+            pack_list, pack_base, obs_data, config_, pool, save_dir
         )
 
     if need_identify:
         save_name = save_dir/Path("combine.pickle")
-        config["peak_manager"]["freqs_exclude"] = np.zeros(0)
         identify(config, parent_dir, save_name)
         identify(config, parent_dir, "combine")
 
