@@ -60,6 +60,7 @@ def run_combine(config, parent_dir, need_identify=True):
             pack_base = prepare_properties(
                 base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
         else:
+            config_ = config
             pack_base = None
 
         combine_greedy(
