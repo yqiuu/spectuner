@@ -1,20 +1,27 @@
 from setuptools import setup, find_packages
 
 
+# Get version
+exec(open('meteor/version.py', 'r').read())
+
+#
+description = "A tool for automated spectral line identification."
+
 install_requires = [
     "numpy>=1.23",
     "scipy>=1.10",
     "pandas>=2.0",
+    "swing-opt",
 ]
 
-# Get version
-exec(open('meteor/version.py', 'r').read())
 #
 setup(
     name='meteor',
     version=__version__,
     author='Yisheng Qiu',
     author_email="hpc_yqiuu@163.com",
+    url="https://github.com/yqiuu/meteor",
+    description=description,
     install_requires=install_requires,
     packages=find_packages(),
     entry_points={
