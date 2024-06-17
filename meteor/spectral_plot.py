@@ -147,6 +147,7 @@ class SpectralPlot:
 
     def plot_T_pred(self, ident_result, y_min, y_max, key=None, name=None,
                     show_lines=True, offset_0=1.5,
+                    color="k", color_blen="r", color_fp="b",
                     fontsize=12, T_base_data=None, kwargs_spec=None):
         T_data = ident_result.get_T_pred(key, name)
         if T_base_data is not None:
@@ -167,12 +168,14 @@ class SpectralPlot:
                 ident_result.line_table.freq,
                 ident_result.line_table.name,
                 y_min, y_max,
+                color=color, color_blen=color_blen,
                 offset_0=offset_0, fontsize=fontsize
             )
             self.plot_names(
                 ident_result.line_table_fp.freq,
                 ident_result.line_table_fp.name,
-                y_min, y_max, color="b",
+                y_min, y_max,
+                color=color_fp, color_blen=color_fp,
                 offset_0=offset_0, fontsize=fontsize
             )
             return
@@ -189,13 +192,15 @@ class SpectralPlot:
         name_list = np.array(line_table.name, dtype=object)[inds]
         self.plot_names(
             spans, name_list, y_min, y_max,
+            color=color, color_blen=color_blen,
             offset_0=offset_0, fontsize=fontsize
         )
         inds = ident_result.filter_name_list(name_set, line_table_fp.name)
         spans = line_table_fp.freq[inds]
         name_list = np.array(line_table_fp.name, dtype=object)[inds]
         self.plot_names(
-            spans, name_list, y_min, y_max, color="b",
+            spans, name_list, y_min, y_max,
+            color=color_fp, color_blen=color_fp,
             offset_0=offset_0, fontsize=fontsize
         )
 
@@ -230,7 +235,7 @@ class SpectralPlot:
                 idx_b = 0
 
     def plot_names(self, freqs, name_list, y_min, y_max, key=None,
-                   color="k", color_blen="k", linestyles="--",
+                   color="k", color_blen="r", linestyles="--",
                    offset_0=1.5, frac=.95, fontsize=12):
         for freq_c, names in zip(freqs, name_list):
             if names is None or (key is not None and key not in names):
