@@ -69,8 +69,9 @@ def run_combine(config, parent_dir, need_identify=True):
 
     if need_identify:
         save_name = save_dir/Path("combine.pickle")
-        identify(config, parent_dir, save_name)
-        identify(config, parent_dir, "combine")
+        if save_name.exists():
+            identify(config, parent_dir, save_name)
+            identify(config, parent_dir, "combine")
 
 
 def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
@@ -80,8 +81,9 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
     peak_mgr = PeakManager(obs_data, T_back, **config["peak_manager"])
 
     if pack_base is None:
-        pack_curr = pack_list[0]
-        pack_list = pack_list[1:]
+        pack_curr, pack_list = derive_first_pack(pack_list, peak_mgr, config)
+        if pack_curr is None:
+            return
         need_opt = True
     else:
         pack_curr = pack_base
@@ -173,7 +175,6 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
                     "params_best": pack.params,
                 }
                 pickle.dump(res_dict, open(save_name, "wb"))
-    return pack_curr
 
 
 def prepare_properties(pred_data, config_slm, T_back_data,
@@ -207,6 +208,16 @@ def prepare_properties(pred_data, config_slm, T_back_data,
         mol_store_new = mol_store
         params_new = params
     return Pack(mol_store_new, params_new, T_pred_data, spans_pred)
+
+
+def derive_first_pack(pack_list, peak_mgr, config):
+    for i_pack in range(len(pack_list)):
+        pack = pack_list[i_pack]
+        res = peak_mgr.identify(pack.mol_store, config, pack.params)
+        key = pack.mol_store.mol_list[0]["id"]
+        if check_criteria(res, key, config["opt"]["criteria"]):
+            return pack, pack_list[i_pack+1:]
+    return None, None
 
 
 def optimize_with_base(pack, obs_data, T_base_data,
