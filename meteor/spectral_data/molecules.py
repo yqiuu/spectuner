@@ -18,7 +18,17 @@ def query_molecules(freq_data, ElowMin, ElowMax,
                     molecules=None, elements=None,
                     base_only=False, iso_mode="combined", iso_order=1,
                     sort_mode="largest", include_hyper=False,
-                    exclude_list=None, rename_dict=None):
+                    separate_all=False, exclude_list=None, rename_dict=None):
+    """Select possible molecules in the given frequency range.
+
+    Args:
+        iso_mode (str): The way to deal with isotoplogues and states.
+            - 'combine': Collect all possible isotoplogues and fit them jointly.
+            - 'separate': Collect all possible isotoplogues and fit them
+            separately.
+            - 'manual': Only collect isotoplogues given by ``molecules``.
+
+    """
     rename_dict_ = {
         "NH2CN": "H2NCN",
         "H2CCHCN-15": "CH2CHCN-15",
@@ -36,33 +46,60 @@ def query_molecules(freq_data, ElowMin, ElowMax,
     if exclude_list is not None:
         exclude_list_.extend(exclude_list)
 
+    if not separate_all:
+        mol_names = prepare_mol_names(
+            freq_data, ElowMin, ElowMax, v_LSR, freqs_include, v_range,
+            iso_order, sort_mode, include_hyper
+        )
+        normal_dict = group_by_normal_form(
+            mol_names, molecules, elements, iso_mode, exclude_list_, rename_dict_
+        )
+        mol_list, master_name_dict = replace_with_master_name(normal_dict, base_only)
+
+        # prepare include_dict
+        normal_dict_list = []
+        for freqs in freq_data:
+            mol_names = prepare_mol_names(
+                [freqs], ElowMin, ElowMax, v_LSR, freqs_include, v_range,
+                iso_order, sort_mode, include_hyper
+            )
+            normal_dict_list.append(group_by_normal_form(
+                mol_names, molecules, elements, iso_mode, exclude_list_, rename_dict_
+            ))
+        incldue_dict = defaultdict(lambda: [[] for _ in range(len(freq_data))])
+        for i_segment, normal_dict in enumerate(normal_dict_list):
+            for name, iso_list in normal_dict.items():
+                if name not in master_name_dict:
+                    continue
+                master_name = master_name_dict[name]
+                if master_name is not None:
+                    incldue_dict[master_name][i_segment]= deepcopy(iso_list)
+        incldue_dict = dict(incldue_dict)
+
+        return mol_list, incldue_dict
+
     mol_names = prepare_mol_names(
         freq_data, ElowMin, ElowMax, v_LSR, freqs_include, v_range,
         iso_order, sort_mode, include_hyper
     )
-    normal_dict = group_by_normal_form(
-        mol_names, molecules, elements, iso_mode, exclude_list_, rename_dict_
-    )
-    mol_list, master_name_dict = replace_with_master_name(normal_dict, base_only)
+    mol_names = filter_mol_names(mol_names, molecules, iso_mode, exclude_list_, rename_dict_)
+    mol_list = []
+    for idx, name in enumerate(mol_names):
+        mol_list.append({"id": idx, "root": name, "molecules": [name]})
 
     # prepare include_dict
-    normal_dict_list = []
+    mol_names_list = []
     for freqs in freq_data:
         mol_names = prepare_mol_names(
             [freqs], ElowMin, ElowMax, v_LSR, freqs_include, v_range,
             iso_order, sort_mode, include_hyper
         )
-        normal_dict_list.append(group_by_normal_form(
-            mol_names, molecules, elements, iso_mode, exclude_list_, rename_dict_
-        ))
+        mol_names = filter_mol_names(mol_names, molecules, iso_mode, exclude_list_, rename_dict_)
+        mol_names_list.append(mol_names)
     incldue_dict = defaultdict(lambda: [[] for _ in range(len(freq_data))])
-    for i_segment, normal_dict in enumerate(normal_dict_list):
-        for name, iso_list in normal_dict.items():
-            if name not in master_name_dict:
-                continue
-            master_name = master_name_dict[name]
-            if master_name is not None:
-                incldue_dict[master_name][i_segment]= deepcopy(iso_list)
+    for i_segment, mol_names in enumerate(mol_names_list):
+        for name in mol_names:
+            incldue_dict[name][i_segment].append(name)
     incldue_dict = dict(incldue_dict)
 
     return mol_list, incldue_dict
@@ -124,6 +161,26 @@ def prepare_mol_names(freq_data, E_low_min, E_low_max,
     mol_names = choose_version(contents, sort_mode, include_hyper)
     mol_names = exclude_isotopes(mol_names, iso_order)
     return mol_names
+
+
+def filter_mol_names(mol_names, moleclues, iso_mode, exclude_list, rename_dict):
+    if moleclues is not None:
+        fm_set, fm_root_set \
+            = list(zip(*[derive_normal_formula(name, rename_dict)[:2] for name in moleclues]))
+    mol_names_ret = []
+    for name in mol_names:
+        fm, fm_root, mol_normal = derive_normal_formula(name, rename_dict)
+        if check_exclude_list(mol_normal, exclude_list):
+            continue
+
+        if iso_mode == "manual" and (moleclues is None or fm in fm_set):
+            mol_names_ret.append(name)
+            continue
+
+        if iso_mode in ["combined", "separate"] and (moleclues is None or fm_root in fm_root_set):
+            mol_names_ret.append(name)
+            continue
+    return mol_names_ret
 
 
 def check_spans(contents, freqs, v_range):
