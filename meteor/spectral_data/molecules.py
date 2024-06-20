@@ -23,7 +23,7 @@ def query_molecules(freq_data, ElowMin, ElowMax,
         "NH2CN": "H2NCN",
         "H2CCHCN-15": "CH2CHCN-15",
         "C2H3CN": "CH2CHCN",
-        "C-13-H3C-13-H2C-13-N": "C2H5CN",
+        "C2H5CN": "CH3CH2CN"
     }
     if rename_dict is not None:
         rename_dict_.update(**rename_dict)
