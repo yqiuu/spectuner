@@ -40,6 +40,7 @@ class FittingModel:
             T_base_data = [T_base - T_back for T_base in T_base_data]
         self.T_base_data = T_base_data
         self.T_back = T_back
+        self.blob = config["opt"].get("blob", False)
 
     def _preprocess_spectra(self, obs_data):
         if isinstance(obs_data, list) or isinstance(obs_data, tuple):
@@ -56,7 +57,7 @@ class FittingModel:
             T_obs_data = [obs_data[:, 1]]
         else:
             raise ValueError("obs_data should be list, tuple or numpy array.")
-        return freq_range_data, freq_data, T_obs_data,
+        return freq_range_data, freq_data, T_obs_data
 
     def __call__(self, params):
         iterator = self.sl_model.call_multi(
@@ -70,7 +71,10 @@ class FittingModel:
             if T_base is not None:
                 T_pred = T_pred + T_base
             T_pred_data.append(T_pred)
-        return self.loss_fn(T_pred_data)
+        loss = self.loss_fn(T_pred_data)
+        if self.blob:
+            return loss, T_pred_data
+        return loss
 
     def call_func(self, params, remove_dir=True):
         T_pred_data = []

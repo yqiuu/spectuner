@@ -20,3 +20,4 @@ save_all: True
 criteria:
   score: 2.
   t2_score: 0.8
+blob: False

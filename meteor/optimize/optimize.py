@@ -14,7 +14,18 @@ def optimize(model, config_opt, pool):
     res_list = []
     for _ in range(config_opt["n_trail"]):
         res_list.append(optimize_sub(model, config_opt, pool))
-    return min(res_list, key=lambda x: x["cost_best"])
+    ret_dict = min(res_list, key=lambda x: x["cost_best"])
+    save_all = config_opt.get("save_all", False)
+    if save_all:
+        cost_all = np.concatenate([res["cost_all"] for res in res_list])
+        pos_all = np.vstack([res["pos_all"] for res in res_list])
+        blob = []
+        for res in res_list:
+            blob.extend(res["blob"])
+        ret_dict["cost_all"] = cost_all
+        ret_dict["pos_all"] = pos_all
+        ret_dict["blob"] = blob
+    return ret_dict
 
 
 def optimize_sub(model, config_opt, pool):
@@ -26,8 +37,9 @@ def optimize_sub(model, config_opt, pool):
     else:
         raise ValueError("Unknown optimizer: {}.".format(cls_opt))
     kwargs_opt = config_opt.get("kwargs_opt", {})
-    opt = cls_opt(model, model.bounds, pool=pool, **kwargs_opt)
+    blob = config_opt.get("blob", False)
     save_all = config_opt.get("save_all", False)
+    opt = cls_opt(model, model.bounds, pool=pool, blob=blob, **kwargs_opt)
 
     n_cycle_min = config_opt["n_cycle_min"] \
         + (len(model.bounds) - 5)*config_opt["n_cycle_dim"]
@@ -41,12 +53,15 @@ def optimize_sub(model, config_opt, pool):
 
     pos_all = []
     cost_all = []
+    blob = []
     n_stuck = 0
     for i_cycle in trange(n_cycle_max):
         for data in opt.swarm(niter=1, progress_bar=False).values():
             if save_all:
                 pos_all.append(data["pos"])
                 cost_all.append(data["cost"])
+                if data["blob"] is not None:
+                    blob.extend(data["blob"])
 
         if i_cycle > 1:
             rate = compute_rate(opt)
@@ -68,6 +83,8 @@ def optimize_sub(model, config_opt, pool):
         "mol_store": model.mol_store,
         "freq": model.freq_data,
         "T_pred": T_pred_data,
+        "T_base": model.T_base_data,
+        "T_back": model.T_back,
         "trans_dict": trans_data,
         "cost_best": opt.cost_global_best,
         "params_best": opt.pos_global_best,
@@ -91,6 +108,7 @@ def optimize_sub(model, config_opt, pool):
     if save_all:
         ret_dict["pos_all"] = pos_all
         ret_dict["cost_all"] = cost_all
+        ret_dict["blob"] = blob
     if config_opt.get("save_T_target", False):
         ret_dict["T_target"] = model.T_obs_data
     return ret_dict
