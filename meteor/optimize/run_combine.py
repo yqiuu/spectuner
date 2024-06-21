@@ -81,14 +81,14 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
     peak_mgr = PeakManager(obs_data, T_back, **config["peak_manager"])
 
     if pack_base is None:
-        pack_curr, pack_list = derive_first_pack(pack_list, peak_mgr, config)
+        pack_curr, pack_list, cand_list = derive_first_pack(pack_list, peak_mgr, config)
         if pack_curr is None:
             return
         need_opt = True
     else:
         pack_curr = pack_base
         need_opt = False
-    cand_list = []
+        cand_list = []
 
     for pack in pack_list:
         if pack.mol_store is None:
@@ -211,13 +211,16 @@ def prepare_properties(pred_data, config_slm, T_back_data,
 
 
 def derive_first_pack(pack_list, peak_mgr, config):
+    cand_list = []
     for i_pack in range(len(pack_list)):
         pack = pack_list[i_pack]
         res = peak_mgr.identify(pack.mol_store, config, pack.params)
         key = pack.mol_store.mol_list[0]["id"]
         if check_criteria(res, key, config["opt"]["criteria"]):
-            return pack, pack_list[i_pack+1:]
-    return None, None
+            return pack, pack_list[i_pack+1:], cand_list
+        else:
+            cand_list.append(pack)
+    return None, None, cand_list
 
 
 def optimize_with_base(pack, obs_data, T_base_data,
