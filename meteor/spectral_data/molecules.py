@@ -17,7 +17,7 @@ def query_molecules(freq_data, ElowMin, ElowMax,
                     v_LSR=0., freqs_include=None, v_range=None,
                     molecules=None, elements=None,
                     base_only=False, iso_mode="combined", iso_order=1,
-                    sort_mode="largest", include_hyper=False,
+                    sort_mode="default", include_hyper=False,
                     separate_all=False, exclude_list=None, rename_dict=None):
     """Select possible molecules in the given frequency range.
 
@@ -47,12 +47,12 @@ def query_molecules(freq_data, ElowMin, ElowMax,
         exclude_list_.extend(exclude_list)
 
     if not separate_all:
-        mol_names = prepare_mol_names(
+        mol_names_tot = prepare_mol_names(
             freq_data, ElowMin, ElowMax, v_LSR, freqs_include, v_range,
             iso_order, sort_mode, include_hyper
         )
         normal_dict = group_by_normal_form(
-            mol_names, molecules, elements, iso_mode, exclude_list_, rename_dict_
+            mol_names_tot, molecules, elements, iso_mode, exclude_list_, rename_dict_
         )
         mol_list, master_name_dict = replace_with_master_name(normal_dict, base_only)
 
@@ -61,7 +61,7 @@ def query_molecules(freq_data, ElowMin, ElowMax,
         for freqs in freq_data:
             mol_names = prepare_mol_names(
                 [freqs], ElowMin, ElowMax, v_LSR, freqs_include, v_range,
-                iso_order, sort_mode, include_hyper
+                iso_order, sort_mode, include_hyper, include_all=True
             )
             normal_dict_list.append(group_by_normal_form(
                 mol_names, molecules, elements, iso_mode, exclude_list_, rename_dict_
@@ -71,9 +71,13 @@ def query_molecules(freq_data, ElowMin, ElowMax,
             for name, iso_list in normal_dict.items():
                 if name not in master_name_dict:
                     continue
+                iso_list_new = []
+                for iso in iso_list:
+                    if iso in mol_names_tot:
+                        iso_list_new.append(iso)
                 master_name = master_name_dict[name]
                 if master_name is not None:
-                    incldue_dict[master_name][i_segment]= deepcopy(iso_list)
+                    incldue_dict[master_name][i_segment]= iso_list_new
         incldue_dict = dict(incldue_dict)
 
         return mol_list, incldue_dict
@@ -144,7 +148,8 @@ def group_by_normal_form(mol_names, moleclues, elements, iso_mode,
 
 def prepare_mol_names(freq_data, E_low_min, E_low_max,
                       v_LSR=0., freqs_include=None, v_range=None,
-                      iso_order=1, sort_mode="largest", include_hyper=False):
+                      iso_order=1, sort_mode="default",
+                      include_hyper=False, include_all=False):
     contents = []
     for freqs in freq_data:
         freq_min = compute_shift(freqs[0], v_LSR)
@@ -158,7 +163,7 @@ def prepare_mol_names(freq_data, E_low_min, E_low_max,
             contents, compute_shift(freqs_include, v_LSR), v_range
         )
 
-    mol_names = choose_version(contents, sort_mode, include_hyper)
+    mol_names = choose_version(contents, sort_mode, include_hyper, include_all)
     mol_names = exclude_isotopes(mol_names, iso_order)
     return mol_names
 
@@ -194,7 +199,7 @@ def check_spans(contents, freqs, v_range):
     return [item for idx, item in enumerate(contents) if cond[idx]]
 
 
-def choose_version(contents, sort_mode, include_hyper):
+def choose_version(contents, sort_mode, include_hyper, include_all):
     counter = defaultdict(int)
     for item in contents:
         counter[item.split()[0]] += 1
@@ -219,13 +224,23 @@ def choose_version(contents, sort_mode, include_hyper):
         else:
             mol_dict[";".join(tmp[:-1])].append((tmp[-1], num))
 
+    if include_all:
+        mol_names = []
+        for prefix, post_list in mol_dict.items():
+            for postfix in post_list:
+                mol_names.append(";".join([prefix, postfix[0]]))
+        for prefix, post_list in mol_dict_hyp.items():
+            for postfix in post_list:
+                mol_names.append(";".join([prefix, postfix[0]]))
+        return mol_names
+
     if sort_mode == "default":
         sort_key = lambda item: item[0]
         is_reversed = False
     elif sort_mode == "latest":
         sort_key = lambda item: item[0]
         is_reversed = True
-    elif sort_mode == "largest":
+    elif sort_mode == "most":
         sort_key = lambda item: item[1] + int(item[0].split("#")[-1] if "#" in item[0] else 0)
         is_reversed = True
     else:
