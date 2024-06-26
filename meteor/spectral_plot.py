@@ -51,7 +51,7 @@ class PeakPlot:
     def bounds(self):
         return self._bounds
 
-    def plot_spec(self, freq_list, spec_list, *args, apply_ylim=False, **kwargs):
+    def plot_spec(self, freq_list, spec_list, *args, ylim_factor=None, y_top_min=0., **kwargs):
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
@@ -65,8 +65,10 @@ class PeakPlot:
                     T_data = spec_list[i_segment][cond]
                     ax.plot(freq[cond], T_data, *args, **kwargs)
                     y_max = max(y_max, max(T_data))
-            if apply_ylim:
-                ax.set_ylim(-1e-2*y_max, top=1.5*y_max)
+            if ylim_factor is not None:
+                y_top = ylim_factor*y_max
+                y_top = max(y_top, y_top_min)
+                ax.set_ylim(-1e-2*y_max, y_top)
 
     def plot_prominence(self, freq_list, prom_list):
         for i_a, ax in enumerate(self._axes.flat):
