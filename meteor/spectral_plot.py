@@ -58,13 +58,13 @@ class PeakPlot:
 
             y_max = 0.
             lower, upper = self.bounds[i_a]
-            freq_c = .5*(lower + upper)
             for i_segment, freq in enumerate(freq_list):
-                if (freq_c >= freq[0]) & (freq_c <= freq[-1]):
-                    cond = (freq >= lower) & (freq <= upper)
-                    T_data = spec_list[i_segment][cond]
-                    ax.plot(freq[cond], T_data, *args, **kwargs)
-                    y_max = max(y_max, max(T_data))
+                cond = (freq >= lower) & (freq <= upper)
+                if np.count_nonzero(cond) == 0:
+                    continue
+                T_data = spec_list[i_segment][cond]
+                ax.plot(freq[cond], T_data, *args, **kwargs)
+                y_max = max(y_max, max(T_data))
             if ylim_factor is not None:
                 y_top = ylim_factor*y_max
                 y_top = max(y_top, y_top_min)
