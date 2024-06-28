@@ -257,6 +257,9 @@ class SpectralPlot:
                 self.axes[i_ax].plot(
                     freq[idx_b:idx_e], spec[idx_b:idx_e], *args, color=color, **kwargs
                 )
+                # Only use one label
+                if "label" in kwargs:
+                    kwargs["label"] = None
 
             if idx_e != len(freq):
                 i_ax += 1
