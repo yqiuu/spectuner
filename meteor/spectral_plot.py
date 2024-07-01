@@ -95,11 +95,15 @@ class PeakPlot:
 
 
 class SpectralPlot:
-    def __init__(self, freq_data, freq_per_row=1000., width=15., height=3., sharey=True):
+    def __init__(self, freq_data, freq_per_row=1000., width=15., height=3., axes=None):
         bounds = self._derive_bounds(freq_data, freq_per_row)
         n_axe = len(bounds)
-        fig, axes = plt.subplots(figsize=(width, n_axe*height), nrows=n_axe, sharey=sharey)
-        axes = np.ravel(axes)
+        if axes is None:
+            fig, axes = plt.subplots(figsize=(width, n_axe*height), nrows=n_axe,)
+            axes = np.ravel(axes)
+        else:
+            assert len(axes) == n_axe, f"Number of input axes must be equal to {n_axe}."
+            fig = None
         for i_ax, ax in enumerate(axes):
             ax.set_xlim(*bounds[i_ax])
 
@@ -150,8 +154,8 @@ class SpectralPlot:
         return idx
 
     @classmethod
-    def from_config(cls, config, freq_per_row=1000., width=15., height=3., sharey=True,
-                    color="k", **kwargs):
+    def from_config(cls, config, freq_per_row=1000., width=15., height=3.,
+                    axes=None, color="k", **kwargs):
         obs_data = [np.loadtxt(fname) for fname in config["files"]]
         freq_data = get_freq_data(obs_data)
         plot = cls(
@@ -159,7 +163,7 @@ class SpectralPlot:
             freq_per_row=freq_per_row,
             width=width,
             height=height,
-            sharey=sharey,
+            axes=axes,
         )
         plot.plot_spec(freq_data, get_T_data(obs_data), color=color, **kwargs)
         return plot
