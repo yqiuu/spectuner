@@ -429,3 +429,21 @@ def is_hyper_state(name):
 def has_isotope(name):
     pattern = r"-([0-9])([0-9])[-]?"
     return re.search(pattern, name) is not None or "D" in name
+
+
+def latex_mol_formula(name):
+    """Convert the input name into latex format."""
+    def replace_isotope(match):
+        element = match.group(1)
+        num = match.group(2)
+        return f"$^{{{num}}}${element}"
+
+    def replace_number(match):
+        element = match.group(1)
+        num = match.group(2)
+        return f"{element}$_{{{num}}}$"
+
+    name_ret = re.sub(r'([A-Z][a-z]?)-([0-9]+)-?', replace_isotope, name)
+    name_ret = re.sub(r'([A-Z][a-z]?)([0-9]+)', replace_number, name_ret)
+    name_ret = re.sub(r'(\([^)]+\))([0-9]+)', replace_number, name_ret)
+    return name_ret
