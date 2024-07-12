@@ -28,16 +28,13 @@ class FittingModel:
         loss_fn = config.get("loss_fn", "pm")
         if loss_fn == "pm":
             self.loss_fn = PeakManager(
-                obs_data, T_back, **config["peak_manager"]
+                obs_data, T_back, **config["peak_manager"],
+                T_base_data=T_base_data
             )
         elif loss_fn == "mse":
             self.loss_fn = MSE(obs_data)
         else:
             raise ValueError(f"Unknown loss function {loss_fn}.")
-        if T_base_data is None:
-            T_base_data = [None for _ in range(len(obs_data))]
-        else:
-            T_base_data = [T_base - T_back for T_base in T_base_data]
         self.T_base_data = T_base_data
         self.T_back = T_back
         self.blob = config["opt"].get("blob", False)
@@ -64,12 +61,9 @@ class FittingModel:
             self.freq_data, self.include_list, params, remove_dir=True
         )
         T_pred_data = []
-        for i_segment, args in enumerate(iterator):
+        for args in iterator:
             T_pred = args[0]
             T_pred = np.maximum(T_pred, self.T_back)
-            T_base = self.T_base_data[i_segment]
-            if T_base is not None:
-                T_pred = T_pred + T_base
             T_pred_data.append(T_pred)
         loss = self.loss_fn(T_pred_data)
         if self.blob:

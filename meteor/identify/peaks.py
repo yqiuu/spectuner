@@ -338,11 +338,15 @@ def linear_deacy(x, x_left, x_right, side, height):
 
 class PeakManager:
     def __init__(self, obs_data, T_back, prominence, rel_height,
-                 pfactor=None, frac_cut=.05, freqs_exclude=None):
+                 T_base_data=None, pfactor=None, frac_cut=.05, freqs_exclude=None):
         height_list, prom_list = derive_peak_params(prominence, T_back, len(obs_data))
-        self.freq_data, self.T_obs_data, self.spans_obs_data \
+        self.freq_data, T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_exclude)
-
+        if T_base_data is None:
+            self.T_obs_data = T_obs_data
+        else:
+            self.T_obs_data = [T_obs - T_base + T_back for T_obs, T_base
+                               in zip(T_obs_data, T_base_data)]
         self.T_back = T_back
         self.height_list = height_list
         self.prom_list = prom_list
