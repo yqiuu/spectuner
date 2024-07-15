@@ -117,6 +117,20 @@ class LineTable:
                 setattr(line_table_new, name, tmp)
         return line_table_new
 
+    def save_line_table(self, fname):
+        fp = open(fname, "w")
+        fp.write("# Line ID\n")
+        fp.write("# Frequency [MHz]\n")
+        fp.write("# Identified Species\n")
+        idx = 0
+        for freq, name_list in zip(self.freq, self.name):
+            if name_list is None:
+                continue
+            for name in name_list:
+                fp.write("{},{:.2f},{}\n".format(idx, freq, name))
+            idx += 1
+        fp.close()
+
 
 @dataclass
 class IdentResult:
