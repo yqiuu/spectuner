@@ -251,7 +251,7 @@ def derive_false_postive_props(freq, T_obs, T_pred, T_back, spans_fp, prominence
     iterator = enumerate(eval_spans(spans_fp, freq, T_obs, T_pred))
     for i_span, (x_eval, T_obs_eval, T_pred_eval) in iterator:
         err_a = np.trapz(np.maximum(0, T_pred_eval - T_obs_eval), x_eval)
-        err_b = np.trapz(np.maximum(0, T_pred_eval - T_back - prominence))
+        err_b = np.trapz(np.maximum(0, T_pred_eval - T_back - prominence), x_eval)
         errors[i_span] = min(err_a, err_b)
         norms[i_span] = np.trapz(T_pred_eval - T_back, x_eval)
     errors /= d_eval
