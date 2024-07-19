@@ -1,8 +1,5 @@
 from setuptools import setup, find_packages
-
-
-# Get version
-exec(open('meteor/version.py', 'r').read())
+from meteor.version import __version__
 
 #
 description = "A tool for automated spectral line identification."
