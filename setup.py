@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 from meteor.version import __version__
 
 #
-description = "A tool for automated spectral line identification."
+description = "A tool for automated line identification of interstellar molecules."
 
 install_requires = [
     "numpy>=1.23",
