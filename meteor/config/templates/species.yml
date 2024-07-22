@@ -34,7 +34,7 @@ ElowMin: 0.0
 ElowMax: 5000.
 elements: null
 base_only: False
-iso_mode: "combined"
+iso_mode: "separate"
 iso_order: 1
 sort_mode: "default"
 include_hyper: False
