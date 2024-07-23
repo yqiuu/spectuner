@@ -254,7 +254,7 @@ def check_criteria(res, id_mol, criteria):
     max_order = get_max_order(criteria)
     if id_mol in res.mol_data:
         score_dict = {"score": res.get_aggregate_prop(id_mol, "score")}
-        score_dict.update(res.compute_tx_score(max_order)[id_mol])
+        score_dict.update(res.compute_tx_score(max_order, use_id=True)[id_mol])
     else:
         return False
 
