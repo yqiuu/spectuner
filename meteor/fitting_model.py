@@ -65,9 +65,9 @@ class FittingModel:
             T_pred = args[0]
             T_pred = np.maximum(T_pred, self.T_back)
             T_pred_data.append(T_pred)
-        loss = self.loss_fn(T_pred_data)
+        loss, loss_pm = self.loss_fn(T_pred_data)
         if self.blob:
-            return loss, T_pred_data
+            return loss, loss_pm
         return loss
 
     def call_func(self, params, remove_dir=True):

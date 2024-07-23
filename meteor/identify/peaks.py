@@ -371,7 +371,7 @@ class PeakManager:
             loss_tp, loss_fp = self.compute_loss(i_segment, peak_store)
             loss_ex += np.sum(loss_tp) + np.sum(loss_fp)
 
-        return loss_delta + loss_ex
+        return loss_delta + loss_ex, loss_ex
 
     def create_peak_store(self, i_segment, T_pred):
         freq = self.freq_data[i_segment]
