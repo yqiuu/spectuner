@@ -230,11 +230,12 @@ class IdentResult:
 
         return stats_dict
 
-    def derive_df_mol(self):
+    def derive_df_mol(self, max_order=3):
+        tx_score_dict = self.compute_tx_score(max_order, use_id=False)
         data = []
         for key, sub_dict in self.mol_data.items():
             for name, cols in sub_dict.items():
-                data.append({"id": key, "name": name, **cols})
+                data.append({"id": key, "name": name, **cols, **tx_score_dict[name]})
         df = pd.DataFrame.from_dict(data)
         df.sort_values(
             ["id", "num_tp_i", "score"],
@@ -244,7 +245,7 @@ class IdentResult:
         return df
 
     def derive_df_mol_master(self, max_order=3):
-        tx_score_dict = self.compute_tx_score(max_order=max_order)
+        tx_score_dict = self.compute_tx_score(max_order, use_id=True)
         data = []
         for key, sub_dict in self.mol_data.items():
             for cols in sub_dict.values():
@@ -260,22 +261,33 @@ class IdentResult:
         df.sort_values("id")
         return df
 
-    def compute_tx_score(self, max_order):
+    def compute_tx_score(self, max_order, use_id):
         def compute(score_list, order):
             if len(score_list) < order:
                 return 0.
             return score_list[order - 1]
 
         score_list_dict = defaultdict(list)
-        iterator = zip(self.line_table.id, self.line_table.score, self.line_table.frac)
+        if use_id:
+            line_table_key = self.line_table.id
+        else:
+            line_table_key = self.line_table.name
+        iterator = zip(line_table_key, self.line_table.score, self.line_table.frac)
         for id_list, score, frac in iterator:
             if id_list is None:
                 continue
             for key, score_sub in zip(id_list, score*frac):
                 score_list_dict[key].append(score_sub)
 
+        if use_id:
+            key_list = self.mol_data.keys()
+        else:
+            key_list = set()
+            for sub_dict in self.mol_data.values():
+                key_list.update(sub_dict.keys())
+
         score_dict = {}
-        for key in self.mol_data:
+        for key in key_list:
             if key in score_list_dict:
                 score_list = score_list_dict[key]
                 score_list.sort(reverse=True)
