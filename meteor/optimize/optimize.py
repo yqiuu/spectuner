@@ -83,6 +83,7 @@ def optimize_sub(model, config_opt, pool):
         "mol_store": model.mol_store,
         "freq": model.freq_data,
         "T_pred": T_pred_data,
+        "T_obs": model.T_obs_data,
         "T_base": model.T_base_data,
         "T_back": model.T_back,
         "trans_dict": trans_data,
@@ -109,8 +110,6 @@ def optimize_sub(model, config_opt, pool):
         ret_dict["pos_all"] = pos_all
         ret_dict["cost_all"] = cost_all
         ret_dict["blob"] = blob
-    if config_opt.get("save_T_target", False):
-        ret_dict["T_target"] = model.T_obs_data
     return ret_dict
 
 
