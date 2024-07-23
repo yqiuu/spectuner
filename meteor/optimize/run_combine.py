@@ -24,7 +24,8 @@ __all__ = ["run_combine"]
 
 
 def run_combine(config, parent_dir, need_identify=True):
-    with create_pool(config["opt"]["n_process"], config["opt"]["use_mpi"]) as pool:
+    use_mpi = config["opt"].get("use_mpi", False)
+    with create_pool(config["opt"]["n_process"], use_mpi) as pool:
         config = deepcopy(config)
         config["opt"]["n_cycle_dim"] = 0
 

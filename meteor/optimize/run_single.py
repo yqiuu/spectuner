@@ -31,7 +31,8 @@ def run_single(config, parent_dir, need_identify=True):
     save_dir = Path(parent_dir)/"single"
     save_dir.mkdir(exist_ok=True)
 
-    with create_pool(config["opt"]["n_process"], config["opt"]["use_mpi"]) as pool:
+    use_mpi = config["opt"].get("use_mpi", False)
+    with create_pool(config["opt"]["n_process"], use_mpi) as pool:
         for item in mol_list:
             name = item["root"]
             item["id"] = item["id"] + base_props["id_offset"]

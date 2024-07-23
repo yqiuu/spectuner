@@ -50,9 +50,8 @@ def load_config(dir):
 
 
 def iter_config_names():
-    keys = ["opt", "species", "modify"]
+    keys = ["species", "modify"]
     file_names = [
-        "config_opt.yml",
         "species.yml",
         "modify.yml"
     ]

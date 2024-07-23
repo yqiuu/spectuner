@@ -44,3 +44,26 @@ peak_manager:
   prominence: null
   rel_height: 0.25
   freqs_exclude: null
+opt:
+  optimizer: "pso"
+  bounds:
+    theta: [0.7, 2.3]
+    T_ex: [10., 400.]
+    N_tot: [12., 20.]
+    delta_v: [0., 1.5]
+    v_LSR: [-10., 10.]
+  n_process: 32
+  n_trail: 1
+  n_cycle_min: 100
+  n_cycle_max: 1000
+  n_cycle_dim: 5
+  n_stop: 15
+  tol_stop: 1.e-5
+  kwargs_opt:
+    nswarm: 32
+  save_history: True
+  save_all: True
+  criteria:
+    score: 2.7
+    t3_score: 0.8
+  blob: False
