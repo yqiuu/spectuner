@@ -185,23 +185,6 @@ def derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_ex
     return freq_data, T_obs_data, spans_data_new
 
 
-def derive_blending_list(obs_data, pred_data_list, T_back, prominence, rel_height):
-    height = T_back + prominence
-    spans_obs_data = derive_peaks_obs_data(obs_data, height, prominence, rel_height, None)[-1]
-    spans_obs = np.vstack(spans_obs_data)
-    spans_obs = spans_obs[np.argsort(spans_obs[:, 0])]
-
-    blending_list = []
-    for i_pred, pred_data in enumerate(pred_data_list):
-        spans_pred = derive_peaks_multi(
-            pred_data["freq"], pred_data["T_pred"], height, prominence, rel_height)[0]
-        inds_obs = set(derive_intersections(spans_obs, spans_pred)[1])
-        blending_list.append((i_pred, inds_obs))
-    blending_list.sort(key=lambda item: -len(item[1]))
-
-    return blending_list
-
-
 def compute_contributions(values, T_back):
     """Compute the contributions of each blending peaks.
 
