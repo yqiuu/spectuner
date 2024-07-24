@@ -6,3 +6,4 @@ from .preprocess import *
 from .config import *
 from .spectral_plot import *
 from .xclass_wrapper import *
+from .utils import *
