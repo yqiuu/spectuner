@@ -10,12 +10,18 @@ from ..identify.identify import identify
 __all__ = ["modify"]
 
 
-def modify(config, parent_dir):
+def modify(config, result_dir):
+    """Modify a combined result.
+
+    Args:
+        config (dict): Config.
+        result_dir (str): Directory of all fitting result.
+    """
     config_modify = config["modify"]
     exclude_id_list = config_modify["exclude_id_list"]
     exclude_name_set = set(config_modify["exclude_name_list"])
 
-    save_dir = Path(parent_dir)/"combine"
+    save_dir = Path(result_dir)/"combine"
     save_name = save_dir/Path("combine_final.pickle")
     data_combine = pickle.load(open(save_dir/Path("combine.pickle"), "rb"))
     freq_data = data_combine["freq"]
@@ -58,7 +64,7 @@ def modify(config, parent_dir):
     }
     pickle.dump(save_dict, open(save_name, "wb"))
 
-    identify(config, parent_dir, save_name)
+    identify(config, result_dir, save_name)
 
 
 def load_data_list(target_dir, include_id_list):
