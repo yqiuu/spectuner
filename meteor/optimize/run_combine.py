@@ -23,7 +23,15 @@ from ..fitting_model import create_fitting_model
 __all__ = ["run_combine"]
 
 
-def run_combine(config, parent_dir, need_identify=True):
+def run_combine(config, result_dir, need_identify=True):
+    """Combine all individual fitting results.
+
+    Args:
+        config (dict): Config.
+        result_dir (str): Directory to save results. This should be the same
+        directory to save the results of the individual fitting.
+        need_identify (bool):  If ``True``, peform the identification.
+    """
     use_mpi = config["opt"].get("use_mpi", False)
     with create_pool(config["opt"]["n_process"], use_mpi) as pool:
         config = deepcopy(config)
@@ -36,9 +44,9 @@ def run_combine(config, parent_dir, need_identify=True):
         prominence = config["peak_manager"]["prominence"]
         rel_height = config["peak_manager"]["rel_height"]
         #
-        parent_dir = Path(parent_dir)
-        single_dir = parent_dir/"single"
-        save_dir = parent_dir/"combine"
+        result_dir = Path(result_dir)
+        single_dir = result_dir/"single"
+        save_dir = result_dir/"combine"
         save_dir.mkdir(exist_ok=True)
 
         pred_data_list = load_pred_data(single_dir.glob("*.pickle"), reset_id=False)
@@ -71,8 +79,8 @@ def run_combine(config, parent_dir, need_identify=True):
     if need_identify:
         save_name = save_dir/Path("combine.pickle")
         if save_name.exists():
-            identify(config, parent_dir, save_name)
-            identify(config, parent_dir, "combine")
+            identify(config, result_dir, save_name)
+            identify(config, result_dir, "combine")
 
 
 def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
