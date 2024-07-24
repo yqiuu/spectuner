@@ -1,0 +1,15 @@
+molecules:
+  - OCS
+  - CH3OCHO
+  - CH3COCH3
+ElowMin: 0.0
+ElowMax: 5000.
+elements: null
+base_only: False
+iso_mode: "manual"
+iso_order: 1
+sort_mode: "default"
+include_hyper: False
+separate_all: False
+exclude_list: null
+rename_dict: null
