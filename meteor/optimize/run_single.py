@@ -16,7 +16,14 @@ from ..fitting_model import create_fitting_model
 __all__ = ["run_single", "select_molecules"]
 
 
-def run_single(config, parent_dir, need_identify=True):
+def run_single(config, result_dir, need_identify=True):
+    """Run the individual fitting phase.
+
+    Args:
+        config (dict): Config.
+        result_dir (str): Directory to save the results.
+        need_identify (bool): If ``True``, peform the identification.
+    """
     fname_base = config.get("fname_base", None)
     base_props = prepare_base_props(fname_base, config)
     config = append_exclude_info(
@@ -28,7 +35,7 @@ def run_single(config, parent_dir, need_identify=True):
         obs_data, base_props["spans_include"], config
     )
 
-    save_dir = Path(parent_dir)/"single"
+    save_dir = Path(result_dir)/"single"
     save_dir.mkdir(exist_ok=True)
 
     use_mpi = config["opt"].get("use_mpi", False)
@@ -44,7 +51,7 @@ def run_single(config, parent_dir, need_identify=True):
             pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
 
         if need_identify:
-            identify(config, parent_dir, "single")
+            identify(config, result_dir, "single")
 
 
 def select_molecules(obs_data, spans, config):
