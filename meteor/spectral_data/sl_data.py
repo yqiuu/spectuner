@@ -1,4 +1,5 @@
 import sqlite3
+from collections import defaultdict
 
 import numpy as np
 
@@ -36,6 +37,39 @@ class SpectralLineDatabase:
             data_ret[col] = np.concatenate(data_ret[col])
         data_ret[self.name_q_t] = self._data[key][self.name_q_t]
         return data_ret
+
+    def load_all_data(self):
+        conn = sqlite3.connect(self.fname)
+        cursor = conn.cursor()
+
+        query = "select T_Name, T_Frequency, T_EinsteinA, T_EnergyLower, "\
+            "T_UpperStateDegeneracy from transitions"
+        data = defaultdict(lambda: {key: [] for key in self.cols})
+        for line in cursor.execute(query):
+            sub_dict = data[line[0]]
+            sub_dict["freq"].append(line[1])
+            sub_dict["A_ul"].append(line[2])
+            sub_dict["E_low"].append(line[3])
+            sub_dict["g_u"].append(line[4])
+
+        for sub_dict in data.values():
+            freq = np.asarray(sub_dict["freq"])
+            inds = np.argsort(freq)
+            sub_dict.update(
+                freq=freq[inds],
+                A_ul=np.asarray(sub_dict["A_ul"])[inds],
+                E_low=np.asarray(sub_dict["E_low"])[inds]*1.438769, # Convert cm^-1 to K
+                g_u=np.asarray(sub_dict["g_u"])[inds]
+            )
+
+        query = "select * from partitionfunctions"
+        for line in cursor.execute(query):
+            data[line[0]][self.name_q_t] = np.asarray(line[5:-6])
+
+        cursor.close()
+        conn.close()
+
+        self._data = dict(data)
 
     def _load_data(self, key):
         if key in self._data:
