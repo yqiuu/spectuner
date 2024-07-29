@@ -21,6 +21,9 @@ setup(
     description=description,
     install_requires=install_requires,
     packages=find_packages(),
+    package_data={
+        'meteor': ['config/templates/*.yml'],
+    },
     entry_points={
         'console_scripts': [
             "meteor-config=meteor.scripts:exec_config",
