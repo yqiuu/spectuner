@@ -92,7 +92,8 @@ class SpectralLineDatabase:
 
         query = "select * from partitionfunctions where PF_Name = ?"
         for line in cursor.execute(query, (key,)):
-            prop_dict[self.name_q_t] = np.array(line[5:-6])
+            tmp = [1. if val is None else val for val in line[5:-6]]
+            prop_dict[self.name_q_t] = np.array(tmp)
 
         cursor.close()
         conn.close()
