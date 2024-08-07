@@ -93,6 +93,26 @@ class PeakPlot:
                 if freq >= lower and freq <= upper:
                     ax.vlines(freq, y_min, y_max, *args, **kwargs)
 
+    def vtexts(self, freqs, texts, y_min=None, y_max=None,
+               offset_x=1e-5, offset_y=-.05, **kwargs):
+        for i_a, ax in enumerate(self._axes.flat):
+            if i_a >= self.n_plot:
+                continue
+
+            y_min_, y_max_ = ax.get_ylim()
+            if y_min is not None:
+                y_min_ = y_min
+            if y_max is not None:
+                y_max_ = y_max
+            for freq, text in zip(freqs, texts):
+                lower, upper = self.bounds[i_a]
+                if freq >= lower and freq <= upper:
+                    y_show = y_min_ + (1 + offset_y)*(y_max_ - y_min_)
+                    x_show = freq*(1 + offset_x)
+                    ax.text(
+                        x_show, y_show, text, rotation="vertical", va="top", **kwargs
+                    )
+
 
 class SpectralPlot:
     def __init__(self, freq_data, freq_per_row=1000., width=15., height=3., axes=None):
