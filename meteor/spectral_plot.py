@@ -83,15 +83,20 @@ class PeakPlot:
                 x_max = min(freq[-1], upper)
                 ax.hlines(prom, x_min, x_max, "grey")
 
-    def vlines(self, freqs, y_min, y_max, *args, **kwargs):
+    def vlines(self, freqs, y_min=None, y_max=None, **kwargs):
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
 
+            y_min_, y_max_ = ax.get_ylim()
+            if y_min is not None:
+                y_min_ = y_min
+            if y_max is not None:
+                y_max_ = y_max
             for freq in freqs:
                 lower, upper = self.bounds[i_a]
                 if freq >= lower and freq <= upper:
-                    ax.vlines(freq, y_min, y_max, *args, **kwargs)
+                    ax.vlines(freq, y_min_, y_max_, **kwargs)
 
     def vtexts(self, freqs, texts, y_min=None, y_max=None,
                offset_x=1e-5, offset_y=-.05, **kwargs):
