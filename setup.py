@@ -1,5 +1,7 @@
 from setuptools import setup, find_packages
-from spectuner.version import __version__
+
+# Get version
+exec(open('spectuner/version.py', 'r').read())
 
 #
 description = "A tool for automated line identification of interstellar molecules."
@@ -18,6 +20,7 @@ setup(
     author='Yisheng Qiu',
     author_email="hpc_yqiuu@163.com",
     url="https://github.com/yqiuu/spectuner",
+    license="BSD",
     description=description,
     install_requires=install_requires,
     packages=find_packages(),
