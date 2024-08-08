@@ -1,5 +1,5 @@
-# Meteor
-Meteor is an ease-of-use tool for automated spectral line identification of
+# Spectuner
+Spectuner is an ease-of-use tool for automated spectral line identification of
 interstellar molecules. The code integrates the following techniques:
 
 * Spectral line model: XCLASS.
@@ -12,7 +12,7 @@ interstellar molecules. The code integrates the following techniques:
 2. Clone the repository and run ``setpy.py``:
 
 ```
-git clone https://github.com/yqiuu/meteor.git
-cd meteor
+git clone https://github.com/yqiuu/spectuner.git
+cd spectuner
 pip install .
 ```
