@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-from meteor.version import __version__
+from spectuner.version import __version__
 
 #
 description = "A tool for automated line identification of interstellar molecules."
@@ -13,23 +13,23 @@ install_requires = [
 
 #
 setup(
-    name='meteor',
+    name='spectuner',
     version=__version__,
     author='Yisheng Qiu',
     author_email="hpc_yqiuu@163.com",
-    url="https://github.com/yqiuu/meteor",
+    url="https://github.com/yqiuu/spectuner",
     description=description,
     install_requires=install_requires,
     packages=find_packages(),
     package_data={
-        'meteor': ['config/templates/*.yml'],
+        'spectuner': ['config/templates/*.yml'],
     },
     entry_points={
         'console_scripts': [
-            "meteor-config=meteor.scripts:exec_config",
-            "meteor-run=meteor.scripts:exec_fit",
-            "meteor-modify=meteor.scripts:exec_modify",
-            "meteor-identify=meteor.scripts:exec_identify",
+            "spectuner-config=spectuner.scripts:exec_config",
+            "spectuner-run=spectuner.scripts:exec_fit",
+            "spectuner-modify=spectuner.scripts:exec_modify",
+            "spectuner-identify=spectuner.scripts:exec_identify",
         ],
     },
 )
