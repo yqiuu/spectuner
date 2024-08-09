@@ -53,12 +53,12 @@ def exec_modify():
 def exec_identify():
     parser = ArgumentParser()
     parser.add_argument("config", type=str)
-    parser.add_argument("dir", type=str)
     parser.add_argument("target", type=str)
+    parser.add_argument("--mode", type=str, default="single")
     args = parser.parse_args()
 
     config = load_config(args.config)
-    identify(config, args.dir, args.target)
+    identify(config, args.target, args.mode)
 
 
 def get_lst_dir_index(dirname):

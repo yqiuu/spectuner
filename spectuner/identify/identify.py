@@ -9,32 +9,48 @@ from ..xclass_wrapper import combine_mol_stores
 from ..preprocess import load_preprocess
 
 
-def identify(config, parent_dir, target):
+def identify(config, target, mode=None):
+    """Perform identification.
+
+    Args:
+        config (dict): Config.
+        target (str):
+            - If ``target`` is a file, perfrom identification for the target
+              file.
+            - If ``target`` is a directory, perform identification for all files
+              in the directory.
+
+        mode (str): This is only applicable when ``target`` is a directory.
+            - ``single``: Use ``fname_base`` given in in the config as base
+            data.
+            - ``combine``: Use ``combine.pickle`` in the target directory
+            as base data.
+    """
     T_back = config["sl_model"].get("tBack", 0.)
     obs_data = load_preprocess(config["files"], T_back)
     idn = PeakManager(obs_data, T_back, **config["peak_manager"])
 
-    if target == "single":
-        fname_base = config.get("fname_base", None)
-    elif target == "combine":
-        fname_base =  Path(parent_dir)/"combine"/"combine.pickle"
-    else:
-        # The function will always terminate in this block
-        target = Path(target)
-        if target.exists():
-            res = identify_file(idn, target, config)
-            save_name = target.parent/f"identify_{target.name}"
-            pickle.dump(res, open(save_name, "wb"))
-            return
+    target = Path(target)
+    if target.is_file():
+        res = identify_file(idn, target, config)
+        save_name = target.parent/f"identify_{target.name}"
+        pickle.dump(res, open(save_name, "wb"))
+    elif target.is_dir():
+        if mode == "single":
+            fname_base = config.get("fname_base", None)
+        elif mode == "combine":
+            fname_base = target/"combine"/"combine.pickle"
         else:
-            raise ValueError(f"Unknown target: {target}.")
+            raise ValueError(f"Unknown mode: {mode}.")
 
-    dirname = Path(parent_dir)/target
-    if fname_base is None:
-        res = identify_without_base(idn, dirname, config)
+        dirname = target/mode
+        if fname_base is None:
+            res = identify_without_base(idn, dirname, config)
+        else:
+            res = identify_with_base(idn, dirname, fname_base, config)
+        pickle.dump(res, open(dirname/Path("identify.pickle"), "wb"))
     else:
-        res = identify_with_base(idn, dirname, fname_base, config)
-    pickle.dump(res, open(dirname/Path("identify.pickle"), "wb"))
+        raise ValueError(f"Unknown target: {target}.")
 
 
 def identify_file(idn, fname, config):

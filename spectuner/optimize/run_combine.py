@@ -79,7 +79,7 @@ def run_combine(config, result_dir, need_identify=True):
     if need_identify:
         save_name = save_dir/Path("combine.pickle")
         if save_name.exists():
-            identify(config, result_dir, save_name)
+            identify(config, save_name)
             identify(config, result_dir, "combine")
 
 
