@@ -3,13 +3,13 @@ import math
 from pathlib import Path
 
 import numpy as np
-import meteor
+import spectuner
 
 
 def test_pm_loss():
     data = pickle.load(open(get_fname(), "rb"))
     peak_mgr = create_peak_manager(data["obs_data"])
-    loss = peak_mgr([data["y_pred"]])
+    loss = peak_mgr([data["y_pred"]])[0]
     assert math.isclose(loss, data["loss"], rel_tol=1e-5)
 
 
@@ -43,7 +43,7 @@ def create_peak_manager(obs_data):
     T_back = 0.
     prominence = .1
     rel_height = .25
-    return meteor.PeakManager(obs_data, T_back, prominence, rel_height)
+    return spectuner.PeakManager(obs_data, T_back, prominence, rel_height)
 
 
 def get_fname():
