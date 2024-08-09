@@ -8,18 +8,36 @@ from .identify.identify import identify
 
 
 def exec_config():
-    parser = ArgumentParser()
-    parser.add_argument("dir", type=str)
+    parser = ArgumentParser(description="Create config files.")
+    parser.add_argument(
+        "dir", type=str,
+        help="Directory to create config files."
+    )
     args = parser.parse_args()
     create_config(args.dir)
 
 
 def exec_fit():
-    parser = ArgumentParser()
-    parser.add_argument("config", type=str)
-    parser.add_argument("target", type=str)
-    parser.add_argument("--mode", type=str, default="entire")
-    parser.add_argument("--fbase", type=str, default="")
+    parser = ArgumentParser(description="Run spectral fitting.")
+    parser.add_argument(
+        "config", type=str,
+        help="Directory to config files."
+    )
+    parser.add_argument(
+        "target", type=str,
+        help="Directory to save results."
+    )
+    parser.add_argument(
+        "--mode", type=str, default="entire",
+        choices=("single", "combine", "entire"),
+        help="""1. single: Run individual fitting phase.
+                2. combine: Run combining phase.
+                3. entire: Run both phases."""
+    )
+    parser.add_argument(
+        "--fbase", type=str, default="",
+        help="File name to a previous combined result (combine.pickle)."
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -41,9 +59,15 @@ def exec_fit():
 
 
 def exec_modify():
-    parser = ArgumentParser()
-    parser.add_argument("config", type=str)
-    parser.add_argument("target", type=str)
+    parser = ArgumentParser(description="Modify a combined result.")
+    parser.add_argument(
+        "config", type=str,
+        help="Directory to config files."
+    )
+    parser.add_argument(
+        "target", type=str,
+        help="Directory to saved results."
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -51,10 +75,21 @@ def exec_modify():
 
 
 def exec_identify():
-    parser = ArgumentParser()
-    parser.add_argument("config", type=str)
-    parser.add_argument("target", type=str)
-    parser.add_argument("--mode", type=str, default="single")
+    parser = ArgumentParser(description="Peform identification.")
+    parser.add_argument(
+        "config", type=str,
+        help="Directory to config files."
+    )
+    parser.add_argument(
+        "target", type=str,
+        help="Directory to saved results or File name a fitting result."
+    )
+    parser.add_argument(
+        "--mode", type=str, default="single",
+        choices=("single", "combine"),
+        help="""1. single: Identify results in the individual fitting phase.
+                2. combine: Identify results in the combining phase."""
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
