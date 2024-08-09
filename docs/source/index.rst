@@ -1,12 +1,12 @@
-.. Meteor documentation master file, created by
+.. Spectuner documentation master file, created by
    sphinx-quickstart on Fri Jul 19 16:34:05 2024.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Meteor
-======
+Spectuner
+=========
 
-Meteor is an ease-of-use tool for automated spectral line identification of
+Spectuner is an ease-of-use tool for automated spectral line identification of
 interstellar molecules. The code integrates the following techniques:
 
 * Spectral line model: XCLASS.
@@ -21,8 +21,8 @@ Installation
 
    .. code-block:: bash
 
-      git clone https://github.com/yqiuu/meteor.git
-      cd meteor
+      git clone https://github.com/yqiuu/spectuner.git
+      cd spectuner
       pip install .
 
 .. toctree::

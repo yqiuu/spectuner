@@ -13,7 +13,7 @@ Configuration
 
    .. code-block:: bash
 
-      meteor-config workspace
+      spectuner-config workspace
 
 The code above will create config files in a directory named as ``workspace/``.
 All config files are YAML files.
@@ -85,7 +85,7 @@ Running the pipeline
 
    .. code-block:: bash
 
-    meteor-run workspace workspace/results
+    spectuner-run workspace workspace/results
 
 The code above will save the results in ``workspace/results``.
 
@@ -123,21 +123,21 @@ to plot the fitting result (assume that you are in the ``examples/`` directory).
 
    import pickle
 
-   import meteor
+   import spectuner
    import matplotlib.pyplot as plt
 
 
-   obs_data = meteor.load_preprocess(["mock_data/spec.dat"], T_back=0.)
+   obs_data = spectuner.load_preprocess(["mock_data/spec.dat"], T_back=0.)
    res = pickle.load(open("workspace/results/combine/identify_combine.pickle", "rb"))
 
-   freq_data = meteor.get_freq_data(obs_data)
+   freq_data = spectuner.get_freq_data(obs_data)
    freq_per_row = 1000 # MHz
    y_min = -0.1
    y_max = 3.
 
-   plot = meteor.SpectralPlot(freq_data, freq_per_row)
+   plot = spectuner.SpectralPlot(freq_data, freq_per_row)
    # Plot the mock spectrum
-   plot.plot_spec(freq_data, meteor.get_T_data(obs_data), color="k")
+   plot.plot_spec(freq_data, spectuner.get_T_data(obs_data), color="k")
    # Plot the fitting spectrum
    plot.plot_T_pred(res, y_min, y_max, kwargs_spec={"color": "r", "linestyle": "--"}, fontsize=10)
 
@@ -164,4 +164,4 @@ example above, users can include OCS;v=0; (``id=2``) by setting
 Then, run
    .. code-block:: bash
 
-      meteor-modify workspace workspace/results
+      spectuner-modify workspace workspace/results
