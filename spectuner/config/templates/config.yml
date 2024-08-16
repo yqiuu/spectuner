@@ -4,9 +4,6 @@ sl_model:
   prefix_molfit: TMP_DIR
   Inter_Flag: False
   TelescopeSize: 30
-  BMIN: null
-  BMAJ: null
-  BPA: null
   N_H: 0.
   kappa_1300: 0.
   beta_dust: 0.
