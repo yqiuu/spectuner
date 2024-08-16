@@ -84,7 +84,7 @@ class SpectralLineDatabase:
         for line in cursor.execute(query, (key,)):
             prop_dict["freq"].append(line[1])
             prop_dict["A_ul"].append(line[2])
-            prop_dict["E_low"].append(line[3])
+            prop_dict["E_low"].append(line[3]*1.438769) # Convert cm^-1 to K
             prop_dict["g_u"].append(line[4])
 
         if len(prop_dict["freq"]) == 0:
