@@ -31,7 +31,8 @@ Compulsory settings
 #. Set telescope parameters in ``workspace/config.yml``. For single dish
    telescopes, set ``Inter_Flag: False`` and ``TelescopeSize`` to the diameter
    of the telescope in a unit of meter. For interferometers, set
-   ``Inter_Flag: True`` and provide ``BMIN``, ``BMAJ``, and ``BPA``.
+   ``Inter_Flag: True`` and ``TelescopeSize`` to the beam FWHM size in a unit of
+   arcsecond.
 #. Set ``prominence`` in ``workspace/config.yml``. The is the critical parameter
    to identify peaks. The code uses ``find_peaks`` from Scipy to find peaks.
    See the `link <https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.find_peaks.html>`__
