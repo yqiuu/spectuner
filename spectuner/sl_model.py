@@ -2,17 +2,19 @@ import numpy as np
 from astropy import constants, units
 
 
-def compute_spectrum(slm_state, nu, theta, den_col, T_ex, delta_v, v_offset):
-    tau_total = compute_tau_total(slm_state, nu, den_col, T_ex, delta_v, v_offset)
+def compute_spectra(slm_state, theta, den_col, T_ex, delta_v, v_offset):
+    tau_total = compute_tau_total(slm_state, den_col, T_ex, delta_v, v_offset)
     term = 1 - np.exp(-tau_total)
-    return compute_filling_factor(slm_state, theta)*planck_profile(slm_state, nu, T_ex)*term
+    spec = compute_filling_factor(slm_state, theta)*planck_profile(slm_state, T_ex)*term
+    return [spec[inds] for inds in slm_state.slice_list]
 
 
-def compute_tau_total(slm_state, nu, den_col, T_ex, delta_v, v_offset):
+def compute_tau_total(slm_state, den_col, T_ex, delta_v, v_offset):
     # v_offset (1,) km/s
     # delta_v (1,) km/s
     nu_c = (1 - slm_state.factor_v_offset*v_offset)*slm_state.sl_data["freq"]
     nu_c = nu_c[:, None] # (N, 1)
+    nu = slm_state.freqs
     sigma = slm_state.factor_delta_v*delta_v*nu_c # (N, 1)
     phi = np.exp(-.5*np.square((nu - nu_c)/sigma))/(np.sqrt(2*np.pi)*sigma)
     tau = compute_tau_max(slm_state, den_col, T_ex)[:, None]/(nu*nu)*phi # (B, N_t, N_nu)
@@ -36,13 +38,23 @@ def compute_filling_factor(slm_state, theta):
     return theta_sq/(slm_state.beam_size_sq + theta_sq)
 
 
-def planck_profile(slm_state, nu, T_ex):
+def planck_profile(slm_state, T_ex):
+    nu = slm_state.freqs
     return slm_state.factor_freq*nu/(np.exp(slm_state.factor_freq*nu/T_ex) - 1)
 
 
 class SpectralLineModelState:
-    def __init__(self, sl_data, beam_info):
+    def __init__(self, sl_data, freq_list, beam_info):
         self.sl_data = sl_data
+        self.freq_list = freq_list
+        self.freqs = np.concatenate(freq_list)
+        #
+        slice_list = []
+        idx_b = 0
+        for freq in freq_list:
+            slice_list.append(slice(idx_b, idx_b + len(freq)))
+            idx_b += len(freq)
+        self.slice_list = slice_list
         #
         if isinstance(beam_info, float):
             self.beam_size_sq = beam_info*beam_info
