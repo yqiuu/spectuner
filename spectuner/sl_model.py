@@ -1,0 +1,56 @@
+import numpy as np
+from astropy import constants, units
+
+
+def compute_spectrum(slm_state, nu, theta, den_col, T_ex, delta_v, v_offset):
+    tau_total = compute_tau_total(slm_state, nu, den_col, T_ex, delta_v, v_offset)
+    term = 1 - np.exp(-tau_total)
+    return compute_filling_factor(slm_state, theta)*planck_profile(slm_state, nu, T_ex)*term
+
+
+def compute_tau_total(slm_state, nu, den_col, T_ex, delta_v, v_offset):
+    # v_offset (1,) km/s
+    # delta_v (1,) km/s
+    nu_c = (1 - slm_state.factor_v_offset*v_offset)*slm_state.sl_data["freq"]
+    nu_c = nu_c[:, None] # (N, 1)
+    sigma = slm_state.factor_delta_v*delta_v*nu_c # (N, 1)
+    phi = np.exp(-.5*np.square((nu - nu_c)/sigma))/(np.sqrt(2*np.pi)*sigma)
+    tau = compute_tau_max(slm_state, den_col, T_ex)[:, None]/(nu*nu)*phi # (B, N_t, N_nu)
+    tau_total = np.sum(tau, axis=-2)
+    return tau_total
+
+
+def compute_tau_max(slm_state, den_col, T_ex):
+    # den (1,)
+    # T_ex (1,)
+    # sl_data (N,)
+    sl_data = slm_state.sl_data
+    Q_T = np.interp(T_ex, sl_data["x_T"], sl_data["Q_T"])
+    E_trans = slm_state.factor_freq*sl_data["freq"]
+    return slm_state.factor_tau*den_col*sl_data["A_ul"]*sl_data["g_u"]/Q_T \
+        * np.exp(-sl_data["E_low"]/T_ex)*(1 - np.exp(-E_trans/T_ex))
+
+
+def compute_filling_factor(slm_state, theta):
+    theta_sq = theta*theta
+    return theta_sq/(slm_state.beam_size_sq + theta_sq)
+
+
+def planck_profile(slm_state, nu, T_ex):
+    return slm_state.factor_freq*nu/(np.exp(slm_state.factor_freq*nu/T_ex) - 1)
+
+
+class SpectralLineModelState:
+    def __init__(self, sl_data, beam_info):
+        self.sl_data = sl_data
+        #
+        if isinstance(beam_info, float):
+            self.beam_size_sq = beam_info*beam_info
+        else:
+            # Convert deg to arcsecond
+            self.beam_size_sq = beam_info[0]*beam_info[1]*3600*3600
+        # Set constants
+        self.factor_v_offset = 1./(constants.c).to(units.km/units.second).value
+        self.factor_delta_v = self.factor_v_offset/(2*np.sqrt(2*np.log(2)))
+        self.factor_tau = ((constants.c/units.MHz)**2/units.second).to(units.cm**2*units.MHz).value/(8*np.pi)
+        self.factor_freq = (constants.h/constants.k_B*units.MHz).to(units.Kelvin).value
