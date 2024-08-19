@@ -2,38 +2,46 @@ import numpy as np
 from astropy import constants, units
 
 
-def compute_spectra(slm_state, theta, den_col, T_ex, delta_v, v_offset):
+def compute_spectra(slm_state, params):
+    # params (B, 5)
+    theta, den_col, T_ex, delta_v, v_offset = np.split(params, 5, axis=-1)
     tau_total = compute_tau_total(slm_state, den_col, T_ex, delta_v, v_offset)
     term = 1 - np.exp(-tau_total)
     spec = compute_filling_factor(slm_state, theta)*planck_profile(slm_state, T_ex)*term
-    return [spec[inds] for inds in slm_state.slice_list]
+    return [np.squeeze(spec[:, inds]) for inds in slm_state.slice_list]
 
 
 def compute_tau_total(slm_state, den_col, T_ex, delta_v, v_offset):
-    # v_offset (1,) km/s
-    # delta_v (1,) km/s
-    nu_c = (1 - slm_state.factor_v_offset*v_offset)*slm_state.sl_data["freq"]
-    nu_c = nu_c[:, None] # (N, 1)
-    nu = slm_state.freqs
-    sigma = slm_state.factor_delta_v*delta_v*nu_c # (N, 1)
+    # den_col (B, 1) cm^-2
+    # T_ex (B, 1) K
+    # v_offset (B,) km/s
+    # delta_v (B,) km/s
+    nu_c = (1 - slm_state.factor_v_offset*v_offset)*slm_state.sl_data["freq"] # (B, N_t)
+    nu_c = nu_c[..., None] # (B, N_t, 1)
+    nu = slm_state.freqs # (N_nu,)
+    sigma = slm_state.factor_delta_v*delta_v[:, None]*nu_c # (B, N_t, 1)
     phi = np.exp(-.5*np.square((nu - nu_c)/sigma))/(np.sqrt(2*np.pi)*sigma)
-    tau = compute_tau_max(slm_state, den_col, T_ex)[:, None]/(nu*nu)*phi # (B, N_t, N_nu)
+    tau = compute_tau_max(slm_state, den_col, T_ex)[..., None]/(nu*nu)*phi # (B, N_t, N_nu)
     tau_total = np.sum(tau, axis=-2)
     return tau_total
 
 
 def compute_tau_max(slm_state, den_col, T_ex):
-    # den (1,)
-    # T_ex (1,)
-    # sl_data (N,)
+    # den (B, 1)
+    # T_ex (B, 1)
+    # sl_data (N,) or (B, N_t)
+    # Return (B, N_t)
     sl_data = slm_state.sl_data
-    Q_T = np.interp(T_ex, sl_data["x_T"], sl_data["Q_T"])
+    Q_T = np.array([np.interp(T_ex_i, sl_data["x_T"], Q_T_i) for T_ex_i, Q_T_i
+                    in zip(np.ravel(T_ex), sl_data["Q_T"])])[:, None] # (B, 1)
     E_trans = slm_state.factor_freq*sl_data["freq"]
     return slm_state.factor_tau*den_col*sl_data["A_ul"]*sl_data["g_u"]/Q_T \
         * np.exp(-sl_data["E_low"]/T_ex)*(1 - np.exp(-E_trans/T_ex))
 
 
 def compute_filling_factor(slm_state, theta):
+    # theta (B, 1)
+    # Return (B, 1)
     theta_sq = theta*theta
     return theta_sq/(slm_state.beam_size_sq + theta_sq)
 
