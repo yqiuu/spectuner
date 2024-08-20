@@ -21,11 +21,15 @@ class SpectralLineDatabase:
         cursor.close()
         conn.close()
 
-    def query(self, key, freq_data):
+    def query(self, key, freq_list):
+        pass
+
+
+    def _query_sub(self, key, freq_list):
         prop_dict = self._load_data(key)
         data_ret = {key: [] for key in self.cols}
         freqs = prop_dict["freq"]
-        for freq in freq_data:
+        for freq in freq_list:
             freq_min = freq[0]
             idx_b = np.searchsorted(freqs, freq_min)
             freq_max = freq[-1]
