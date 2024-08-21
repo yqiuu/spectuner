@@ -2,7 +2,7 @@ import numpy as np
 from astropy import constants, units
 
 
-def compute_spectra(slm_state, params):
+def compute_spectra_simple(slm_state, params):
     # params (B, 5)
     spec = 0.
     for params_i, sl_data_i in zip(params, slm_state.sl_data):
@@ -14,30 +14,39 @@ def compute_spectra(slm_state, params):
 
 
 def compute_tau_total(slm_state, sl_data, den_col, T_ex, delta_v, v_offset):
-    # den_col (B, 1) cm^-2
-    # T_ex (B, 1) K
-    # v_offset (B,) km/s
-    # delta_v (B,) km/s
-    nu_c = (1 - slm_state.factor_v_offset*v_offset)*sl_data["freq"] # (B, N_t)
-    nu_c = nu_c[..., None] # (B, N_t, 1)
+    # den_col (M, 1) cm^-2
+    # T_ex (M, 1) K
+    # v_offset (M,) km/s
+    # delta_v (M,) km/s
+    mu, sigma = compute_mu_sigma(slm_state, sl_data, delta_v, v_offset)
+    mu = mu[:, None]
+    sigma = sigma[:, None]
     nu = slm_state.freqs # (N_nu,)
-    sigma = slm_state.factor_delta_v*delta_v[:, None]*nu_c # (B, N_t, 1)
-    phi = np.exp(-.5*np.square((nu - nu_c)/sigma))/(np.sqrt(2*np.pi)*sigma)
-    tau = compute_tau_max(slm_state, sl_data, den_col, T_ex)[..., None]*phi # (B, N_t, N_nu)
+    phi = np.exp(-.5*np.square((nu - mu)/sigma))/(np.sqrt(2*np.pi)*sigma)
+    tau = compute_tau_norm(slm_state, sl_data, den_col, T_ex)[..., None]*phi # (M, N_t, N_nu)
     tau_total = np.sum(tau, axis=-2)
     return tau_total
 
 
-def compute_tau_max(slm_state, sl_data, den_col, T_ex):
-    # den (B, 1)
-    # T_ex (B, 1)
-    # sl_data (N,) or (B, N_t)
-    # Return (B, N_t)
+def compute_tau_norm(slm_state, sl_data, den_col, T_ex):
+    # den (M, 1)
+    # T_ex (M, 1)
+    # sl_data (N,) or (M, N_t)
+    # Return (M, N_t)
     Q_T = np.interp(np.ravel(T_ex), sl_data["x_T"], sl_data["Q_T"])[:, None]
     E_trans = slm_state.factor_freq*sl_data["freq"]
     return slm_state.factor_tau*den_col*sl_data["A_ul"]*sl_data["g_u"] \
         / (Q_T*sl_data["freq"]*sl_data["freq"]) \
         * np.exp(-sl_data["E_low"]/T_ex)*(1 - np.exp(-E_trans/T_ex))
+
+
+def compute_mu_sigma(slm_state, sl_data, delta_v, v_offset):
+    # delta_v (M, 1)
+    # v_offset (M, 1)
+    # sl_data (N,) or (M, N_t)
+    mu = (1 - slm_state.factor_v_offset*v_offset)*sl_data["freq"] # (M, N_t)
+    sigma = slm_state.factor_delta_v*delta_v*mu
+    return mu, sigma
 
 
 def compute_filling_factor(slm_state, theta):
