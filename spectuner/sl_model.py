@@ -1,4 +1,5 @@
 import numpy as np
+from numba import jit
 from astropy import constants, units
 
 
@@ -19,7 +20,7 @@ def compute_effective_spectra(slm_state, params):
     inds_specie, tau_norm, mu, sigma =prepare_properties(slm_state, params)
     prop_list = prepare_prop_list(slm_state, inds_specie, tau_norm, mu, sigma)
     freqs_fine, spectra_fine = process_prop_list(slm_state, prop_list, params)
-    return prepare_effective_spectra(slm_state, freqs_fine, spectra_fine)
+    return prepare_effective_spectra(slm_state.freq_list, freqs_fine, spectra_fine)
 
 
 def prepare_properties(slm_state, params):
@@ -102,9 +103,10 @@ def process_prop_list(slm_state, prop_list, params):
     return freqs, spectra
 
 
-def prepare_effective_spectra(slm_state, freqs_fine, spectra_fine):
+@jit
+def prepare_effective_spectra(freq_list, freqs_fine, spectra_fine):
     spec_list = []
-    for freqs in slm_state.freq_list:
+    for freqs in freq_list:
         freqs_p = np.zeros(len(freqs) + 1)
         freqs_p[1:-1] = .5*(freqs[1:] + freqs[:-1])
         freqs_p[0] = freqs[0] - .5*(freqs[1] - freqs[0])
@@ -121,7 +123,9 @@ def prepare_effective_spectra(slm_state, freqs_fine, spectra_fine):
                 x_freq[-1] = upper
                 y_spec = np.zeros(idx_e - idx_b + 2)
                 y_spec[1:-1] = spectra_fine[idx_b:idx_e]
-                y_spec[[0, -1]] = np.interp([lower, upper], freqs_fine, spectra_fine)
+                y_lower, y_upper = np.interp([lower, upper], freqs_fine, spectra_fine)
+                y_spec[0] = y_lower
+                y_spec[-1] = y_upper
                 spec_eff[i_freq] = np.trapz(y_spec, x_freq)/(upper - lower)
         spec_list.append(np.asarray(spec_eff))
     return spec_list
