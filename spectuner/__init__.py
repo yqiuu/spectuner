@@ -5,6 +5,6 @@ from .fitting_model import *
 from .preprocess import *
 from .config import *
 from .spectral_plot import *
-from .sl_model import *
 from .xclass_wrapper import *
 from .utils import *
+from . import sl_model
