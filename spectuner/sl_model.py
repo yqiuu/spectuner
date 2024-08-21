@@ -87,7 +87,7 @@ def process_prop_list(slm_state, prop_list, params):
         tau_norm = np.asarray(tau_norm)[:, None]
         mu = np.asarray(mu)[:, None]
         sigma = np.asarray(sigma)[:, None]
-        nu = mu + 10*sigma*slm_state.base_grid
+        nu = mu + slm_state.trunc*sigma*slm_state.base_grid
         nu = np.sort(np.ravel(nu))
         tau = tau_norm*gauss_profile(nu, mu, sigma)
 
@@ -229,4 +229,4 @@ class SpectralLineModelState:
             self.beam_size_sq = beam_info[0]*beam_info[1]*3600*3600
         #
         self.trunc = 10.
-        self.base_grid = np.linspace(-1, 1, 51)
+        self.base_grid = np.linspace(-1, 1, 11)
