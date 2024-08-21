@@ -89,13 +89,20 @@ def process_prop_list(slm_state, prop_list, params):
         sigma = np.asarray(sigma)[:, None]
         nu = mu + 10*sigma*slm_state.base_grid
         nu = np.sort(np.ravel(nu))
-        phi = gauss_profile(nu, mu, sigma)
-        tau_total = np.sum(tau_norm*phi, axis=0)
+        tau = tau_norm*gauss_profile(nu, mu, sigma)
 
-        theta, T_ex, *_ = np.split(params[np.unique(inds_specie)], 5, axis=-1)
-        spec = compute_filling_factor(slm_state, nu, theta) \
-            * planck_profile(slm_state, nu, T_ex)*(1 - np.exp(-tau_total))
-        spec = np.sum(spec, axis=0)
+        tmp_dict = {idx: 0. for idx in inds_specie}
+        for idx, tau_i in zip(inds_specie, tau):
+            tmp_dict[idx] += tau_i
+
+        theta, T_ex, *_ = np.split(params, 5, axis=-1)
+        spec = 0.
+        for idx, tau_total in tmp_dict.items():
+            theta_i = theta[idx]
+            T_ex_i = T_ex[idx]
+            spec += compute_filling_factor(slm_state, nu, theta_i) \
+                * planck_profile(slm_state, nu, T_ex_i)*(1 - np.exp(-tau_total))
+
         freq_list.append(nu)
         spec_list.append(spec)
     freqs = np.concatenate(freq_list)
