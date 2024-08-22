@@ -22,10 +22,6 @@ class SpectralLineDatabase:
         conn.close()
 
     def query(self, key, freq_list):
-        pass
-
-
-    def _query_sub(self, key, freq_list):
         prop_dict = self._load_data(key)
         data_ret = {key: [] for key in self.cols}
         freqs = prop_dict["freq"]
