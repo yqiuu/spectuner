@@ -120,20 +120,22 @@ def prepare_effective_spectra(freq_list, freqs_fine, spectra_fine):
         freqs_p[1:-1] = .5*(freqs[1:] + freqs[:-1])
         freqs_p[0] = freqs[0] - .5*(freqs[1] - freqs[0])
         freqs_p[-1] = freqs[-1] + .5*(freqs[-1] - freqs[-2])
+        spectra_p = np.interp(freqs_p, freqs_fine, spectra_fine)
+        inds = np.searchsorted(freqs_fine, freqs_p)
         spec_eff = [0.]*len(freqs)
-        for i_freq, (lower, upper) in enumerate(zip(freqs_p[:-1], freqs_p[1:])):
-            idx_b, idx_e = np.searchsorted(freqs_fine, [lower, upper])
+        for i_freq in range(len(freqs)):
+            idx_b = inds[i_freq]
+            idx_e = inds[i_freq + 1]
             x_freq = np.zeros(idx_e - idx_b + 2)
             x_freq[1:-1] = freqs_fine[idx_b:idx_e]
-            x_freq[0] = lower
-            x_freq[-1] = upper
+            x_freq[0] = freqs_p[i_freq]
+            x_freq[-1] = freqs_p[i_freq + 1]
             y_spec = np.zeros(idx_e - idx_b + 2)
             y_spec[1:-1] = spectra_fine[idx_b:idx_e]
-            y_lower, y_upper = np.interp([lower, upper], freqs_fine, spectra_fine)
-            y_spec[0] = y_lower
-            y_spec[-1] = y_upper
-            spec_eff[i_freq] = np.trapz(y_spec, x_freq)/(upper - lower)
-        spec_list.append(np.asarray(spec_eff))
+            y_spec[0] = spectra_p[i_freq]
+            y_spec[-1] =  spectra_p[i_freq + 1]
+            spec_eff[i_freq] = np.trapz(y_spec, x_freq)
+        spec_list.append(np.asarray(spec_eff)/np.diff(freqs_p))
     return spec_list
 
 
