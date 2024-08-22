@@ -17,9 +17,11 @@ def compute_spectra_simple(slm_state, params):
 
 
 def compute_effective_spectra(slm_state, params):
-    inds_specie, tau_norm, mu, sigma =prepare_properties(slm_state, params)
-    prop_list = prepare_prop_list(slm_state, inds_specie, tau_norm, mu, sigma)
-    freqs_fine, spectra_fine = process_prop_list(slm_state, prop_list, params)
+    args = prepare_properties(slm_state, params)
+    prop_list = prepare_prop_list(*args)
+    freq_list_fine, spec_list_fine = prepare_fine_spectra(slm_state, prop_list, params)
+    freqs_fine = np.concatenate(freq_list_fine)
+    spectra_fine = np.concatenate(spec_list_fine)
     return prepare_effective_spectra(slm_state.freq_list, freqs_fine, spectra_fine)
 
 
@@ -43,24 +45,25 @@ def prepare_properties(slm_state, params):
     tau_norm_ret = np.concatenate(tau_norm_list)
     mu_ret = np.concatenate(mu_list)
     sigma_ret = np.concatenate(sigma_list)
+    left = mu_ret - slm_state.trunc*sigma_ret
+    right = mu_ret + slm_state.trunc*sigma_ret
 
-    inds = np.argsort(mu_ret)
+    inds = np.argsort(left)
     inds_speice = inds_speice[inds]
     tau_norm_ret = tau_norm_ret[inds]
     mu_ret = mu_ret[inds]
     sigma_ret = sigma_ret[inds]
+    left = left[inds]
+    right = right[inds]
 
-    return inds_speice, tau_norm_ret, mu_ret, sigma_ret
+    return inds_speice, tau_norm_ret, mu_ret, sigma_ret, left, right
 
 
-def prepare_prop_list(slm_state, inds_specie, tau_norm, mu, sigma):
+def prepare_prop_list(inds_specie, tau_norm, mu, sigma, left, right):
     # tau_norm (N,)
     # mu (N,)
     # sigma (N,)
-    # Assume mu is sorted
-    left = mu - slm_state.trunc*sigma
-    right = mu + slm_state.trunc*sigma
-
+    # Assume left is sorted
     merged = [] # [[left, right], ...]
     prop_list = []
     for i_specie, tau_norm_i, mu_i, sigma_i, left_i, right_i \
@@ -80,7 +83,7 @@ def prepare_prop_list(slm_state, inds_specie, tau_norm, mu, sigma):
     return prop_list
 
 
-def process_prop_list(slm_state, prop_list, params):
+def prepare_fine_spectra(slm_state, prop_list, params):
     freq_list = []
     spec_list = []
     for inds_specie, tau_norm, mu, sigma in prop_list:
@@ -105,9 +108,7 @@ def process_prop_list(slm_state, prop_list, params):
 
         freq_list.append(nu)
         spec_list.append(spec)
-    freqs = np.concatenate(freq_list)
-    spectra = np.concatenate(spec_list)
-    return freqs, spectra
+    return freq_list, spec_list
 
 
 @jit
