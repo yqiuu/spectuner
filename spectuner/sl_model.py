@@ -87,7 +87,7 @@ def process_prop_list(slm_state, prop_list, params):
         tau_norm = np.asarray(tau_norm)[:, None]
         mu = np.asarray(mu)[:, None]
         sigma = np.asarray(sigma)[:, None]
-        nu = mu + slm_state.trunc*sigma*slm_state.base_grid
+        nu = mu + sigma*slm_state.base_grid
         nu = np.sort(np.ravel(nu))
         tau = tau_norm*gauss_profile(nu, mu, sigma)
 
@@ -200,8 +200,34 @@ def gauss_profile(x, mu, sigma):
     return np.exp(-.5*np.square((x - mu)/sigma))/(np.sqrt(2*np.pi)*sigma)
 
 
+def derive_base_grid(trunc, eps):
+    def trapz_rule(f, a, b):
+        return .5*(b - a)*(f(a) + f(b))
+
+    def adaptive_trapz(f, a, b, points, eps):
+        mid = .5*(a + b)
+        val_0 = trapz_rule(f, a, b)
+        val_1 = trapz_rule(f, a, mid) + trapz_rule(f, mid, b)
+        points.append(mid)
+
+        if abs(val_0 - val_1) < eps:
+            return val_1
+        else:
+            return adaptive_trapz(f, a, mid, points, .5*eps) \
+                + adaptive_trapz(f, mid, b, points, .5*eps)
+
+    def func(x):
+        return np.exp(-.5*x*x)/np.sqrt(2*np.pi)
+
+    points = [-trunc, trunc]
+    adaptive_trapz(func, -trunc, trunc, points, eps)
+    points.sort()
+    points = np.asarray(points)
+    return points
+
+
 class SpectralLineModelState:
-    def __init__(self, sl_data, freq_list, beam_info):
+    def __init__(self, sl_data, freq_list, beam_info, trunc=10., eps_grid=1e-3):
         self.sl_data = sl_data
         self.freq_list = freq_list
         self.freqs = np.concatenate(freq_list)
@@ -228,5 +254,5 @@ class SpectralLineModelState:
             self.factor_beam = None
             self.beam_size_sq = beam_info[0]*beam_info[1]*3600*3600
         #
-        self.trunc = 10.
-        self.base_grid = np.linspace(-1, 1, 11)
+        self.trunc = trunc
+        self.base_grid = derive_base_grid(trunc, eps_grid)
