@@ -98,7 +98,8 @@ def prepare_fine_spectra(slm_state, prop_list, params):
         for idx, tau_i in zip(inds_specie, tau):
             tmp_dict[idx] += tau_i
 
-        theta, T_ex, *_ = np.split(params, 5, axis=-1)
+        theta = params[:, :1]
+        T_ex = params[:, 1:2]
         spec = 0.
         for idx, tau_total in tmp_dict.items():
             theta_i = theta[idx]
