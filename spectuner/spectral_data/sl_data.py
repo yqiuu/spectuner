@@ -17,25 +17,29 @@ class SpectralLineDatabase:
         query = "select * from partitionfunctions"
         cursor.execute(query)
         names = list(map(lambda x: x[0], cursor.description))
-        self.x_t = np.array([float(name[3:].replace("_", ".")) for name in names[5:-6]])
+        self.x_T = np.array([float(name[3:].replace("_", ".")) for name in names[5:-6]])
         cursor.close()
         conn.close()
 
     def query(self, key, freq_list):
         prop_dict = self._load_data(key)
         data_ret = {key: [] for key in self.cols}
+        data_ret["segment"] = []
         freqs = prop_dict["freq"]
-        for freq in freq_list:
+        for i_segment, freq in enumerate(freq_list):
             freq_min = freq[0]
             idx_b = np.searchsorted(freqs, freq_min)
             freq_max = freq[-1]
             idx_e = np.searchsorted(freqs, freq_max)
             idx_e = min(idx_e, len(freqs) - 1)
+            data_ret["segment"].append(np.full(idx_e - idx_b, i_segment))
             for col in self.cols:
                 data_ret[col].append(prop_dict[col][idx_b:idx_e])
+        data_ret["segment"] = np.concatenate(data_ret["segment"])
         for col in self.cols:
             data_ret[col] = np.concatenate(data_ret[col])
         data_ret[self.name_q_t] = self._data[key][self.name_q_t]
+        data_ret["x_T"] = self.x_T
         return data_ret
 
     def load_all_data(self):
