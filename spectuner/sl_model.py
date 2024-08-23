@@ -45,12 +45,12 @@ def prepare_properties(slm_state, params):
     inds_speice = [None]*num
     inds_segment = [None]*num
     for i_specie, (params_i, sl_data_i) in enumerate(zip(params, slm_state["sl_data"])):
-        _, T_ex, den_col, delta_v, v_offset = np.split(params_i, 5, axis=-1)
+        _, T_ex, den_col, delta_v, v_offset = params_i
         tau_norm = np.squeeze(compute_tau_norm(slm_state, sl_data_i, den_col, T_ex))
         tau_norm_list[i_specie] = tau_norm
         mu, sigma = compute_mu_sigma(slm_state, sl_data_i, delta_v, v_offset)
-        mu_list[i_specie] = np.squeeze(mu)
-        sigma_list[i_specie] = np.squeeze(sigma)
+        mu_list[i_specie] = mu
+        sigma_list[i_specie] = sigma
         inds_speice[i_specie] = np.full(len(tau_norm), i_specie)
         inds_segment[i_specie] = sl_data_i["segment"]
 
@@ -199,8 +199,9 @@ def compute_tau_norm(slm_state, sl_data, den_col, T_ex):
 
 def compute_mu_sigma(slm_state, sl_data, delta_v, v_offset):
     # sl_data (N_t,)
-    # delta_v (B, 1)
-    # v_offset (B, 1)
+    # delta_v (B, 1) or (1,)
+    # v_offset (B, 1) or (1,)
+    # Return (B, N_t) or (N_t,)
     mu = (1 - slm_state["factor_v_offset"]*v_offset)*sl_data["freq"] # (M, N_t)
     sigma = slm_state["factor_delta_v"]*delta_v*mu
     return mu, sigma
@@ -317,7 +318,7 @@ def create_spectral_line_model_state(sl_data, freq_list, obs_info, trunc=10., ep
         need_cmb.append(info_dict["need_cmb"])
     slm_state["T_bg"] = T_bg_arr
     slm_state["need_cmb"] = need_cmb
-    slm_state["T_cmb"] = np.array([2.726]) # K
+    slm_state["T_cmb"] = 2.726 # K
     #
     slm_state["trunc"] = trunc
     slm_state["base_grid"] = derive_base_grid(trunc, eps_grid)
