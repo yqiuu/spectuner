@@ -12,7 +12,7 @@ def compute_spectra_simple(slm_state, params):
         term = 1 - np.exp(-tau_total)
         nu = slm_state.freqs
         spec += compute_filling_factor(slm_state, nu, theta) \
-            * planck_profile(slm_state, nu, T_ex)*term
+            * planck_radiation(slm_state, nu, T_ex)*term
     return [np.squeeze(spec[:, inds]) for inds in slm_state.slice_list]
 
 
@@ -113,7 +113,7 @@ def prepare_fine_spectra(slm_state, prop_list, params):
             theta_i = theta[idx]
             T_ex_i = T_ex[idx]
             spec += compute_filling_factor(nu, theta_i, is_single_dish, beam_size_sq, factor_beam) \
-                * planck_profile(slm_state, nu, T_ex_i)*(1 - np.exp(-tau_total))
+                * planck_radiation(nu, T_ex_i, slm_state.factor_freq)*(1 - np.exp(-tau_total))
 
         freq_list.append(nu)
         spec_list.append(spec)
@@ -193,11 +193,11 @@ def compute_filling_factor(nu, theta, is_single_dish, beam_size_sq, factor_beam)
     return theta_sq/(beam_size_sq + theta_sq)
 
 
-def planck_profile(slm_state, nu, T_ex):
+def planck_radiation(nu, T_ex, factor_freq):
     # nu (N,)
     # T_ex (M, 1)
     # Return (M, N)
-    return slm_state.factor_freq*nu/(np.exp(slm_state.factor_freq*nu/T_ex) - 1)
+    return factor_freq*nu/(np.exp(factor_freq*nu/T_ex) - 1)
 
 
 def gauss_profile(x, mu, sigma):
