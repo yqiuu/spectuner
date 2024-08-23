@@ -23,12 +23,12 @@ def compute_effective_spectra(slm_state, params):
     freq_list_fine, spec_list_fine = prepare_fine_spectra(
         prop_list, params,
         base_grid=slm_state["base_grid"],
-        is_sd_arr=slm_state["is_single_dish"],
-        beam_size_sq_arr=slm_state["beam_size_sq"],
-        factor_beam_arr=slm_state["factor_beam"],
+        is_sd_list=slm_state["is_single_dish"],
+        beam_size_sq_list=slm_state["beam_size_sq"],
+        factor_beam_list=slm_state["factor_beam"],
         factor_freq=slm_state["factor_freq"],
-        T_bg_arr=slm_state["T_bg"],
-        need_cmb_arr=slm_state["need_cmb"],
+        T_bg_list=slm_state["T_bg"],
+        need_cmb_list=slm_state["need_cmb"],
         T_cmb=slm_state["T_cmb"]
     )
     freqs_fine = np.concatenate(freq_list_fine)
@@ -101,8 +101,8 @@ def prepare_prop_list(inds_specie, inds_segment, tau_norm, mu, sigma, left, righ
 
 @jit
 def prepare_fine_spectra(prop_list, params, base_grid,
-                         is_sd_arr, beam_size_sq_arr, factor_beam_arr, factor_freq,
-                         T_bg_arr, need_cmb_arr, T_cmb):
+                         is_sd_list, beam_size_sq_list, factor_beam_list, factor_freq,
+                         T_bg_list, need_cmb_list, T_cmb):
     freq_list = []
     spec_list = []
     for i_segment, inds_specie, tau_norm, mu, sigma in prop_list:
@@ -121,11 +121,11 @@ def prepare_fine_spectra(prop_list, params, base_grid,
 
         theta = params[:, :1]
         T_ex = params[:, 1:2]
-        is_single_dish = is_sd_arr[i_segment]
-        beam_size_sq = beam_size_sq_arr[i_segment]
-        factor_beam = factor_beam_arr[i_segment]
-        T_bg = T_bg_arr[i_segment]
-        need_cmb = need_cmb_arr[i_segment]
+        is_single_dish = is_sd_list[i_segment]
+        beam_size_sq = beam_size_sq_list[i_segment]
+        factor_beam = factor_beam_list[i_segment]
+        T_bg = T_bg_list[i_segment]
+        need_cmb = need_cmb_list[i_segment]
 
         spec = np.zeros_like(nu)
         for i_specie, tau_total in tmp_dict.items():
@@ -311,12 +311,12 @@ def create_spectral_line_model_state(sl_data, freq_list, obs_info, trunc=10., ep
     slm_state["factor_beam"] = factor_beam
     slm_state["beam_size_sq"] = beam_size_sq
     #
-    T_bg_arr = []
+    T_bg_list = []
     need_cmb = []
     for info_dict in obs_info:
-        T_bg_arr.append(info_dict["T_bg"])
+        T_bg_list.append(info_dict["T_bg"])
         need_cmb.append(info_dict["need_cmb"])
-    slm_state["T_bg"] = T_bg_arr
+    slm_state["T_bg"] = T_bg_list
     slm_state["need_cmb"] = need_cmb
     slm_state["T_cmb"] = 2.726 # K
     #
