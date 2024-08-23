@@ -1,5 +1,6 @@
 import numpy as np
-from numba import jit
+from numba import types, jit
+from numba.typed import List, Dict
 from astropy import constants, units
 
 
@@ -19,10 +20,17 @@ def compute_spectra_simple(slm_state, params):
 def compute_effective_spectra(slm_state, params):
     args = prepare_properties(slm_state, params)
     prop_list = prepare_prop_list(*args)
-    freq_list_fine, spec_list_fine = prepare_fine_spectra(slm_state, prop_list, params)
+    freq_list_fine, spec_list_fine = prepare_fine_spectra(
+        prop_list, params,
+        base_grid=slm_state["base_grid"],
+        is_sd_arr=slm_state["is_single_dish"],
+        beam_size_sq_arr=slm_state["beam_size_sq"],
+        factor_beam_arr=slm_state["factor_beam"],
+        factor_freq=slm_state["factor_freq"]
+    )
     freqs_fine = np.concatenate(freq_list_fine)
     spectra_fine = np.concatenate(spec_list_fine)
-    return prepare_effective_spectra(slm_state.freq_list, freqs_fine, spectra_fine)
+    return prepare_effective_spectra(slm_state["freq_list"], freqs_fine, spectra_fine)
 
 
 def prepare_properties(slm_state, params):
@@ -33,7 +41,7 @@ def prepare_properties(slm_state, params):
     sigma_list = [None]*num
     inds_speice = [None]*num
     inds_segment = [None]*num
-    for i_specie, (params_i, sl_data_i) in enumerate(zip(params, slm_state.sl_data)):
+    for i_specie, (params_i, sl_data_i) in enumerate(zip(params, slm_state["sl_data"])):
         _, T_ex, den_col, delta_v, v_offset = np.split(params_i, 5, axis=-1)
         tau_norm = np.squeeze(compute_tau_norm(slm_state, sl_data_i, den_col, T_ex))
         tau_norm_list[i_specie] = tau_norm
@@ -48,8 +56,8 @@ def prepare_properties(slm_state, params):
     tau_norm_ret = np.concatenate(tau_norm_list)
     mu_ret = np.concatenate(mu_list)
     sigma_ret = np.concatenate(sigma_list)
-    left = mu_ret - slm_state.trunc*sigma_ret
-    right = mu_ret + slm_state.trunc*sigma_ret
+    left = mu_ret - slm_state["trunc"]*sigma_ret
+    right = mu_ret + slm_state["trunc"]*sigma_ret
 
     inds = np.argsort(left)
     inds_speice_ret = inds_speice_ret[inds]
@@ -63,13 +71,14 @@ def prepare_properties(slm_state, params):
     return inds_speice_ret, inds_segment_ret, tau_norm_ret, mu_ret, sigma_ret, left, right
 
 
+@jit
 def prepare_prop_list(inds_specie, inds_segment, tau_norm, mu, sigma, left, right):
     # tau_norm (N,)
     # mu (N,)
     # sigma (N,)
     # Assume left is sorted
     merged = [] # [[left, right], ...]
-    prop_list = []
+    prop_list = List()
     for i_specie, i_segment, tau_norm_i, mu_i, sigma_i, left_i, right_i \
         in zip(inds_specie, inds_segment, tau_norm, mu, sigma, left, right):
         if len(merged) == 0 or merged[-1][1] < left_i:
@@ -87,33 +96,37 @@ def prepare_prop_list(inds_specie, inds_segment, tau_norm, mu, sigma, left, righ
     return prop_list
 
 
-def prepare_fine_spectra(slm_state, prop_list, params):
+@jit
+def prepare_fine_spectra(prop_list, params, base_grid,
+                         is_sd_arr, beam_size_sq_arr, factor_beam_arr, factor_freq):
     freq_list = []
     spec_list = []
     for i_segment, inds_specie, tau_norm, mu, sigma in prop_list:
         tau_norm = np.asarray(tau_norm)[:, None]
         mu = np.asarray(mu)[:, None]
         sigma = np.asarray(sigma)[:, None]
-        nu = mu + sigma*slm_state.base_grid
-        nu = np.sort(np.ravel(nu))
+        nu = np.sort(np.ravel(mu + sigma*base_grid))
         tau = tau_norm*gauss_profile(nu, mu, sigma)
 
-        tmp_dict = {idx: 0. for idx in inds_specie}
-        for idx, tau_i in zip(inds_specie, tau):
-            tmp_dict[idx] += tau_i
+        tmp_dict = Dict.empty(key_type=types.int64, value_type=types.float64[:])
+        for i_specie in inds_specie:
+            if i_specie not in tmp_dict:
+                tmp_dict[i_specie] = np.zeros_like(nu)
+        for i_specie, tau_i in zip(inds_specie, tau):
+            tmp_dict[i_specie] += tau_i
 
         theta = params[:, :1]
         T_ex = params[:, 1:2]
-        is_single_dish = slm_state.is_single_dish[i_segment]
-        beam_size_sq = slm_state.beam_size_sq[i_segment]
-        factor_beam = slm_state.factor_beam[i_segment]
+        is_single_dish = is_sd_arr[i_segment]
+        beam_size_sq = beam_size_sq_arr[i_segment]
+        factor_beam = factor_beam_arr[i_segment]
 
-        spec = 0.
-        for idx, tau_total in tmp_dict.items():
-            theta_i = theta[idx]
-            T_ex_i = T_ex[idx]
+        spec = np.zeros_like(nu)
+        for i_specie, tau_total in tmp_dict.items():
+            theta_i = theta[i_specie]
+            T_ex_i = T_ex[i_specie]
             spec += compute_filling_factor(nu, theta_i, is_single_dish, beam_size_sq, factor_beam) \
-                * planck_radiation(nu, T_ex_i, slm_state.factor_freq)*(1 - np.exp(-tau_total))
+                * planck_radiation(nu, T_ex_i, factor_freq)*(1 - np.exp(-tau_total))
 
         freq_list.append(nu)
         spec_list.append(spec)
@@ -155,7 +168,7 @@ def compute_tau_total(slm_state, sl_data, den_col, T_ex, delta_v, v_offset):
     mu, sigma = compute_mu_sigma(slm_state, sl_data, delta_v, v_offset)
     mu = mu[:, None]
     sigma = sigma[:, None]
-    nu = slm_state.freqs # (N_nu,)
+    nu = slm_state["freqs"] # (N_nu,)
     phi = np.exp(-.5*np.square((nu - mu)/sigma))/(np.sqrt(2*np.pi)*sigma)
     tau = compute_tau_norm(slm_state, sl_data, den_col, T_ex)[..., None]*phi # (M, N_t, N_nu)
     tau_total = np.sum(tau, axis=-2)
@@ -168,8 +181,8 @@ def compute_tau_norm(slm_state, sl_data, den_col, T_ex):
     # T_ex (B, 1)
     # Return (B, N_t)
     Q_T = np.interp(np.ravel(T_ex), sl_data["x_T"], sl_data["Q_T"])[:, None]
-    E_trans = slm_state.factor_freq*sl_data["freq"]
-    return slm_state.factor_tau*den_col*sl_data["A_ul"]*sl_data["g_u"] \
+    E_trans = slm_state["factor_freq"]*sl_data["freq"]
+    return slm_state["factor_tau"]*den_col*sl_data["A_ul"]*sl_data["g_u"] \
         / (Q_T*sl_data["freq"]*sl_data["freq"]) \
         * np.exp(-sl_data["E_low"]/T_ex)*(1 - np.exp(-E_trans/T_ex))
 
@@ -178,28 +191,30 @@ def compute_mu_sigma(slm_state, sl_data, delta_v, v_offset):
     # sl_data (N_t,)
     # delta_v (B, 1)
     # v_offset (B, 1)
-    mu = (1 - slm_state.factor_v_offset*v_offset)*sl_data["freq"] # (M, N_t)
-    sigma = slm_state.factor_delta_v*delta_v*mu
+    mu = (1 - slm_state["factor_v_offset"]*v_offset)*sl_data["freq"] # (M, N_t)
+    sigma = slm_state["factor_delta_v"]*delta_v*mu
     return mu, sigma
 
-
+@jit
 def compute_filling_factor(nu, theta, is_single_dish, beam_size_sq, factor_beam):
     # nu (N,)
     # theta (B, 1)
     # Return (B, 1)
     theta_sq = theta*theta
     if is_single_dish:
-        beam_size_sq = np.square(factor_beam/nu)
-    return theta_sq/(beam_size_sq + theta_sq)
+        beam_size_sq_ = np.square(factor_beam/nu)
+    else:
+        beam_size_sq_ = np.full_like(nu, beam_size_sq)
+    return theta_sq/(beam_size_sq_ + theta_sq)
 
-
+@jit
 def planck_radiation(nu, T_ex, factor_freq):
     # nu (N,)
     # T_ex (M, 1)
     # Return (M, N)
     return factor_freq*nu/(np.exp(factor_freq*nu/T_ex) - 1)
 
-
+@jit
 def gauss_profile(x, mu, sigma):
     # x (N,)
     # mu (M, 1)
@@ -234,9 +249,8 @@ def derive_base_grid(trunc, eps):
     return points
 
 
-class SpectralLineModelState:
+def create_spectral_line_model_state(sl_data, freq_list, obs_info, trunc=10., eps_grid=1e-3):
     """
-
     Args:
         obs_info:
             - beam_info (float or tuple): Telescople size in meter or
@@ -245,56 +259,59 @@ class SpectralLineModelState:
             - include_cmb (bool): Whethter to add additional CMB radiation in
             the continuum.
     """
-    def __init__(self, sl_data, freq_list, obs_info, trunc=10., eps_grid=1e-3):
-        assert len(freq_list) == len(obs_info)
+    assert len(freq_list) == len(obs_info)
 
-        self.sl_data = sl_data
-        self.freq_list = freq_list
-        self.freqs = np.concatenate(freq_list)
-        #
-        slice_list = []
-        idx_b = 0
-        for freq in freq_list:
-            slice_list.append(slice(idx_b, idx_b + len(freq)))
-            idx_b += len(freq)
-        self.slice_list = slice_list
-        # Set constants
-        self.factor_theta = 1.22*3600*180/np.pi*(constants.c/units.MHz).to(units.m).value
-        self.factor_v_offset = 1./(constants.c).to(units.km/units.second).value
-        self.factor_delta_v = self.factor_v_offset/(2*np.sqrt(2*np.log(2)))
-        self.factor_tau = ((constants.c/units.MHz)**2/units.second).to(units.cm**2*units.MHz).value/(8*np.pi)
-        self.factor_freq = (constants.h/constants.k_B*units.MHz).to(units.Kelvin).value
-        # Set beam info
-        is_single_dish = []
-        factor_beam = []
-        beam_size_sq = []
-        for info_dict in obs_info:
-            beam_info = info_dict["beam_info"]
-            if np.isscalar(beam_info):
-                # Single dish
-                is_single_dish.append(True)
-                factor_beam.append(self.factor_theta/beam_info)
-                beam_size_sq.append(0.)
-            else:
-                # Interferometery
-                is_single_dish.append(False)
-                factor_beam.append(1.)
-                # Convert deg to arcsecond
-                beam_size_sq.append(beam_info[0]*beam_info[1]*3600*3600)
-        self.is_single_dish = is_single_dish
-        self.factor_beam = factor_beam
-        self.beam_size_sq = beam_size_sq
-        #
-        T_bg_arr = []
-        include_cmb = []
-        for info_dict in obs_info:
-            T_bg_arr.append(info_dict["T_bg"])
-            if info_dict["include_cmb"]:
-                include_cmb.append(1.)
-            else:
-                include_cmb.append(0.)
-        self.T_bg_arr = np.array(T_bg_arr)
-        self.include_cmb = np.array(include_cmb)
-        #
-        self.trunc = trunc
-        self.base_grid = derive_base_grid(trunc, eps_grid)
+    slm_state = {}
+    #
+    slm_state["sl_data"] = sl_data
+    slm_state["freq_list"] = freq_list
+    slm_state["freqs"] = np.concatenate(freq_list)
+    #
+    slice_list = []
+    idx_b = 0
+    for freq in freq_list:
+        slice_list.append(slice(idx_b, idx_b + len(freq)))
+        idx_b += len(freq)
+    slm_state["slice_list"] = slice_list
+    #
+    slm_state["factor_theta"] = 1.22*3600*180/np.pi*(constants.c/units.MHz).to(units.m).value
+    slm_state["factor_v_offset"] = 1./(constants.c).to(units.km/units.second).value
+    slm_state["factor_delta_v"] = slm_state["factor_v_offset"]/(2*np.sqrt(2*np.log(2)))
+    slm_state["factor_tau"] = ((constants.c/units.MHz)**2/units.second).to(units.cm**2*units.MHz).value/(8*np.pi)
+    slm_state["factor_freq"] = (constants.h/constants.k_B*units.MHz).to(units.Kelvin).value
+    # Set beam info
+    is_single_dish = []
+    factor_beam = []
+    beam_size_sq = []
+    for info_dict in obs_info:
+        beam_info = info_dict["beam_info"]
+        if np.isscalar(beam_info):
+            # Single dish
+            is_single_dish.append(True)
+            factor_beam.append(slm_state["factor_theta"]/beam_info)
+            beam_size_sq.append(0.)
+        else:
+            # Interferometery
+            is_single_dish.append(False)
+            factor_beam.append(1.)
+            # Convert deg to arcsecond
+            beam_size_sq.append(beam_info[0]*beam_info[1]*3600*3600)
+    slm_state["is_single_dish"] = is_single_dish
+    slm_state["factor_beam"] = factor_beam
+    slm_state["beam_size_sq"] = beam_size_sq
+    #
+    T_bg_arr = []
+    include_cmb = []
+    for info_dict in obs_info:
+        T_bg_arr.append(info_dict["T_bg"])
+        if info_dict["include_cmb"]:
+            include_cmb.append(1.)
+        else:
+            include_cmb.append(0.)
+    slm_state["T_bg_arr"] = np.array(T_bg_arr)
+    slm_state["include_cmb"] = np.array(include_cmb)
+    #
+    slm_state["trunc"] = trunc
+    slm_state["base_grid"] = derive_base_grid(trunc, eps_grid)
+    #
+    return slm_state
