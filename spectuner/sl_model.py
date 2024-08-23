@@ -26,7 +26,10 @@ def compute_effective_spectra(slm_state, params):
         is_sd_arr=slm_state["is_single_dish"],
         beam_size_sq_arr=slm_state["beam_size_sq"],
         factor_beam_arr=slm_state["factor_beam"],
-        factor_freq=slm_state["factor_freq"]
+        factor_freq=slm_state["factor_freq"],
+        T_bg_arr=slm_state["T_bg"],
+        need_cmb_arr=slm_state["need_cmb"],
+        T_cmb=slm_state["T_cmb"]
     )
     freqs_fine = np.concatenate(freq_list_fine)
     spectra_fine = np.concatenate(spec_list_fine)
@@ -98,7 +101,8 @@ def prepare_prop_list(inds_specie, inds_segment, tau_norm, mu, sigma, left, righ
 
 @jit
 def prepare_fine_spectra(prop_list, params, base_grid,
-                         is_sd_arr, beam_size_sq_arr, factor_beam_arr, factor_freq):
+                         is_sd_arr, beam_size_sq_arr, factor_beam_arr, factor_freq,
+                         T_bg_arr, need_cmb_arr, T_cmb):
     freq_list = []
     spec_list = []
     for i_segment, inds_specie, tau_norm, mu, sigma in prop_list:
@@ -120,13 +124,19 @@ def prepare_fine_spectra(prop_list, params, base_grid,
         is_single_dish = is_sd_arr[i_segment]
         beam_size_sq = beam_size_sq_arr[i_segment]
         factor_beam = factor_beam_arr[i_segment]
+        T_bg = T_bg_arr[i_segment]
+        need_cmb = need_cmb_arr[i_segment]
 
         spec = np.zeros_like(nu)
         for i_specie, tau_total in tmp_dict.items():
             theta_i = theta[i_specie]
             T_ex_i = T_ex[i_specie]
-            spec += compute_filling_factor(nu, theta_i, is_single_dish, beam_size_sq, factor_beam) \
-                * planck_radiation(nu, T_ex_i, factor_freq)*(1 - np.exp(-tau_total))
+            spec_i = planck_radiation(nu, T_ex_i, factor_freq) - T_bg
+            if need_cmb:
+                spec_i -= planck_radiation(nu, T_cmb, factor_freq)
+            spec_i *= compute_filling_factor(nu, theta_i, is_single_dish, beam_size_sq, factor_beam)
+            spec_i *= 1 - np.exp(-tau_total)
+            spec += spec_i
 
         freq_list.append(nu)
         spec_list.append(spec)
@@ -256,7 +266,7 @@ def create_spectral_line_model_state(sl_data, freq_list, obs_info, trunc=10., ep
             - beam_info (float or tuple): Telescople size in meter or
             (BMAJ, BMIN) in degree.
             - T_bg (float): background temperature.
-            - include_cmb (bool): Whethter to add additional CMB radiation in
+            - need_cmb (bool): Whethter to add additional CMB radiation in
             the continuum.
     """
     assert len(freq_list) == len(obs_info)
@@ -301,15 +311,13 @@ def create_spectral_line_model_state(sl_data, freq_list, obs_info, trunc=10., ep
     slm_state["beam_size_sq"] = beam_size_sq
     #
     T_bg_arr = []
-    include_cmb = []
+    need_cmb = []
     for info_dict in obs_info:
         T_bg_arr.append(info_dict["T_bg"])
-        if info_dict["include_cmb"]:
-            include_cmb.append(1.)
-        else:
-            include_cmb.append(0.)
-    slm_state["T_bg_arr"] = np.array(T_bg_arr)
-    slm_state["include_cmb"] = np.array(include_cmb)
+        need_cmb.append(info_dict["need_cmb"])
+    slm_state["T_bg"] = T_bg_arr
+    slm_state["need_cmb"] = need_cmb
+    slm_state["T_cmb"] = np.array([2.726]) # K
     #
     slm_state["trunc"] = trunc
     slm_state["base_grid"] = derive_base_grid(trunc, eps_grid)
