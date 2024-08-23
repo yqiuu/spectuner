@@ -4,17 +4,40 @@ from numba.typed import List, Dict
 from astropy import constants, units
 
 
-def compute_spectra_simple(slm_state, params):
-    # params (B, 5)
-    spec = 0.
-    for params_i, sl_data_i in zip(params, slm_state.sl_data):
-        theta, T_ex, den_col, delta_v, v_offset = np.split(params_i, 5, axis=-1)
-        tau_total = compute_tau_total(slm_state, sl_data_i, den_col, T_ex, delta_v, v_offset)
-        term = 1 - np.exp(-tau_total)
-        nu = slm_state.freqs
-        spec += compute_filling_factor(slm_state, nu, theta) \
-            * planck_radiation(slm_state, nu, T_ex)*term
-    return [np.squeeze(spec[:, inds]) for inds in slm_state.slice_list]
+def compute_spectra_simple_grid(slm_state, params):
+    # params (M, 5)
+    def compute_tau_total(slm_state, sl_data, nu, den_col, T_ex, delta_v, v_offset):
+        # den_col (M, 1) cm^-2
+        # T_ex (M, 1) K
+        # v_offset (M,) km/s
+        # delta_v (M,) km/s
+        mu, sigma = compute_mu_sigma(slm_state, sl_data, delta_v, v_offset)
+        tau = compute_tau_norm(slm_state, sl_data, den_col, T_ex)[:, None] \
+            * gauss_profile(nu, mu[:, None], sigma[:, None]) # (N_t, N_nu)
+        tau_total = np.sum(tau, axis=-2)
+        return tau_total
+
+    spec_list = []
+    for i_segment, nu in enumerate(slm_state["freq_list"]):
+        spec = 0.
+        for params_i, sl_data_i in zip(params, slm_state["sl_data"]):
+            theta, T_ex, den_col, delta_v, v_offset = params_i
+            tau_total = compute_tau_total(
+                slm_state, sl_data_i, nu, den_col, T_ex, delta_v, v_offset
+            )
+            # Only use beam info of the first segment
+            spec += compute_intensity(
+                nu, tau_total, theta, T_ex,
+                factor_freq=slm_state["factor_freq"],
+                is_single_dish=slm_state["is_single_dish"][i_segment],
+                beam_size_sq=slm_state["beam_size_sq"][i_segment],
+                factor_beam=slm_state["factor_beam"][i_segment],
+                T_bg=slm_state["T_bg"][i_segment],
+                need_cmb=slm_state["need_cmb"][i_segment],
+                T_cmb=slm_state["T_cmb"]
+            )
+        spec_list.append(spec)
+    return spec_list
 
 
 def compute_effective_spectra(slm_state, params):
@@ -22,11 +45,11 @@ def compute_effective_spectra(slm_state, params):
     prop_list = prepare_prop_list(*args)
     freq_list_fine, spec_list_fine = prepare_fine_spectra(
         prop_list, params,
+        factor_freq=slm_state["factor_freq"],
         base_grid=slm_state["base_grid"],
         is_sd_list=slm_state["is_single_dish"],
         beam_size_sq_list=slm_state["beam_size_sq"],
         factor_beam_list=slm_state["factor_beam"],
-        factor_freq=slm_state["factor_freq"],
         T_bg_list=slm_state["T_bg"],
         need_cmb_list=slm_state["need_cmb"],
         T_cmb=slm_state["T_cmb"]
@@ -100,8 +123,8 @@ def prepare_prop_list(inds_specie, inds_segment, tau_norm, mu, sigma, left, righ
 
 
 @jit
-def prepare_fine_spectra(prop_list, params, base_grid,
-                         is_sd_list, beam_size_sq_list, factor_beam_list, factor_freq,
+def prepare_fine_spectra(prop_list, params, base_grid, factor_freq,
+                         is_sd_list, beam_size_sq_list, factor_beam_list,
                          T_bg_list, need_cmb_list, T_cmb):
     freq_list = []
     spec_list = []
@@ -131,13 +154,16 @@ def prepare_fine_spectra(prop_list, params, base_grid,
         for i_specie, tau_total in tmp_dict.items():
             theta_i = theta[i_specie]
             T_ex_i = T_ex[i_specie]
-            spec_i = planck_radiation(nu, T_ex_i, factor_freq) - T_bg
-            if need_cmb:
-                spec_i -= planck_radiation(nu, T_cmb, factor_freq)
-            spec_i *= compute_filling_factor(nu, theta_i, is_single_dish, beam_size_sq, factor_beam)
-            spec_i *= 1 - np.exp(-tau_total)
-            spec += spec_i
-
+            spec += compute_intensity(
+                nu, tau_total, theta_i, T_ex_i,
+                factor_freq=factor_freq,
+                is_single_dish=is_single_dish,
+                beam_size_sq=beam_size_sq,
+                factor_beam=factor_beam,
+                T_bg=T_bg,
+                need_cmb=need_cmb,
+                T_cmb=T_cmb
+            )
         freq_list.append(nu)
         spec_list.append(spec)
     return freq_list, spec_list
@@ -170,27 +196,12 @@ def prepare_effective_spectra(freq_list, freqs_fine, spectra_fine):
     return spec_list
 
 
-def compute_tau_total(slm_state, sl_data, den_col, T_ex, delta_v, v_offset):
-    # den_col (M, 1) cm^-2
-    # T_ex (M, 1) K
-    # v_offset (M,) km/s
-    # delta_v (M,) km/s
-    mu, sigma = compute_mu_sigma(slm_state, sl_data, delta_v, v_offset)
-    mu = mu[:, None]
-    sigma = sigma[:, None]
-    nu = slm_state["freqs"] # (N_nu,)
-    phi = np.exp(-.5*np.square((nu - mu)/sigma))/(np.sqrt(2*np.pi)*sigma)
-    tau = compute_tau_norm(slm_state, sl_data, den_col, T_ex)[..., None]*phi # (M, N_t, N_nu)
-    tau_total = np.sum(tau, axis=-2)
-    return tau_total
-
-
 def compute_tau_norm(slm_state, sl_data, den_col, T_ex):
     # sl_data (N_t,)
-    # den (B, 1)
-    # T_ex (B, 1)
-    # Return (B, N_t)
-    Q_T = np.interp(np.ravel(T_ex), sl_data["x_T"], sl_data["Q_T"])[:, None]
+    # den (1,)
+    # T_ex (1,)
+    # Return (N_t,)
+    Q_T = np.interp(T_ex, sl_data["x_T"], sl_data["Q_T"])
     E_trans = slm_state["factor_freq"]*sl_data["freq"]
     return slm_state["factor_tau"]*den_col*sl_data["A_ul"]*sl_data["g_u"] \
         / (Q_T*sl_data["freq"]*sl_data["freq"]) \
@@ -206,6 +217,22 @@ def compute_mu_sigma(slm_state, sl_data, delta_v, v_offset):
     sigma = slm_state["factor_delta_v"]*delta_v*mu
     return mu, sigma
 
+
+@jit
+def compute_intensity(nu, tau_total, theta, T_ex, factor_freq,
+                      is_single_dish, beam_size_sq, factor_beam,
+                      T_bg, need_cmb, T_cmb):
+    planck_radiation = lambda nu, T_ex, factor_freq: \
+        factor_freq*nu/(np.exp(factor_freq*nu/T_ex) - 1)
+
+    spec = planck_radiation(nu, T_ex, factor_freq) - T_bg
+    if need_cmb:
+        spec -= planck_radiation(nu, T_cmb, factor_freq)
+    spec *= compute_filling_factor(nu, theta, is_single_dish, beam_size_sq, factor_beam)
+    spec *= 1 - np.exp(-tau_total)
+    return spec
+
+
 @jit
 def compute_filling_factor(nu, theta, is_single_dish, beam_size_sq, factor_beam):
     # nu (N,)
@@ -218,12 +245,6 @@ def compute_filling_factor(nu, theta, is_single_dish, beam_size_sq, factor_beam)
         beam_size_sq_ = np.full_like(nu, beam_size_sq)
     return theta_sq/(beam_size_sq_ + theta_sq)
 
-@jit
-def planck_radiation(nu, T_ex, factor_freq):
-    # nu (N,)
-    # T_ex (M, 1)
-    # Return (M, N)
-    return factor_freq*nu/(np.exp(factor_freq*nu/T_ex) - 1)
 
 @jit
 def gauss_profile(x, mu, sigma):
