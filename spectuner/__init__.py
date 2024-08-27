@@ -1,4 +1,4 @@
-from .spectral_data import *
+from .sl_model import *
 from .identify import *
 from .optimize import *
 from .fitting_model import *
@@ -7,4 +7,3 @@ from .config import *
 from .spectral_plot import *
 from .xclass_wrapper import *
 from .utils import *
-from . import sl_model

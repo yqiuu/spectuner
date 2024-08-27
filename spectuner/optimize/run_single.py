@@ -6,7 +6,7 @@ import numpy as np
 from .optimize import prepare_base_props, optimize, create_pool
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
-from ..spectral_data import query_molecules
+from ..sl_model import query_molecules
 from ..xclass_wrapper import MoleculeStore
 from ..identify import PeakManager
 from ..identify.identify import identify
