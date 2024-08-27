@@ -42,6 +42,26 @@ class SpectralLineDatabase:
         data_ret["x_T"] = self.x_T
         return data_ret
 
+    def query_specie_names(self, freq_list):
+        """Find all entries in the given frequency ranges.
+
+        Args:
+            freq_list (list): A list of arrays to specify the frequencies to
+                compute the spectral line model.
+
+        Returns:
+            list: A list of tuples (``specie_name``, ``transition_frequecy``).
+        """
+        conn = sqlite3.connect(self.fname)
+        cursor = conn.cursor()
+
+        query = f"select T_Name, T_Frequency from transitions where T_Frequency between ? and ?"
+        data = []
+        for freq in freq_list:
+            cursor.execute(query, (freq[0], freq[-1]))
+            data.extend(cursor.fetchall())
+        return data
+
     def load_all_data(self):
         conn = sqlite3.connect(self.fname)
         cursor = conn.cursor()
