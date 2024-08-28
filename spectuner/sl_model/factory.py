@@ -46,6 +46,17 @@ class SpectralLineModelFactory:
         self._trunc = trunc
         self._eps_grid = eps_grid
 
+    @classmethod
+    def from_config(cls, freq_list, config):
+        return cls(
+            sl_db=config["sl_model"]["fname_db"],
+            freq_list=freq_list,
+            obs_info=config["obs_info"],
+            params_info=config["sl_model"]["params"],
+            trunc=config["sl_model"]["trunc"],
+            eps_grid=config["sl_model"]["eps_grid"]
+        )
+
     def create(self, specie_list):
         """Create a ``SpectralLineModel`` instance.
 
