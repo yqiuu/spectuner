@@ -1,7 +1,88 @@
+from copy import deepcopy
+from collections import defaultdict
+
 import numpy as np
 
 from .sl_database import SpectralLineDatabase
 from .sl_model import create_spectral_line_model_state, compute_effective_spectra
+
+
+def derive_sub_specie_list(specie_list, species):
+    """Return a new specie list that only contains the given species.
+
+    Args:
+        specie_list (list): Specie list.
+        species (list): A list of specie names that should be included.
+
+    Returns:
+        list: Filtered specie list.
+    """
+    species_list_new = []
+    for item in specie_list:
+        species_new = [name for name in item["species"] if name in species]
+        if len(species_new) > 0:
+            item_new = deepcopy(item)
+            item_new["species"] = species_new
+            species_list_new.append(item_new)
+    return species_list_new
+
+
+def derive_sub_specie_list_with_params(specie_list, species, params, config):
+    """Extract a sub specie list and corresponding parameters.
+
+    Args:
+        specie_list (list): Specie list.
+        species (list): A list of specie names that should be included.
+        params (array): Parameters.
+        config (dict): Config
+
+    Returns:
+        list: Filtered specie list.
+        array: Filtered parameters.
+    """
+    specie_list_sub = derive_sub_specie_list(specie_list, species)
+    param_mgr = ParameterManager(specie_list, config["sl_model"]["params"])
+    params_sub = param_mgr.get_subset_params(species, params)
+    return specie_list_sub, params_sub
+
+
+def compute_T_single_data(specie_list, config, params, freq_list):
+    slm_factory = SpectralLineModelFactory.from_config(freq_list, config)
+    T_single_data = defaultdict(dict)
+    for item in specie_list:
+        for name in item["species"]:
+            specie_list_single, params_single \
+                = derive_sub_specie_list_with_params(specie_list, [name], params, config)
+            sl_model = slm_factory.create(specie_list_single)
+            T_single_data[item["id"]][name] = sl_model(params_single)
+    T_single_data = dict(T_single_data)
+    return T_single_data
+
+
+def sum_T_single_data(T_single_dict, T_back=0., key=None):
+    # Get a test dict
+    for sub_dict in T_single_dict.values():
+        for T_single_data in sub_dict.values():
+            break
+        break
+    T_ret_data = [None for _ in T_single_data]
+
+    def sum_sub(target_dict):
+        for T_single_data in target_dict.values():
+            for i_segment, T_single in enumerate(T_single_data):
+                if T_single is None:
+                    continue
+                if T_ret_data[i_segment] is None:
+                    T_ret_data[i_segment] = T_back
+                T_ret_data[i_segment] = T_ret_data[i_segment] + T_single - T_back
+
+    if key is not None:
+        sum_sub(T_single_dict[key])
+        return T_ret_data
+
+    for sub_dict in T_single_dict.values():
+        sum_sub(sub_dict)
+    return T_ret_data
 
 
 class SpectralLineModelFactory:
