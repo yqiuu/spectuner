@@ -41,7 +41,7 @@ def derive_sub_specie_list_with_params(specie_list, species, params, config):
         array: Filtered parameters.
     """
     specie_list_sub = derive_sub_specie_list(specie_list, species)
-    param_mgr = ParameterManager(specie_list, config["sl_model"]["params"])
+    param_mgr = ParameterManager.from_config(specie_list, config)
     params_sub = param_mgr.get_subset_params(species, params)
     return specie_list_sub, params_sub
 
@@ -199,6 +199,10 @@ class ParameterManager:
         self._n_tot = self._derive_n_tot()
         #
         self._scales = [params_info[key]["is_log"] for key in self.param_names]
+
+    @classmethod
+    def from_config(cls, specie_list, config):
+        return cls(specie_list, config["sl_model"]["params"])
 
     def derive_params(self, params):
         """Decode input parameters into a 2D array and apply scaling."""
