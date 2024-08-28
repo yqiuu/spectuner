@@ -11,7 +11,7 @@ def load_pred_data(files, reset_id):
             continue
         pred_data = pickle.load(open(fname, "rb"))
         if reset_id:
-            pred_data["mol_store"].mol_list[0]["id"] = i_f
+            pred_data["specie"][0]["id"] = i_f
         pred_data_list.append(pred_data)
     return pred_data_list
 

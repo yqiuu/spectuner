@@ -7,45 +7,6 @@ import numpy as np
 import pandas as pd
 
 
-def compute_T_single_data(mol_store, config, params, freq_data):
-    param_mgr = mol_store.create_parameter_manager(config)
-    T_single_data = defaultdict(dict)
-    for item in mol_store.mol_list:
-        for mol in item["molecules"]:
-            params_single = param_mgr.get_subset_params([mol], params)
-            mol_store_single = mol_store.select_subset([mol])
-            T_single_data[item["id"]][mol] \
-                = mol_store_single.compute_T_pred_data(params_single, freq_data, config)
-    T_single_data = dict(T_single_data)
-    return T_single_data
-
-
-def sum_T_single_data(T_single_dict, T_back, key=None):
-    # Get a test dict
-    for sub_dict in T_single_dict.values():
-        for T_single_data in sub_dict.values():
-            break
-        break
-    T_ret_data = [None for _ in T_single_data]
-
-    def sum_sub(target_dict):
-        for T_single_data in target_dict.values():
-            for i_segment, T_single in enumerate(T_single_data):
-                if T_single is None:
-                    continue
-                if T_ret_data[i_segment] is None:
-                    T_ret_data[i_segment] = T_back
-                T_ret_data[i_segment] = T_ret_data[i_segment] + T_single - T_back
-
-    if key is not None:
-        sum_sub(T_single_dict[key])
-        return T_ret_data
-
-    for sub_dict in T_single_dict.values():
-        sum_sub(sub_dict)
-    return T_ret_data
-
-
 def derive_df_mol_master_from_res_dict(res_dict):
     df_mol_master = pd.concat([
         res.derive_df_mol_master() for res in res_dict.values() if res is not None

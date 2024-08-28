@@ -5,10 +5,8 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy import signal
 
-from .ident_result import (
-    compute_T_single_data, sum_T_single_data,
-    LineTable, IdentResult
-)
+from .. import sl_model
+from .ident_result import LineTable, IdentResult
 
 
 def filter_moleclues(mol_store, config, params,
@@ -26,7 +24,7 @@ def filter_moleclues(mol_store, config, params,
         params (array): None if no emission lines.
     """
     height = T_back + prominence
-    T_single_dict = compute_T_single_data(mol_store, config, params, freq_data)
+    T_single_dict = sl_model.compute_T_single_data(mol_store, config, params, freq_data)
     names_pos = set()
 
     for i_segment in range(len(T_pred_data)):
@@ -453,30 +451,30 @@ class PeakManager:
 
         return score_tp, score_fp
 
-    def identify(self, mol_store, config, params, T_single_dict=None):
+    def identify(self, specie_list, config, params, T_single_dict=None):
         line_table, line_table_fp, T_single_dict = self.derive_line_table(
-            mol_store, config, params, T_single_dict
+            specie_list, config, params, T_single_dict
         )
-        param_dict = self.derive_param_dict(mol_store, config, params)
+        param_dict = self.derive_param_dict(specie_list, config, params)
         id_set = set()
         id_set.update(self.derive_mol_set(line_table.id))
         id_set.update(self.derive_mol_set(line_table_fp.id))
         name_set = set()
         name_set.update(self.derive_mol_set(line_table.name))
         name_set.update(self.derive_mol_set(line_table_fp.name))
-        mol_data = self.derive_mol_data(mol_store, param_dict, id_set, name_set)
+        specie_data = self.derive_specie_data(specie_list, param_dict, id_set, name_set)
         return IdentResult(
-            mol_data, line_table, line_table_fp, T_single_dict,
+            specie_data, line_table, line_table_fp, T_single_dict,
             self.freq_data, self.T_back
         )
 
-    def derive_mol_data(self, mol_store, param_dict, id_set, mol_set):
+    def derive_specie_data(self, specie_list, param_dict, id_set, mol_set):
         data_tree = defaultdict(dict)
-        for item in mol_store.mol_list:
+        for item in specie_list:
             i_id = item["id"]
             if i_id not in id_set:
                 continue
-            for mol in item["molecules"]:
+            for mol in item["species"]:
                 if mol not in mol_set:
                     continue
                 cols = {"master_name": item["root"]}
@@ -484,25 +482,26 @@ class PeakManager:
                 data_tree[i_id][mol] = cols
         return dict(data_tree)
 
-    def derive_param_dict(self, mol_store, config, params):
-        param_mgr = mol_store.create_parameter_manager(config)
-        params_mol = param_mgr.derive_mol_params(params)
-
-        param_names = ["size", "T_ex", "den", "delta_v", "v_lsr"]
+    def derive_param_dict(self, specie_list, config, params):
+        param_mgr = sl_model.ParameterManager.from_config(specie_list, config)
+        params_mol = param_mgr.derive_params(params)
+        param_names = param_mgr.param_names
         param_dict = defaultdict(dict)
         idx = 0
-        for item in mol_store.mol_list:
-            for mol in item["molecules"]:
-                param_dict[item["id"]][mol] \
+        for item in specie_list:
+            for name in item["species"]:
+                param_dict[item["id"]][name] \
                     = {key: par for key, par in zip(param_names, params_mol[idx])}
                 idx += 1
         param_dict = dict(param_dict)
         return param_dict
 
-    def derive_line_table(self, mol_store, config, params, T_single_dict):
+    def derive_line_table(self, specie_list, config, params, T_single_dict):
         if T_single_dict is None:
-            T_single_dict = compute_T_single_data(mol_store, config, params, self.freq_data)
-        T_pred_data = sum_T_single_data(T_single_dict, self.T_back)
+            T_single_dict = sl_model.compute_T_single_data(
+                specie_list, config, params, self.freq_data
+            )
+        T_pred_data = sl_model.sum_T_single_data(T_single_dict, self.T_back)
         line_table = LineTable()
         line_table_fp = LineTable()
         for i_segment, T_pred in enumerate(T_pred_data):
