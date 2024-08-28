@@ -154,6 +154,8 @@ def derive_groups(specie_names, moleclues, elements, iso_mode,
             key = mol_normal if separate_all else fm
         elif iso_mode == "combined" and (moleclues is None or fm_root in fm_root_set):
             key = mol_normal if separate_all else fm_root
+        else:
+            continue
         groups[key].append(mol)
 
     return groups
