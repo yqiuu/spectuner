@@ -34,7 +34,12 @@ class SpectralLineModelFactory:
             determine the grid points.
     """
     def __init__(self, sl_db, freq_list, obs_info, params_info, trunc=10., eps_grid=1e-3):
-        self._sl_database = SpectralLineDatabase(sl_db)
+        if isinstance(sl_db, str):
+            self._sl_database = SpectralLineDatabase(sl_db)
+        elif isinstance(sl_db, SpectralLineDatabase):
+            self._sl_database = sl_db
+        else:
+            raise ValueError(f"Invalid spectral line database: {sl_db}.")
         self._freq_list = freq_list
         self._obs_info = obs_info
         self._params_info = params_info
@@ -69,12 +74,12 @@ class SpectralLineModelFactory:
 
 class SpectralLineModel:
     def __init__(self, slm_state, param_mgr):
-        self._slm_state = slm_state
-        self._param_mgr = param_mgr
+        self.slm_state = slm_state
+        self.param_mgr = param_mgr
 
     def __call__(self, params):
         return compute_effective_spectra(
-            self._slm_state, self._param_mgr.derive_params(params)
+            self.slm_state, self.param_mgr.derive_params(params)
         )
 
 
