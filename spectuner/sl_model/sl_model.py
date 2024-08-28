@@ -69,7 +69,7 @@ def prepare_properties(slm_state, params):
     inds_segment = [None]*num
     for i_specie, (params_i, sl_data_i) in enumerate(zip(params, slm_state["sl_data"])):
         _, T_ex, den_col, delta_v, v_offset = params_i
-        tau_norm = np.squeeze(compute_tau_norm(slm_state, sl_data_i, den_col, T_ex))
+        tau_norm = compute_tau_norm(slm_state, sl_data_i, den_col, T_ex)
         tau_norm_list[i_specie] = tau_norm
         mu, sigma = compute_mu_sigma(slm_state, sl_data_i, delta_v, v_offset)
         mu_list[i_specie] = mu
