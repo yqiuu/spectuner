@@ -312,9 +312,9 @@ def create_spectral_line_model_state(sl_data_list, freq_list, obs_info, trunc=10
     slm_state["factor_tau"] = ((constants.c/units.MHz)**2/units.second).to(units.cm**2*units.MHz).value/(8*np.pi)
     slm_state["factor_freq"] = (constants.h/constants.k_B*units.MHz).to(units.Kelvin).value
     # Set beam info
-    is_single_dish = List()
-    factor_beam = List()
-    beam_size_sq = List()
+    is_single_dish = []
+    factor_beam = []
+    beam_size_sq = []
     for info_dict in obs_info:
         beam_info = info_dict["beam_info"]
         if np.isscalar(beam_info):
@@ -332,8 +332,8 @@ def create_spectral_line_model_state(sl_data_list, freq_list, obs_info, trunc=10
     slm_state["factor_beam"] = factor_beam
     slm_state["beam_size_sq"] = beam_size_sq
     #
-    T_bg_list = List()
-    need_cmb = List()
+    T_bg_list = []
+    need_cmb = []
     for info_dict in obs_info:
         T_bg_list.append(info_dict["T_bg"])
         need_cmb.append(info_dict["need_cmb"])
