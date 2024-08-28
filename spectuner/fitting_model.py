@@ -5,39 +5,42 @@ from .xclass_wrapper import derive_freq_range
 from .identify import PeakManager
 
 
-def create_fitting_model(obs_data, mol_store, config, T_base_data):
-    param_mgr = mol_store.create_parameter_manager(config)
-    # TODO: better way to create bounds?
-    bounds = param_mgr.derive_bounds(config["opt"]["bounds"])
-    model = FittingModel(
-        obs_data, mol_store, bounds, config, T_base_data=T_base_data
-    )
-    return model
+def jit_fitting_model(model):
+    """Call the fitting model once to enable jit."""
+    model(np.mean(model.bounds, axis=1))
 
 
 class FittingModel:
-    def __init__(self, obs_data, mol_store, bounds, config, T_base_data=None):
-        self.mol_store = mol_store
-        self.include_list = mol_store.include_list
-        self.sl_model = mol_store.create_spectral_line_model(config)
-        T_back = self.sl_model.pm.T_back
+    def __init__(self, slm_factory, specie_list, obs_data, bounds_info, loss_fn,
+                 T_base_data=None, blob=False):
+        self.sl_model = slm_factory.create(specie_list)
+        self.bounds = self.sl_model.param_mgr.derive_bounds(bounds_info)
         self.freq_range_data, self.freq_data, self.T_obs_data \
             = self._preprocess_spectra(obs_data)
-        self.bounds = bounds
         #
-        loss_fn = config.get("loss_fn", "pm")
-        if loss_fn == "pm":
-            self.loss_fn = PeakManager(
+        self.loss_fn = loss_fn
+        self.T_base_data = T_base_data
+        self.blob = blob
+
+    @classmethod
+    def from_config(cls, slm_factory, specie_list, obs_data, config, T_base_data=None):
+        loss_fn_type = config.get("loss_fn", "pm")
+        if loss_fn_type == "pm":
+            T_back = 0.
+            loss_fn = PeakManager(
                 obs_data, T_back, **config["peak_manager"],
                 T_base_data=T_base_data
             )
-        elif loss_fn == "mse":
-            self.loss_fn = MSE(obs_data)
+        elif loss_fn_type == "mse":
+            loss_fn = MSE(obs_data)
         else:
             raise ValueError(f"Unknown loss function {loss_fn}.")
-        self.T_base_data = T_base_data
-        self.T_back = T_back
-        self.blob = config["opt"].get("blob", False)
+        return cls(
+            slm_factory, specie_list, obs_data,
+            bounds_info=config["opt"]["bounds"],
+            loss_fn=loss_fn,
+            T_base_data=T_base_data
+        )
 
     def _preprocess_spectra(self, obs_data):
         if isinstance(obs_data, list) or isinstance(obs_data, tuple):
@@ -57,35 +60,11 @@ class FittingModel:
         return freq_range_data, freq_data, T_obs_data
 
     def __call__(self, params):
-        iterator = self.sl_model.call_multi(
-            self.freq_data, self.include_list, params, remove_dir=True
-        )
-        T_pred_data = []
-        for args in iterator:
-            T_pred = args[0]
-            T_pred = np.maximum(T_pred, self.T_back)
-            T_pred_data.append(T_pred)
-        loss, loss_pm = self.loss_fn(T_pred_data)
+        T_pred_list = self.sl_model(params)
+        loss, loss_pm = self.loss_fn(T_pred_list)
         if self.blob:
             return loss, loss_pm
         return loss
-
-    def call_func(self, params, remove_dir=True):
-        T_pred_data = []
-        trans_data = []
-        tau_data = []
-        job_dir_data = []
-        iterator = self.sl_model.call_multi(
-            self.freq_data, self.include_list, params, remove_dir=remove_dir
-        )
-        for T_pred, _, trans, tau, job_dir in iterator:
-            T_pred_data.append(T_pred)
-            trans_data.append(trans)
-            tau_data.append(tau)
-            job_dir_data.append(job_dir)
-        if len(T_pred_data) == 1:
-            return T_pred_data[0], trans_data[0], tau_data[0], job_dir_data[0]
-        return T_pred_data, trans_data, tau_data, job_dir_data
 
 
 class MSE:

@@ -33,8 +33,6 @@ def create_config(dir="./"):
 def load_config(dir):
     dir = Path(dir)
     config = yaml.safe_load(open(dir/"config.yml"))
-    if config["files"] is None or len(config["files"]) == 0:
-        raise ValueError("'files' cannot be empty.")
     if config["peak_manager"]["prominence"] is None:
         raise ValueError("'prominence' cannot be None.")
     if config["peak_manager"]["rel_height"] is None:

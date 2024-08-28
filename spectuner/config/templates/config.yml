@@ -1,42 +1,35 @@
-files: null
+obs_info:
+    - fname: None
+      beam_info: 30 # (1/3600, 1/3600)
+      T_bg: 0.
+      need_cmb: True
+
+    # Use the following for multiple observed segments
+    #- fname: None
+    #  beam_info: 30 # (1/3600, 1/3600)
+    #  T_bg: 0.
+    #  need_cmb: True
 fname_base: null
 sl_model:
-  prefix_molfit: TMP_DIR
-  Inter_Flag: False
-  TelescopeSize: 30
-  N_H: 0.
-  kappa_1300: 0.
-  beta_dust: 0.
-  vLSR: 0.
-  tBack: 0.
-  MinNumTransitionsSQL: 1
-  MaxNumTransitionsSQL: 0
-  # order of transitions:
-  # - 1: by lower energy
-  # - 2: by gA
-  # - 3: gA/E_low^2
-  # - else: by trans. freq.
-  TransOrderSQL: 1
-  # Maximum lower energy.
-  MaxElowSQL: 5000.
-  # Minimum intensity.
-  MingASQL: null
-params:
-  theta:
-    is_shared: True
-    is_log: True
-  T_ex:
-    is_shared: False
-    is_log: False
-  N_tot:
-    is_shared: False
-    is_log: True
-  delta_v:
-    is_shared: True
-    is_log: True
-  v_LSR:
-    is_shared: True
-    is_log: False
+  fname_db: null
+  trunc: 10.
+  eps_grid: 1.e-3
+  params:
+    theta:
+      is_shared: True
+      is_log: True
+    T_ex:
+      is_shared: False
+      is_log: False
+    N_tot:
+      is_shared: False
+      is_log: True
+    delta_v:
+      is_shared: True
+      is_log: True
+    v_LSR:
+      is_shared: True
+      is_log: False
 peak_manager:
   prominence: null
   rel_height: 0.25

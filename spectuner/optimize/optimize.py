@@ -6,7 +6,6 @@ import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 from tqdm import trange
 
-from ..xclass_wrapper import extract_line_frequency
 from ..identify import create_spans
 
 
@@ -77,31 +76,23 @@ def optimize_sub(model, config_opt, pool):
         pos_all = np.vstack(pos_all)
         cost_all = np.concatenate(cost_all)
 
-    T_pred_data, trans_data = prepare_pred_data(model, opt.pos_global_best)
+    T_pred_data = model.sl_model(opt.pos_global_best)
 
     ret_dict = {
-        "mol_store": model.mol_store,
+        "specie": model.sl_model.param_mgr.specie_list,
         "freq": model.freq_data,
         "T_pred": T_pred_data,
         "T_obs": model.T_obs_data,
         "T_base": model.T_base_data,
-        "T_back": model.T_back,
-        "trans_dict": trans_data,
         "cost_best": opt.cost_global_best,
         "params_best": opt.pos_global_best,
     }
     if config_opt.get("save_local_best", False):
-        T_pred_data_local = []
-        trans_data_local = []
-        for pos in opt.pos_local_best:
-            T_tmp, trans_tmp = prepare_pred_data(model, pos)
-            T_pred_data_local.append(T_tmp)
-            trans_data_local.append(trans_tmp)
+        T_pred_data_local = [model.sl_model(pos) for pos in opt.pos_local_best]
         local_best = {
             "cost_best": opt.cost_local_best,
             "params_best": opt.pos_local_best,
             "T_pred": T_pred_data_local,
-            "trans_dict": trans_data_local,
         }
         ret_dict["local_best"] = local_best
     if config_opt.get("save_history", False):
@@ -119,22 +110,6 @@ def create_pool(n_process, use_mpi):
         return MPIPoolExecutor(n_process)
     else:
         return Pool(n_process)
-
-
-def prepare_pred_data(model, pos):
-    T_pred_data, trans_data, _, job_dir_data = model.call_func(pos)
-    if isinstance(job_dir_data, str):
-        T_pred_data = [T_pred_data]
-        trans_data_ret = [extract_line_frequency(trans_data)]
-        return T_pred_data, trans_data_ret
-
-    trans_data_ret = []
-    for trans in trans_data:
-        if trans is None:
-            trans_data_ret.append(None)
-        else:
-            trans_data_ret.append(extract_line_frequency(trans))
-    return T_pred_data, trans_data_ret
 
 
 def prepare_base_props(fname, config):

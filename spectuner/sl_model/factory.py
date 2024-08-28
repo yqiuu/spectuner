@@ -47,9 +47,11 @@ class SpectralLineModelFactory:
         self._eps_grid = eps_grid
 
     @classmethod
-    def from_config(cls, freq_list, config):
+    def from_config(cls, freq_list, config, sl_db=None):
+        if sl_db is None:
+            sl_db = config["sl_model"]["fname_db"]
         return cls(
-            sl_db=config["sl_model"]["fname_db"],
+            sl_db=sl_db,
             freq_list=freq_list,
             obs_info=config["obs_info"],
             params_info=config["sl_model"]["params"],

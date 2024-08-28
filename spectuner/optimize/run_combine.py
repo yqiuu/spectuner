@@ -17,7 +17,6 @@ from ..identify import (
     PeakManager,
 )
 from ..identify.identify import identify
-from ..fitting_model import create_fitting_model
 
 
 __all__ = ["run_combine"]
