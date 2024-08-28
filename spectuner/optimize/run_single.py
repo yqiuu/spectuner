@@ -6,7 +6,7 @@ import numpy as np
 from .optimize import prepare_base_props, optimize, create_pool
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
-from ..sl_model import query_molecules
+from ..sl_model import query_species
 from ..xclass_wrapper import MoleculeStore
 from ..identify import PeakManager
 from ..identify.identify import identify
@@ -63,7 +63,7 @@ def select_molecules(obs_data, spans, config):
         freqs = np.mean(np.vstack(peak_mgr.spans_obs_data), axis=1)
     else:
         freqs = np.mean(spans, axis=1)
-    mol_list, include_dict = query_molecules(
+    mol_list, include_dict = query_species(
         get_freq_data(obs_data),
         v_LSR=config["sl_model"].get("vLSR", 0.),
         freqs_include=freqs,

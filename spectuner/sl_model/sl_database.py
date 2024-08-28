@@ -2,6 +2,328 @@ import sqlite3
 from collections import defaultdict
 
 import numpy as np
+import re
+
+from .atoms import MolecularDecomposer
+from ..identify import create_spans, compute_shift
+
+
+def query_species(sl_database, freq_list,
+                  v_LSR=0., freqs_include=None, v_range=None,
+                  species=None, elements=None,
+                  iso_mode="combined", iso_order=1,
+                  version_mode="default", include_hyper=False,
+                  separate_all=False, exclude_list=None, rename_dict=None):
+    rename_dict_ = {
+        "NH2CN": "H2NCN",
+        "H2CCHCN": "CH2CHCN",
+        "CH2CHCN": "CH2CHCN",
+        "C2H3CN": "CH2CHCN",
+        "C2H5CN": "CH3CH2CN"
+    }
+    if rename_dict is not None:
+        rename_dict_.update(**rename_dict)
+    if exclude_list is None:
+        exclude_list = []
+
+    specie_names = prepare_specie_names(
+        sl_database, freq_list, v_LSR, freqs_include, v_range,
+        iso_order, version_mode, include_hyper
+    )
+    groups = derive_groups(
+        specie_names, species, elements, iso_mode,
+        exclude_list, rename_dict_, separate_all
+    )
+    return derive_specie_list(groups)
+
+
+def prepare_specie_names(sl_database, freq_list,
+                         v_LSR=0., freqs_include=None, v_range=None,
+                         iso_order=1, version_mode="default",
+                         include_hyper=False):
+    entries = sl_database.query_specie_names(freq_list)
+    if freqs_include is not None:
+        entries = check_freqs_include(
+            entries, compute_shift(freqs_include, v_LSR), v_range
+        )
+    specie_names = choose_version(entries, version_mode, include_hyper)
+    specie_names = exclude_isotopes(specie_names, iso_order)
+    return specie_names
+
+
+def check_freqs_include(entries, freqs_include, v_range):
+    """Include entries that are within the given frequecy ranges."""
+    freqs = np.array([item[1] for item in entries])
+    freqs = np.sort(freqs)
+    spans = create_spans(freqs, *v_range)
+    inds = np.searchsorted(freqs_include, spans[:, 0])
+    cond = inds != len(freqs_include)
+    inds[~cond] = len(freqs_include) - 1
+    cond &= spans[:, 1] >= freqs_include[inds]
+    return [item for idx, item in enumerate(entries) if cond[idx]]
+
+
+def choose_version(entries, version_mode, include_hyper):
+    counter = defaultdict(int)
+    for item in entries:
+        counter[item[0]] += 1
+
+    mol_dict = defaultdict(list)
+    mol_dict_hyp = defaultdict(list)
+    for name, num in counter.items():
+        tmp = name.split(";")
+        # Ingore spin states or A/E states
+        if tmp[-1].startswith("ortho") or tmp[-1].startswith("para") \
+            or "A" in tmp[-1] or "E" in tmp[-1]:
+            continue
+        if tmp[2].startswith("hyp"):
+            assert len(tmp) == 3, "Invalid entry: {}.".format(";".join(tmp))
+            if "#" in tmp[-1]:
+                tmp_a, tmp_b = tmp[-1].split("#")
+                tmp[-1] = tmp_a
+                tmp_b = f"#{tmp_b}"
+            else:
+                tmp_b = ""
+            mol_dict_hyp[";".join(tmp)].append((tmp_b, num))
+        else:
+            mol_dict[";".join(tmp[:-1])].append((tmp[-1], num))
+
+    if version_mode == "all":
+        specie_names = []
+        for prefix, post_list in mol_dict.items():
+            for postfix in post_list:
+                specie_names.append(";".join([prefix, postfix[0]]))
+        for prefix, post_list in mol_dict_hyp.items():
+            for postfix in post_list:
+                specie_names.append(";".join([prefix, postfix[0]]))
+        return specie_names
+
+    if version_mode == "default":
+        sort_key = lambda item: item[0]
+        is_reversed = False
+    elif version_mode == "latest":
+        sort_key = lambda item: item[0]
+        is_reversed = True
+    elif version_mode == "most":
+        sort_key = lambda item: item[1] + int(item[0].split("#")[-1] if "#" in item[0] else 0)
+        is_reversed = True
+    else:
+        raise ValueError("Unknown mode: {}.".format(version_mode))
+
+    specie_names = []
+    for prefix, post_list in mol_dict.items():
+        post_list.sort(key=sort_key, reverse=is_reversed)
+        specie_names.append(";".join([prefix, post_list[0][0]]))
+
+    if not include_hyper:
+        specie_names.sort()
+        return specie_names
+
+    for prefix, post_list in mol_dict_hyp.items():
+        post_list.sort(key=sort_key, reverse=is_reversed)
+        specie_names.append(prefix + post_list[0][0])
+    specie_names.sort()
+    return specie_names
+
+
+def derive_groups(specie_names, moleclues, elements, iso_mode,
+                  exclude_list, rename_dict, separate_all):
+    specie_data = derive_specie_data(specie_names, rename_dict)
+
+    if moleclues is not None:
+        fm_set, fm_root_set \
+            = list(zip(*[derive_normal_formula(name, rename_dict)[:2] for name in moleclues]))
+    exclude_list = decompose_exclude_list(exclude_list, rename_dict)
+
+    # Filter elements and species
+    if elements is not None:
+        elements = set(elements)
+        if "H" in elements:
+            elements.add("D")
+    groups = defaultdict(list)
+    for fm_root, fm, mol_normal, atom_set, mol in specie_data:
+        if check_exclude_list(mol_normal, exclude_list):
+            continue
+
+        if elements is not None and len(atom_set - elements) != 0:
+            continue
+
+        if iso_mode == "manual" and (moleclues is None or fm in fm_set):
+            key = mol_normal if separate_all else fm
+        elif iso_mode == "separate" and (moleclues is None or fm_root in fm_root_set):
+            key = mol_normal if separate_all else fm
+        elif iso_mode == "combined" and (moleclues is None or fm_root in fm_root_set):
+            key = mol_normal if separate_all else fm_root
+        groups[key].append(mol)
+
+    return groups
+
+
+def derive_specie_data(mol_list, rename_dict):
+    specie_data = []
+    for mol in mol_list:
+        fm, fm_root, mol_normal = derive_normal_formula(mol, rename_dict)
+        atom_set = derive_atom_set(fm_root)
+        specie_data.append((fm_root, fm, mol_normal, atom_set, mol))
+    return specie_data
+
+
+def derive_normal_formula(mol_name, rename_dict):
+    """Expand and rename an input formula.
+
+    The function also checks isotopes in the formula.
+
+    Args:
+        mol_name (str): formula.
+        rename_dict (dict): Rename dictionary.
+
+    Returns:
+        fm (str): Normal formula.
+        fm_root (str): Normal formula with isotopes removed.
+        mol_normal (str): Molecule name replaced with normal formula.
+    """
+    def expand(fm):
+        """Expand formulae.
+            HC3N > HCCCN
+            CH3CN > CHHHCN
+        """
+        for pattern in re.findall("[A-Z][a-z]?\d", fm):
+            fm = fm.replace(pattern, pattern[:-1]*int(pattern[-1]))
+        return fm
+
+    tmp = mol_name.split(";")
+    fm = tmp[0]
+    if fm in rename_dict:
+        fm = rename_dict[fm]
+
+    # Remove iso
+    pattern = r"-([0-9])([0-9])[-]?"
+    fm_root = re.sub(pattern, "", fm)
+    fm_root = fm_root.replace("D", "H")
+
+    #
+    fm = expand(fm)
+    fm_root = expand(fm_root)
+    tmp[0] = fm
+    mol_normal = ";".join(tmp)
+    return fm, fm_root, mol_normal
+
+
+def derive_atom_set(fm):
+    # Remove (Z-), E-, aGg-, AA-
+    fm_ = fm
+    for pattern in ["Z", "E", "GG", "GA", "AG", "AA", "G"]:
+        fm_ = fm_.replace(pattern, "")
+
+    atom_dict = MolecularDecomposer(fm_).ShatterFormula()
+    atom_set = set(atom_dict.keys())
+    return atom_set
+
+
+def decompose_exclude_list(exclude_list, rename_dict):
+    """Decompose an exclude_lsit, e.g.
+
+    [CH3OH, HNCO;v=0, C2H3CN, H2C-13-CHCN;v=0;]
+    -> [[CH3OH, C2H3CN], [HNCO;v=0], [H2C-13-CHCN;v=0;]]
+    """
+    exclude_list_new = [[], [], []]
+    for name in exclude_list:
+        mol_normal = derive_normal_formula(name, rename_dict)[2]
+        num = len(mol_normal.split(";"))
+        if num == 1:
+            exclude_list_new[0].append(mol_normal)
+        elif num == 2:
+            exclude_list_new[1].append(mol_normal)
+        else:
+            exclude_list_new[2].append(mol_normal)
+    return exclude_list_new
+
+
+def check_exclude_list(name, exclude_list):
+    tmp = name.split(";")
+    if tmp[0] in exclude_list[0]:
+        return True
+    if ";".join(tmp[:2]) in exclude_list[1]:
+        return True
+    if name in exclude_list[2]:
+        return True
+    return False
+
+
+def derive_specie_list(groups):
+    idx = 0
+    specie_list = []
+    for species in groups.values():
+        root_name = select_master_name(species)
+        if root_name is None:
+            continue
+        specie_list.append({"id": idx, "root": root_name, "species": species})
+    return specie_list
+
+
+def select_master_name(name_list):
+    def sort_key(name):
+        s = ""
+        if is_ground_state(name):
+            s += "0"
+        else:
+            s += "1"
+        if has_isotope(name):
+            s += "1"
+        else:
+            s += "0"
+        if is_hyper_state(name):
+            s += "1"
+        else:
+            s += "0"
+        return f"{s}{name}"
+
+    name_list_ = name_list.copy()
+    name_list_.sort(key=sort_key)
+    return name_list_[0]
+
+
+def exclude_isotopes(specie_names, iso_order):
+    return [name for name in specie_names if count_iso_atoms(name) <= iso_order]
+
+
+def count_iso_atoms(name):
+    # TODO: This function cannot handle complex formulae, e.g. (C-13-HOH)2
+    name = name.split(";")[0]
+    for pattern in re.findall("D\d", name):
+        name = name.replace(pattern, pattern[:-1]*int(pattern[-1]))
+    return name.count("D") + len(re.findall('-([0-9])([0-9])[-]?', name))
+
+
+def is_ground_state(name):
+    return name.split(";")[1] == "v=0"
+
+
+def is_hyper_state(name):
+    return name.split(";")[2].startswith("hyp")
+
+
+def has_isotope(name):
+    pattern = r"-([0-9])([0-9])[-]?"
+    return re.search(pattern, name) is not None or "D" in name
+
+
+def latex_mol_formula(name):
+    """Convert the input name into latex format."""
+    def replace_isotope(match):
+        element = match.group(1)
+        num = match.group(2)
+        return f"$^{{{num}}}${element}"
+
+    def replace_number(match):
+        element = match.group(1)
+        num = match.group(2)
+        return f"{element}$_{{{num}}}$"
+
+    name_ret = re.sub(r'([A-Z][a-z]?)-([0-9]+)-?', replace_isotope, name)
+    name_ret = re.sub(r'([A-Z][a-z]?)([0-9]+)', replace_number, name_ret)
+    name_ret = re.sub(r'(\([^)]+\))([0-9]+)', replace_number, name_ret)
+    return name_ret
 
 
 class SpectralLineDatabase:
@@ -55,11 +377,16 @@ class SpectralLineDatabase:
         conn = sqlite3.connect(self.fname)
         cursor = conn.cursor()
 
-        query = f"select T_Name, T_Frequency from transitions where T_Frequency between ? and ?"
+        query = """select T_Name, T_Frequency from transitions where """\
+            """T_Frequency between ? and ? and T_name not like '%RRL%'"""
         data = []
         for freq in freq_list:
             cursor.execute(query, (freq[0], freq[-1]))
             data.extend(cursor.fetchall())
+
+        cursor.close()
+        conn.close()
+
         return data
 
     def load_all_data(self):
