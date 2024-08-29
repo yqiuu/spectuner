@@ -1,3 +1,4 @@
+import sys
 import pickle
 from pathlib import Path
 from multiprocessing import Pool
@@ -54,7 +55,7 @@ def optimize_sub(model, config_opt, pool):
     cost_all = []
     blob = []
     n_stuck = 0
-    for i_cycle in trange(n_cycle_max):
+    for i_cycle in trange(n_cycle_max, file=sys.stdout):
         for data in opt.swarm(niter=1, progress_bar=False).values():
             if save_all:
                 pos_all.append(data["pos"])
