@@ -46,6 +46,14 @@ def derive_sub_specie_list_with_params(specie_list, species, params, config):
     return specie_list_sub, params_sub
 
 
+def combine_specie_lists(specie_lists, params_list):
+    specie_list_ret = []
+    for specie_list in specie_lists:
+        specie_list_ret.extend(specie_list)
+    params_ret = np.concatenate(params_list)
+    return specie_list_ret, params_ret
+
+
 def compute_T_single_data(specie_list, config, params, freq_list):
     slm_factory = SpectralLineModelFactory.from_config(freq_list, config)
     T_single_data = defaultdict(dict)

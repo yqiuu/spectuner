@@ -6,15 +6,18 @@ from pathlib import Path
 
 import numpy as np
 
-from ..config import append_exclude_info
 from .optimize import prepare_base_props, optimize, create_pool
+from ..config import append_exclude_info
 from ..utils import load_pred_data
 from ..preprocess import load_preprocess, get_freq_data
-from ..xclass_wrapper import combine_mol_stores
-from ..peaks import (
-    derive_peak_params, derive_peaks_multi, derive_intersections, PeakManager,
+from ..sl_model import (
+    combine_specie_lists, SpectralLineDatabase, SpectralLineModelFactory
 )
-from ..identify import identify
+from ..fitting_model import jit_fitting_model, FittingModel
+from ..peaks import (
+    derive_peak_params, derive_peaks_multi, derive_intersections
+)
+from ..identify import identify, Identification
 
 
 __all__ = ["run_combine"]
@@ -29,49 +32,46 @@ def run_combine(config, result_dir, need_identify=True):
         directory to save the results of the individual fitting.
         need_identify (bool):  If ``True``, peform the identification.
     """
-    use_mpi = config["opt"].get("use_mpi", False)
-    with create_pool(config["opt"]["n_process"], use_mpi) as pool:
-        config = deepcopy(config)
-        config["opt"]["n_cycle_dim"] = 0
+    config = deepcopy(config)
+    config["opt"]["n_cycle_dim"] = 0
 
-        T_back = config["sl_model"].get("tBack", 0.)
-        obs_data = load_preprocess(config["files"], T_back)
-        config_slm = config["sl_model"]
+    obs_data = load_preprocess(config["obs_info"])
+    config_slm = config["sl_model"]
 
-        prominence = config["peak_manager"]["prominence"]
-        rel_height = config["peak_manager"]["rel_height"]
-        #
-        result_dir = Path(result_dir)
-        single_dir = result_dir/"single"
-        save_dir = result_dir/"combine"
-        save_dir.mkdir(exist_ok=True)
+    prominence = config["peak_manager"]["prominence"]
+    rel_height = config["peak_manager"]["rel_height"]
+    #
+    result_dir = Path(result_dir)
+    single_dir = result_dir/"single"
+    save_dir = result_dir/"combine"
+    save_dir.mkdir(exist_ok=True)
 
-        pred_data_list = load_pred_data(single_dir.glob("*.pickle"), reset_id=False)
-        if len(pred_data_list) == 0:
-            raise ValueError("Cannot find any individual fitting results.")
-        pred_data_list.sort(key=lambda item: item["cost_best"])
+    pred_data_list = load_pred_data(single_dir.glob("*.pickle"), reset_id=False)
+    if len(pred_data_list) == 0:
+        raise ValueError("Cannot find any individual fitting results.")
+    pred_data_list.sort(key=lambda item: item["cost_best"])
 
-        pack_list = []
-        for pred_data in pred_data_list:
-            pack_list.append(prepare_properties(
-                pred_data, config_slm, T_back, prominence, rel_height, need_filter=False))
+    pack_list = []
+    for pred_data in pred_data_list:
+        pack_list.append(prepare_properties(
+            pred_data, config_slm, prominence, rel_height, need_filter=False
+        ))
 
-        fname_base = config.get("fname_base", None)
-        if fname_base is not None:
-            base_data = pickle.load(open(fname_base, "rb"))
-            base_props = prepare_base_props(fname_base, config)
-            config_ = append_exclude_info(
-                config, base_props["freqs_exclude"], base_props["exclude_list"]
-            )
-            pack_base = prepare_properties(
-                base_data, config_slm, T_back, prominence, rel_height, need_filter=False)
-        else:
-            config_ = config
-            pack_base = None
-
-        combine_greedy(
-            pack_list, pack_base, obs_data, config_, pool, save_dir
+    fname_base = config.get("fname_base", None)
+    if fname_base is not None:
+        base_data = pickle.load(open(fname_base, "rb"))
+        base_props = prepare_base_props(fname_base, config)
+        config_ = append_exclude_info(
+            config, base_props["freqs_exclude"], base_props["exclude_list"]
         )
+        pack_base = prepare_properties(
+            base_data, config_slm, prominence, rel_height, need_filter=False
+        )
+    else:
+        config_ = config
+        pack_base = None
+
+    combine_greedy(pack_list, pack_base, obs_data, config_, save_dir)
 
     if need_identify:
         save_name = save_dir/Path("combine.pickle")
@@ -80,14 +80,17 @@ def run_combine(config, result_dir, need_identify=True):
             identify(config, result_dir, "combine")
 
 
-def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
+def combine_greedy(pack_list, pack_base, obs_data, config, save_dir):
     config_opt = config["opt"]
-    T_back = config["sl_model"].get("tBack", 0.)
     freq_data = get_freq_data(obs_data)
-    peak_mgr = PeakManager(obs_data, T_back, **config["peak_manager"])
+    sl_database = SpectralLineDatabase(config["sl_model"]["fname_db"])
+    slm_factory = SpectralLineModelFactory.from_config(
+        freq_data, config, sl_db=sl_database
+    )
+    idn = Identification(obs_data, **config["peak_manager"])
 
     if pack_base is None:
-        pack_curr, pack_list, cand_list = derive_first_pack(pack_list, peak_mgr, config)
+        pack_curr, pack_list, cand_list = derive_first_pack(pack_list, idn, config)
         if pack_curr is None:
             return
         need_opt = True
@@ -97,52 +100,55 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
         cand_list = []
 
     for pack in pack_list:
-        if pack.mol_store is None:
+        if pack.specie_list is None:
             continue
 
         if has_intersections(pack_curr.spans, pack.spans) and need_opt:
             res_dict = optimize_with_base(
-                pack, obs_data, pack_curr.T_pred_data, config, pool,
+                pack, slm_factory, obs_data, pack_curr.T_pred_data, config,
                 need_init=True, need_trail=False
             )
-            mol_store_new = pack.mol_store
+            specie_list_new = pack.specie_list
             params_new = res_dict["params_best"]
             T_pred_data_new = res_dict["T_pred"]
             spans_new = derive_peaks_multi(
                 freq_data, T_pred_data_new,
-                peak_mgr.height_list, peak_mgr.prom_list, peak_mgr.rel_height
+                idn.peak_mgr.height_list,
+                idn.peak_mgr.prom_list,
+                idn.peak_mgr.rel_height
             )[0]
             pack_new = Pack(
-                mol_store_new, params_new, T_pred_data_new, spans_new
+                specie_list_new, params_new, T_pred_data_new, spans_new
             )
 
             # Save opt results
-            item = pack.mol_store.mol_list[0]
+            item = pack.specie_list[0]
             save_name = save_dir/Path("tmp_{}_{}.pickle".format(item["root"], item["id"]))
             pickle.dump(res_dict, open(save_name, "wb"))
         else:
             params_new = pack.params
-            mol_store_new = pack.mol_store
+            specie_list_new = pack.specie_list
             pack_new = pack
 
         # Merge results
-        mol_store_combine, params_combine = combine_mol_stores(
-            [pack_curr.mol_store, mol_store_new],
+        specie_list_combine, params_combine = combine_specie_lists(
+            [pack_curr.specie_list, specie_list_new],
             [pack_curr.params, params_new],
         )
-        T_pred_data_combine = mol_store_combine.compute_T_pred_data(
-            params_combine, freq_data, config
-        )
+        sl_model = slm_factory.create(specie_list_combine)
+        T_pred_data_combine = sl_model(params_combine)
 
-        res = peak_mgr.identify(mol_store_combine, config, params_combine)
-        id_new = mol_store_new.mol_list[0]["id"]
+        res = idn.identify(specie_list_combine, config, params_combine)
+        id_new = specie_list_new[0]["id"]
         if check_criteria(res, id_new, config_opt["criteria"]):
             spans_combine = derive_peaks_multi(
                 freq_data, T_pred_data_combine,
-                peak_mgr.height_list, peak_mgr.prom_list, peak_mgr.rel_height
+                idn.peak_mgr.height_list,
+                idn.peak_mgr.prom_list,
+                idn.peak_mgr.rel_height
             )[0]
             pack_curr = Pack(
-                mol_store_combine, params_combine,
+                specie_list_combine, params_combine,
                 T_pred_data_combine, spans_combine
             )
             need_opt = True
@@ -151,7 +157,7 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
 
     # Save results
     save_dict = {
-        "mol_store": pack_curr.mol_store,
+        "specie": pack_curr.specie_list,
         "freq": freq_data,
         "T_pred": pack_curr.T_pred_data,
         "params_best": pack_curr.params,
@@ -161,11 +167,11 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
 
     #
     for pack in cand_list:
-        item = pack.mol_store.mol_list[0]
+        item = pack.specie_list[0]
         save_name = save_dir/Path("{}_{}.pickle".format(item["root"], item["id"]))
         if has_intersections(pack_curr.spans, pack.spans):
             res_dict = optimize_with_base(
-                pack, obs_data, pack_curr.T_pred_data, config, pool,
+                pack, slm_factory, obs_data, pack_curr.T_pred_data, config,
                 need_init=False, need_trail=True
             )
             pickle.dump(res_dict, open(save_name, "wb"))
@@ -175,7 +181,7 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
                 shutil.copy(src_name, save_name)
             else:
                 res_dict = {
-                    "mol_store": pack.mol_store,
+                    "specie": pack.specie_list,
                     "freq": freq_data,
                     "T_pred": pack.T_pred_data,
                     "params_best": pack.params,
@@ -183,13 +189,14 @@ def combine_greedy(pack_list, pack_base, obs_data, config, pool, save_dir):
                 pickle.dump(res_dict, open(save_name, "wb"))
 
 
-def prepare_properties(pred_data, config_slm, T_back_data,
-                       prominence, rel_height, need_filter):
-    mol_store = pred_data["mol_store"]
+def prepare_properties(pred_data, config_slm, prominence,
+                       rel_height, need_filter):
+    specie_list = pred_data["specie"]
     params = pred_data["params_best"]
     T_pred_data = pred_data["T_pred"]
+    T_back = 0.
     height_list, prom_list \
-        = derive_peak_params(prominence, T_back_data, len(T_pred_data))
+        = derive_peak_params(prominence, T_back, len(T_pred_data))
     freq_data = pred_data["freq"]
     spans_pred = derive_peaks_multi(
         freq_data=freq_data,
@@ -200,28 +207,29 @@ def prepare_properties(pred_data, config_slm, T_back_data,
     )[0]
     # Filter molecules
     if need_filter:
-        mol_store_new, params_new = filter_moleclues(
-            mol_store=mol_store,
-            config_slm=config_slm,
-            params=params,
-            freq_data=freq_data,
-            T_pred_data=T_pred_data,
-            T_back=T_back_data,
-            prominence=prominence,
-            rel_height=rel_height
-        )
+        pass
+        #mol_store_new, params_new = filter_moleclues(
+        #    mol_store=mol_store,
+        #    config_slm=config_slm,
+        #    params=params,
+        #    freq_data=freq_data,
+        #    T_pred_data=T_pred_data,
+        #    T_back=T_back,
+        #    prominence=prominence,
+        #    rel_height=rel_height
+        #)
     else:
-        mol_store_new = mol_store
+        specie_list_new = specie_list
         params_new = params
-    return Pack(mol_store_new, params_new, T_pred_data, spans_pred)
+    return Pack(specie_list_new, params_new, T_pred_data, spans_pred)
 
 
-def derive_first_pack(pack_list, peak_mgr, config):
+def derive_first_pack(pack_list, idn, config):
     cand_list = []
     for i_pack in range(len(pack_list)):
         pack = pack_list[i_pack]
-        res = peak_mgr.identify(pack.mol_store, config, pack.params)
-        key = pack.mol_store.mol_list[0]["id"]
+        res = idn.identify(pack.specie_list, config, pack.params)
+        key = pack.specie_list[0]["id"]
         if check_criteria(res, key, config["opt"]["criteria"]):
             return pack, pack_list[i_pack+1:], cand_list
         else:
@@ -229,12 +237,13 @@ def derive_first_pack(pack_list, peak_mgr, config):
     return None, None, cand_list
 
 
-def optimize_with_base(pack, obs_data, T_base_data,
-                       config, pool, need_init, need_trail):
+def optimize_with_base(pack, slm_factory, obs_data, T_base_data,
+                       config, need_init, need_trail):
     config_opt = deepcopy(config["opt"])
-    model = create_fitting_model(
-        obs_data, pack.mol_store, config, T_base_data
+    model = FittingModel.from_config(
+        slm_factory, pack.specie_list, obs_data, config, T_base_data
     )
+    jit_fitting_model(model)
     if need_init:
         initial_pos = derive_initial_pos(
             pack.params, model.bounds, config_opt["kwargs_opt"]["nswarm"],
@@ -242,7 +251,10 @@ def optimize_with_base(pack, obs_data, T_base_data,
         config_opt["kwargs_opt"]["initial_pos"] = initial_pos
     if not need_trail:
         config_opt["n_trail"] = 1
-    res_dict = optimize(model, config_opt, pool)
+
+    use_mpi = config["opt"].get("use_mpi", False)
+    with create_pool(config["opt"]["n_process"], use_mpi) as pool:
+        res_dict = optimize(model, config_opt, pool)
     return res_dict
 
 
@@ -328,7 +340,7 @@ def filter_moleclues(mol_store, config, params,
 
 @dataclass
 class Pack:
-    mol_store: object
+    specie_list: list
     params: object
     T_pred_data: list
     spans: object

@@ -8,10 +8,12 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from .sl_model import compute_T_single_data, sum_T_single_data, ParameterManager
+from .sl_model import (
+    compute_T_single_data, sum_T_single_data, combine_specie_lists,
+    ParameterManager
+)
 from .peaks import compute_peak_norms, PeakManager
 from .utils import load_pred_data
-from .xclass_wrapper import combine_mol_stores
 from .preprocess import load_preprocess
 
 
@@ -79,30 +81,30 @@ def identify_without_base(idn, dirname, config):
 
 def identify_with_base(idn, dirname, fname_base, config):
     data = pickle.load(open(fname_base, "rb"))
-    mol_store_base = data["mol_store"]
+    specie_list_base = data["specie"]
     params_base = data["params_best"]
     T_single_dict_base = compute_T_single_data(
-        mol_store_base, config, params_base, data["freq"]
+        specie_list_base, config, params_base, data["freq"]
     )
 
     pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=False)
     res_dict = {}
     for data in pred_data_list:
-        mol_store_combine, params_combine = combine_mol_stores(
-            [mol_store_base, data["mol_store"]],
+        specie_list_combine, params_combine = combine_specie_lists(
+            [specie_list_base, data["specie"]],
             [params_base, data["params_best"]],
         )
         T_single_dict = deepcopy(T_single_dict_base)
         T_single_dict.update(compute_T_single_data(
-            data["mol_store"], config, data["params_best"], data["freq"]
+            data["specie"], config, data["params_best"], data["freq"]
         ))
         res = idn.identify(
-            mol_store_combine, config, params_combine, T_single_dict
+            specie_list_combine, config, params_combine, T_single_dict
         )
         if res.is_empty():
             continue
-        assert len(data["mol_store"].mol_list) == 1
-        key = data["mol_store"].mol_list[0]["id"]
+        assert len(data["specie"]) == 1
+        key = data["specie"][0]["id"]
         try:
             res = res.extract(key)
         except KeyError:
