@@ -260,6 +260,7 @@ def derive_specie_list(groups):
         if root_name is None:
             continue
         specie_list.append({"id": idx, "root": root_name, "species": species})
+        idx += 1
     return specie_list
 
 
