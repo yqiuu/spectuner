@@ -1,52 +1,44 @@
-from copy import deepcopy
-
 import numpy as np
 
 
-def load_preprocess(obs_data, T_back):
+def load_preprocess(obs_info):
     """Load observed spectra.
 
-    The function resets the intensity below ``T_back`` to ``T_back``.
+    1. Ensure the frequency is ascending.
+    2. Resets the intensity below zero to zero.
 
     Args:
-        obs_data (str or list): Data of observed spectra.
-            - str: Load the text file specified by the string.
-            - list of str: Load every text file specified by the string.
-            - list of array: Each array should be a spectrum. The first colunm
-            gives the frequency (MHz) and the second column gives the intensity
-            (K).
-        T_back (float): Background temperature.
+        obs_info (list): A list of dicts that specify the observation
+            information.
+            - If ``spec`` in the dict, load the corresponding array,
+                with the first column being the frequency (MHz) and the second
+                column being the intensity (K).
+            - If ``fname`` in the dict, load the corresponding text file.
 
     Returns:
         list: Each element specifies a spectrum. The first colunm gives the
             frequency (MHz) and the second column gives the intensity (K).
     """
-    if isinstance(obs_data, str):
-        obs_data = [obs_data]
-
-    obs_data_ret = []
-    for item in obs_data:
-        if isinstance(item, str):
-            obs_data_ret.append(np.loadtxt(item))
-        else:
-            obs_data_ret.append(deepcopy(item))
-
-    obs_data_ret = [preprocess_spectrum(spec, T_back) for spec in obs_data_ret]
-    return obs_data_ret
+    obs_data = []
+    for item in obs_info:
+        if "spec" in item:
+            obs_data.append(np.copy(item["spec"]))
+        elif "fname" in item:
+            obs_data.append(np.loadtxt(item["fname"]))
+    return [preprocess_spectrum(spec) for spec in obs_data]
 
 
-def preprocess_spectrum(spec_obs, temp_back):
+def preprocess_spectrum(spectrum):
     """Preprocess spectrum
 
     Args:
         spectrum (array): (N, 2). The first colunm gives the frequency and
             the second column gives the temperature.
-        temp_back (float): Background temperature.
     """
-    if spec_obs[0, 0] > spec_obs[-1, 0]: # Make freq ascending
-        spec_obs = spec_obs[::-1]
-    spec_obs[:, 1] = np.maximum(spec_obs[:, 1], temp_back)
-    return spec_obs
+    if spectrum[0, 0] > spectrum[-1, 0]: # Make freq ascending
+        spectrum = spectrum[::-1]
+    spectrum[:, 1] = np.maximum(spectrum[:, 1], 0.)
+    return spectrum
 
 
 def get_freq_data(data):

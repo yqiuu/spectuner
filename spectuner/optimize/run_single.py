@@ -28,7 +28,7 @@ def run_single(config, result_dir, need_identify=True):
     config = append_exclude_info(
         config, base_props["freqs_exclude"], base_props["exclude_list"]
     )
-    obs_data = load_preprocess_from_config(config)
+    obs_data = load_preprocess(config["obs_info"])
     freq_list = get_freq_data(obs_data)
     sl_database = SpectralLineDatabase(config["sl_model"]["fname_db"])
     slm_factory = SpectralLineModelFactory.from_config(
@@ -72,9 +72,3 @@ def create_specie_list(sl_database, obs_data, spans, config):
         v_range=config["opt"]["bounds"]["v_LSR"],
         **config["species"],
     )
-
-
-def load_preprocess_from_config(config):
-    file_spec = [item["fname"] for item in config["obs_info"]]
-    T_back = config["sl_model"].get("tBack", 0.)
-    return load_preprocess(file_spec, T_back)

@@ -32,8 +32,7 @@ def identify(config, target, mode=None):
             - ``combine``: Use ``combine.pickle`` in the target directory
             as base data.
     """
-    files_spec = [item["fname"] for item in config["obs_info"]]
-    obs_data = load_preprocess(files_spec, T_back=0.)
+    obs_data = load_preprocess(config["obs_info"])
     idn = Identification(obs_data, **config["peak_manager"])
 
     target = Path(target)
