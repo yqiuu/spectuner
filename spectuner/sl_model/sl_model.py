@@ -97,7 +97,7 @@ def prepare_properties(slm_state, params):
     return inds_speice_ret, inds_segment_ret, tau_norm_ret, mu_ret, sigma_ret, left, right
 
 
-@jit
+@jit(cache=True)
 def prepare_prop_list(inds_specie, inds_segment, tau_norm, mu, sigma, left, right):
     # tau_norm (N,)
     # mu (N,)
@@ -122,7 +122,7 @@ def prepare_prop_list(inds_specie, inds_segment, tau_norm, mu, sigma, left, righ
     return prop_list
 
 
-@jit
+@jit(cache=True)
 def prepare_fine_spectra(prop_list, params, base_grid, factor_freq,
                          is_sd_list, beam_size_sq_list, factor_beam_list,
                          T_bg_list, need_cmb_list, T_cmb):
@@ -169,7 +169,7 @@ def prepare_fine_spectra(prop_list, params, base_grid, factor_freq,
     return freq_list, spec_list
 
 
-@jit
+@jit(cache=True)
 def prepare_effective_spectra(freq_list, freqs_fine, spectra_fine):
     spec_list = []
     for freqs in freq_list:
@@ -218,7 +218,7 @@ def compute_mu_sigma(slm_state, sl_data, delta_v, v_offset):
     return mu, sigma
 
 
-@jit
+@jit(cache=True)
 def compute_intensity(nu, tau_total, theta, T_ex, factor_freq,
                       is_single_dish, beam_size_sq, factor_beam,
                       T_bg, need_cmb, T_cmb):
@@ -233,7 +233,7 @@ def compute_intensity(nu, tau_total, theta, T_ex, factor_freq,
     return spec
 
 
-@jit
+@jit(cache=True)
 def compute_filling_factor(nu, theta, is_single_dish, beam_size_sq, factor_beam):
     # nu (N,)
     # theta (B, 1)
@@ -246,7 +246,7 @@ def compute_filling_factor(nu, theta, is_single_dish, beam_size_sq, factor_beam)
     return theta_sq/(beam_size_sq_ + theta_sq)
 
 
-@jit
+@jit(cache=True)
 def gauss_profile(x, mu, sigma):
     # x (N,)
     # mu (M, 1)
