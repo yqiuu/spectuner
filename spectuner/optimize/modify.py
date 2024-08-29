@@ -3,7 +3,10 @@ import re
 from pathlib import Path
 
 from ..utils import is_exclusive
-from ..xclass_wrapper import combine_mol_stores
+from ..sl_model import (
+    derive_sub_specie_list_with_params, combine_specie_lists,
+    SpectralLineModelFactory
+)
 from ..identify import identify
 
 
@@ -25,46 +28,48 @@ def modify(config, result_dir):
     save_name = save_dir/Path("combine_final.pickle")
     data_combine = pickle.load(open(save_dir/Path("combine.pickle"), "rb"))
     freq_data = data_combine["freq"]
-    mol_store = data_combine["mol_store"]
+    specie_list = data_combine["specie"]
 
     names_in = []
-    for item in mol_store.mol_list:
-        mols = []
+    for item in specie_list:
+        species = []
         if item["id"] not in exclude_id_list:
-            mols.extend(item["molecules"])
-        mols = [name for name in mols if name not in exclude_name_set]
-        names_in.extend(mols)
+            species.extend(item["species"])
+        species = [name for name in species if name not in exclude_name_set]
+        names_in.extend(species)
 
-    mol_store_new, params_new = mol_store.select_subset_with_params(
-        names_in, data_combine["params_best"], config
+    specie_list_new, params_new = derive_sub_specie_list_with_params(
+        specie_list, names_in, data_combine["params_best"], config
     )
 
     include_id_list = config_modify["include_id_list"]
     if len(include_id_list) != 0:
-        mol_store_list = [mol_store_new]
+        specie_lists = [specie_list_new]
         params_list = [params_new]
         data_list = load_data_list(save_dir, include_id_list)
         for data in data_list:
-            mol_store = data["mol_store"]
+            specie_list = data["specie"]
             params = data["params_best"]
-            names_in = set(mol_store.mol_list[0]["molecules"]) - exclude_name_set
-            mol_store, params \
-                = mol_store.select_subset_with_params(names_in, params, config)
-            mol_store_list.append(mol_store)
+            names_in = set(specie_list[0]["species"]) - exclude_name_set
+            specie_list, params \
+                = derive_sub_specie_list_with_params(specie_list, names_in, params, config)
+            specie_lists.append(specie_list)
             params_list.append(params)
-        mol_store_new, params_new \
-            = combine_mol_stores(mol_store_list, params_list)
+        specie_list_new, params_new \
+            = combine_specie_lists(specie_lists, params_list)
 
-    T_pred_data = mol_store_new.compute_T_pred_data(params_new, freq_data, config)
+    slm_factory = SpectralLineModelFactory.from_config(freq_data, config)
+    sl_model = slm_factory.create(specie_list_new)
+    T_pred_data = sl_model(params_new)
     save_dict = {
-        "mol_store": mol_store_new,
+        "specie": specie_list_new,
         "freq": freq_data,
         "T_pred": T_pred_data,
         "params_best": params_new
     }
     pickle.dump(save_dict, open(save_name, "wb"))
 
-    identify(config, result_dir, save_name)
+    identify(config, save_name)
 
 
 def load_data_list(target_dir, include_id_list):
