@@ -10,7 +10,7 @@ except ImportError:
     warnings.warn("XCLASS is not installed.")
 
 from .atoms import MolecularDecomposer
-from ..identify import create_spans, compute_shift
+from ..peaks import create_spans, compute_shift
 
 
 def query_molecules(freq_data, ElowMin, ElowMax,

@@ -2,7 +2,7 @@ import numpy as np
 
 from .preprocess import get_T_data
 from .xclass_wrapper import derive_freq_range
-from .identify import PeakManager
+from .peaks import PeakManager
 
 
 def jit_fitting_model(model):
@@ -26,10 +26,8 @@ class FittingModel:
     def from_config(cls, slm_factory, specie_list, obs_data, config, T_base_data=None):
         loss_fn_type = config.get("loss_fn", "pm")
         if loss_fn_type == "pm":
-            T_back = 0.
             loss_fn = PeakManager(
-                obs_data, T_back, **config["peak_manager"],
-                T_base_data=T_base_data
+                obs_data, **config["peak_manager"], T_base_data=T_base_data
             )
         elif loss_fn_type == "mse":
             loss_fn = MSE(obs_data)

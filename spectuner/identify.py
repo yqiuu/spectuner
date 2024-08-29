@@ -1,21 +1,301 @@
-from functools import partial
-from collections import defaultdict
-from dataclasses import dataclass, field
+import pickle
 from copy import deepcopy
+from pathlib import Path
+from collections import defaultdict
+from functools import partial
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 
+from .sl_model import compute_T_single_data, sum_T_single_data, ParameterManager
+from .peaks import compute_peak_norms, PeakManager
+from .utils import load_pred_data
+from .xclass_wrapper import combine_mol_stores
+from .preprocess import load_preprocess
 
-def derive_df_mol_master_from_res_dict(res_dict):
-    df_mol_master = pd.concat([
-        res.derive_df_mol_master() for res in res_dict.values() if res is not None
-    ])
-    df_mol_master.sort_values(
-        ["t3_score", "t2_score", "t1_score", "num_tp_i"], ascending=False, inplace=True
+
+def identify(config, target, mode=None):
+    """Perform identification.
+
+    Args:
+        config (dict): Config.
+        target (str):
+            - If ``target`` is a file, perfrom identification for the target
+              file.
+            - If ``target`` is a directory, perform identification for all files
+              in the directory.
+
+        mode (str): This is only applicable when ``target`` is a directory.
+            - ``single``: Use ``fname_base`` given in in the config as base
+            data.
+            - ``combine``: Use ``combine.pickle`` in the target directory
+            as base data.
+    """
+    files_spec = [item["fname"] for item in config["obs_info"]]
+    obs_data = load_preprocess(files_spec, T_back=0.)
+    idn = Identification(obs_data, **config["peak_manager"])
+
+    target = Path(target)
+    if target.is_file():
+        res = identify_file(idn, target, config)
+        save_name = target.parent/f"identify_{target.name}"
+        pickle.dump(res, open(save_name, "wb"))
+    elif target.is_dir():
+        if mode == "single":
+            fname_base = config.get("fname_base", None)
+        elif mode == "combine":
+            fname_base = target/"combine"/"combine.pickle"
+        else:
+            raise ValueError(f"Unknown mode: {mode}.")
+
+        dirname = target/mode
+        if fname_base is None:
+            res = identify_without_base(idn, dirname, config)
+        else:
+            res = identify_with_base(idn, dirname, fname_base, config)
+        pickle.dump(res, open(dirname/Path("identify.pickle"), "wb"))
+    else:
+        raise ValueError(f"Unknown target: {target}.")
+
+
+def identify_file(idn, fname, config):
+    data = pickle.load(open(fname, "rb"))
+    res = idn.identify(data["specie"], config, data["params_best"])
+    return res
+
+
+def identify_without_base(idn, dirname, config):
+    pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=True)
+    res_dict = {}
+    for data in pred_data_list:
+        assert len(data["specie"]) == 1
+        key = data["specie"][0]["id"]
+        res = idn.identify(data["specie"], config, data["params_best"])
+        if res.is_empty():
+            res = None
+        res_dict[key] = res
+    return res_dict
+
+
+def identify_with_base(idn, dirname, fname_base, config):
+    data = pickle.load(open(fname_base, "rb"))
+    mol_store_base = data["mol_store"]
+    params_base = data["params_best"]
+    T_single_dict_base = compute_T_single_data(
+        mol_store_base, config, params_base, data["freq"]
     )
-    df_mol_master.reset_index(drop=True, inplace=True)
-    return df_mol_master
+
+    pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=False)
+    res_dict = {}
+    for data in pred_data_list:
+        mol_store_combine, params_combine = combine_mol_stores(
+            [mol_store_base, data["mol_store"]],
+            [params_base, data["params_best"]],
+        )
+        T_single_dict = deepcopy(T_single_dict_base)
+        T_single_dict.update(compute_T_single_data(
+            data["mol_store"], config, data["params_best"], data["freq"]
+        ))
+        res = idn.identify(
+            mol_store_combine, config, params_combine, T_single_dict
+        )
+        if res.is_empty():
+            continue
+        assert len(data["mol_store"].mol_list) == 1
+        key = data["mol_store"].mol_list[0]["id"]
+        try:
+            res = res.extract(key)
+        except KeyError:
+            res = None
+        res_dict[key] = res
+    return res_dict
+
+
+def compute_contributions(values, T_back=0.):
+    """Compute the contributions of each blending peaks.
+
+    Args:
+        fracs (list): Each element should be an array that gives the mean
+            temperature of the peaks. Different elements give the values from
+            different molecules.
+        T_back (_type_): Background temperature.
+
+    Returns:
+        array (N_mol, N_peak): Normalized fractions.
+    """
+    fracs = np.vstack(values)
+    if len(fracs.shape) == 1:
+        fracs = fracs[:, None]
+    fracs -= T_back
+    norm = np.sum(fracs, axis=0)
+    norm[norm == 0.] = len(fracs)
+    fracs /= norm
+    return fracs
+
+
+class Identification:
+    def __init__(self, obs_data, prominence, rel_height,
+                 T_base_data=None, pfactor=None, freqs_exclude=None, frac_cut=.05):
+        self.peak_mgr = PeakManager(
+            obs_data, prominence, rel_height,
+            T_base_data=T_base_data,
+            pfactor=pfactor,
+            freqs_exclude=freqs_exclude
+        )
+        self.frac_cut = frac_cut
+
+    def identify(self, specie_list, config, params, T_single_dict=None):
+        line_table, line_table_fp, T_single_dict = self.derive_line_table(
+            specie_list, config, params, T_single_dict
+        )
+        param_dict = self.derive_param_dict(specie_list, config, params)
+        id_set = set()
+        id_set.update(self.derive_mol_set(line_table.id))
+        id_set.update(self.derive_mol_set(line_table_fp.id))
+        name_set = set()
+        name_set.update(self.derive_mol_set(line_table.name))
+        name_set.update(self.derive_mol_set(line_table_fp.name))
+        specie_data = self.derive_specie_data(specie_list, param_dict, id_set, name_set)
+        return IdentResult(
+            specie_data, line_table, line_table_fp, T_single_dict,
+            self.peak_mgr.freq_data
+        )
+
+    def derive_specie_data(self, specie_list, param_dict, id_set, mol_set):
+        data_tree = defaultdict(dict)
+        for item in specie_list:
+            i_id = item["id"]
+            if i_id not in id_set:
+                continue
+            for mol in item["species"]:
+                if mol not in mol_set:
+                    continue
+                cols = {"master_name": item["root"]}
+                cols.update(param_dict[i_id][mol])
+                data_tree[i_id][mol] = cols
+        return dict(data_tree)
+
+    def derive_param_dict(self, specie_list, config, params):
+        param_mgr = ParameterManager.from_config(specie_list, config)
+        params_mol = param_mgr.derive_params(params)
+        param_names = param_mgr.param_names
+        param_dict = defaultdict(dict)
+        idx = 0
+        for item in specie_list:
+            for name in item["species"]:
+                param_dict[item["id"]][name] \
+                    = {key: par for key, par in zip(param_names, params_mol[idx])}
+                idx += 1
+        param_dict = dict(param_dict)
+        return param_dict
+
+    def derive_line_table(self, specie_list, config, params, T_single_dict):
+        if T_single_dict is None:
+            T_single_dict = compute_T_single_data(
+                specie_list, config, params, self.peak_mgr.freq_data
+            )
+        T_pred_data = sum_T_single_data(T_single_dict)
+        line_table = LineTable()
+        line_table_fp = LineTable()
+        for i_segment, T_pred in enumerate(T_pred_data):
+            if T_pred is None:
+                continue
+            line_table_sub, line_table_fp_sub \
+                = self._derive_line_table_sub(i_segment, T_pred, T_single_dict)
+            line_table.append(line_table_sub)
+            line_table_fp.append(line_table_fp_sub)
+        return line_table, line_table_fp, T_single_dict
+
+    def derive_mol_set(self, lines):
+        mol_set = set()
+        for name in lines:
+            if name is None:
+                continue
+            mol_set.update(set(name))
+        return mol_set
+
+    def _derive_scale(self, pfactor):
+        peak_mgr = self.peak_mgr
+        norms = []
+        for spans, freqs, T_obs in \
+            zip(peak_mgr.spans_obs_data, peak_mgr.freq_data, peak_mgr.T_obs_data):
+            norms.append(compute_peak_norms(spans, freqs, T_obs))
+        norms = np.concatenate(norms)
+        return pfactor*np.median(norms)
+
+    def _derive_line_table_sub(self, i_segment, T_pred, T_single_dict):
+        peak_mgr = self.peak_mgr
+        peak_store = peak_mgr.create_peak_store(i_segment, T_pred)
+        freqs = np.mean(peak_store.spans_obs, axis=1)
+        loss_tp, loss_fp = peak_mgr.compute_loss(i_segment, peak_store)
+        score_tp, score_fp = peak_mgr.compute_score(peak_store)
+        frac_list_tp, id_list_tp, name_list_tp = self._compute_fractions(
+            i_segment, T_single_dict, peak_store.spans_inter
+        )
+        line_table = LineTable()
+        line_table_tmp = LineTable(
+            freq=freqs,
+            span=peak_store.spans_obs,
+            loss=loss_tp,
+            score=score_tp,
+            frac=frac_list_tp,
+            id=id_list_tp,
+            name=name_list_tp,
+            error=peak_store.errors_tp,
+            norm=peak_store.norms_tp_obs
+        )
+        sparsity = (peak_store.inds_inter_obs, len(peak_store.spans_obs))
+        line_table.append(line_table_tmp, sparsity=sparsity)
+
+        freq_fp = np.mean(peak_store.spans_fp, axis=1)
+        frac_list_fp, id_list_fp, name_list_fp = self._compute_fractions(
+            i_segment, T_single_dict, peak_store.spans_fp
+        )
+        line_table_fp = LineTable(
+            freq=freq_fp,
+            span=peak_store.spans_fp,
+            loss=loss_fp,
+            score=score_fp,
+            frac=frac_list_fp,
+            id=id_list_fp,
+            name=name_list_fp,
+            error=peak_store.errors_fp,
+            norm=peak_store.norms_fp
+        )
+        return line_table, line_table_fp
+
+    def _compute_fractions(self, i_segment, T_single_dict, spans_inter):
+        frac_list = []
+        id_list = []
+        name_list = []
+        if len(spans_inter) == 0:
+            return frac_list, id_list, name_list
+
+        fracs = []
+        ids = []
+        names = []
+        freq = self.peak_mgr.freq_data[i_segment]
+        for i_id, sub_dict in T_single_dict.items():
+            for name, T_pred_data in sub_dict.items():
+                T_pred = T_pred_data[i_segment]
+                if T_pred is None:
+                    continue
+                fracs.append(compute_peak_norms(spans_inter, freq, T_pred))
+                ids.append(i_id)
+                names.append(name)
+        fracs = compute_contributions(fracs)
+        ids = np.array(ids)
+        names = np.array(names, dtype=object)
+
+        #
+        for i_inter, cond in enumerate(fracs.T > self.frac_cut):
+            fracs_sub = fracs[cond, i_inter]
+            fracs_sub = fracs_sub/np.sum(fracs_sub)
+            frac_list.append(fracs_sub)
+            id_list.append(tuple(ids[cond]))
+            name_list.append(tuple(names[cond]))
+        return frac_list, id_list, name_list
 
 
 @dataclass
@@ -100,7 +380,6 @@ class IdentResult:
     line_table_fp: LineTable
     T_single_dict: dict
     freq_data: list
-    T_back: float
 
     def __post_init__(self):
         self._add_score_data()
@@ -275,7 +554,6 @@ class IdentResult:
             line_table_fp=line_table_fp_new,
             T_single_dict=T_single_dict_new,
             freq_data=self.freq_data,
-            T_back=self.T_back,
         )
 
     def filter_name_list(self, target_set, name_list):
@@ -290,7 +568,7 @@ class IdentResult:
     def get_T_pred(self, key=None, name=None):
         if key is not None and name is not None:
             return self.T_single_dict[key][name]
-        return sum_T_single_data(self.T_single_dict, self.T_back, key)
+        return sum_T_single_data(self.T_single_dict, key=key)
 
     def get_unknown_lines(self):
         freqs = []

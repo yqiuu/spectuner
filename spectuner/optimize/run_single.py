@@ -8,8 +8,8 @@ from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import query_species, SpectralLineDatabase, SpectralLineModelFactory
 from ..fitting_model import jit_fitting_model, FittingModel
-from ..identify import PeakManager
-from ..identify.identify import identify
+from ..peaks import PeakManager
+from ..identify import identify
 
 
 __all__ = ["run_single", "create_specie_list"]
@@ -60,10 +60,7 @@ def run_single(config, result_dir, need_identify=True):
 
 def create_specie_list(sl_database, obs_data, spans, config):
     if len(spans) == 0:
-        T_back = config["sl_model"].get("tBack", 0.)
-        peak_mgr = PeakManager(
-            obs_data, T_back, **config["peak_manager"]
-        )
+        peak_mgr = PeakManager(obs_data, **config["peak_manager"])
         freqs = np.mean(np.vstack(peak_mgr.spans_obs_data), axis=1)
     else:
         freqs = np.mean(spans, axis=1)

@@ -1,56 +1,8 @@
 from functools import partial
-from collections import defaultdict
 from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import signal
-
-from .. import sl_model
-from .ident_result import LineTable, IdentResult
-
-
-def filter_moleclues(mol_store, config, params,
-                     freq_data, T_pred_data, T_back, prominence, rel_height,
-                     frac_cut=.05):
-    """Select molecules that have emission lines.
-
-    Args:
-        idn (Identification): Optimization result.
-        pm (ParameterManager): Parameter manager.
-        params (array): Parameters.
-
-    Returns:
-        mol_store (MoleculeStore): None if no emission lines.
-        params (array): None if no emission lines.
-    """
-    height = T_back + prominence
-    T_single_dict = sl_model.compute_T_single_data(mol_store, config, params, freq_data)
-    names_pos = set()
-
-    for i_segment in range(len(T_pred_data)):
-        freq = freq_data[i_segment]
-        T_pred = T_pred_data[i_segment]
-        if T_pred is None:
-            continue
-        spans_pred = derive_peaks(freq, T_pred, height, prominence, rel_height)[0]
-
-        names = []
-        fracs = []
-        for sub_dict in T_single_dict.values():
-            for name, T_single_data in sub_dict.items():
-                T_single = T_single_data[i_segment]
-                if T_single is None:
-                    continue
-                names.append(name)
-                fracs.append(compute_peak_norms(spans_pred, freq, T_single))
-        fracs = compute_contributions(fracs, T_back)
-        names = np.array(names, dtype=object)
-        for cond in fracs.T > frac_cut:
-            names_pos.update(set(names[cond]))
-
-    if len(names_pos) == 0:
-        return None, None
-    return mol_store.select_subset_with_params(names_pos, params, config)
 
 
 def derive_intersections(spans_a, spans_b):
@@ -318,8 +270,8 @@ def linear_deacy(x, x_left, x_right, side, height):
 
 
 class PeakManager:
-    def __init__(self, obs_data, T_back, prominence, rel_height,
-                 T_base_data=None, pfactor=None, frac_cut=.05, freqs_exclude=None):
+    def __init__(self, obs_data, prominence, rel_height, T_back=0.,
+                 T_base_data=None, pfactor=None, freqs_exclude=None):
         height_list, prom_list = derive_peak_params(prominence, T_back, len(obs_data))
         self.freq_data, T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_exclude)
@@ -333,7 +285,6 @@ class PeakManager:
         self.prom_list = prom_list
         self.rel_height = rel_height
         self.pfactor = pfactor
-        self.frac_cut = frac_cut
 
         if pfactor is None:
             self.scale = None
@@ -450,155 +401,6 @@ class PeakManager:
             score_fp = np.zeros(0)
 
         return score_tp, score_fp
-
-    def identify(self, specie_list, config, params, T_single_dict=None):
-        line_table, line_table_fp, T_single_dict = self.derive_line_table(
-            specie_list, config, params, T_single_dict
-        )
-        param_dict = self.derive_param_dict(specie_list, config, params)
-        id_set = set()
-        id_set.update(self.derive_mol_set(line_table.id))
-        id_set.update(self.derive_mol_set(line_table_fp.id))
-        name_set = set()
-        name_set.update(self.derive_mol_set(line_table.name))
-        name_set.update(self.derive_mol_set(line_table_fp.name))
-        specie_data = self.derive_specie_data(specie_list, param_dict, id_set, name_set)
-        return IdentResult(
-            specie_data, line_table, line_table_fp, T_single_dict,
-            self.freq_data, self.T_back
-        )
-
-    def derive_specie_data(self, specie_list, param_dict, id_set, mol_set):
-        data_tree = defaultdict(dict)
-        for item in specie_list:
-            i_id = item["id"]
-            if i_id not in id_set:
-                continue
-            for mol in item["species"]:
-                if mol not in mol_set:
-                    continue
-                cols = {"master_name": item["root"]}
-                cols.update(param_dict[i_id][mol])
-                data_tree[i_id][mol] = cols
-        return dict(data_tree)
-
-    def derive_param_dict(self, specie_list, config, params):
-        param_mgr = sl_model.ParameterManager.from_config(specie_list, config)
-        params_mol = param_mgr.derive_params(params)
-        param_names = param_mgr.param_names
-        param_dict = defaultdict(dict)
-        idx = 0
-        for item in specie_list:
-            for name in item["species"]:
-                param_dict[item["id"]][name] \
-                    = {key: par for key, par in zip(param_names, params_mol[idx])}
-                idx += 1
-        param_dict = dict(param_dict)
-        return param_dict
-
-    def derive_line_table(self, specie_list, config, params, T_single_dict):
-        if T_single_dict is None:
-            T_single_dict = sl_model.compute_T_single_data(
-                specie_list, config, params, self.freq_data
-            )
-        T_pred_data = sl_model.sum_T_single_data(T_single_dict, self.T_back)
-        line_table = LineTable()
-        line_table_fp = LineTable()
-        for i_segment, T_pred in enumerate(T_pred_data):
-            if T_pred is None:
-                continue
-            line_table_sub, line_table_fp_sub \
-                = self._derive_line_table_sub(i_segment, T_pred, T_single_dict)
-            line_table.append(line_table_sub)
-            line_table_fp.append(line_table_fp_sub)
-        return line_table, line_table_fp, T_single_dict
-
-    def derive_mol_set(self, lines):
-        mol_set = set()
-        for name in lines:
-            if name is None:
-                continue
-            mol_set.update(set(name))
-        return mol_set
-
-    def _derive_scale(self, pfactor):
-        norms = []
-        for spans, freqs, T_obs in zip(self.spans_obs_data, self.freq_data, self.T_obs_data):
-            norms.append(compute_peak_norms(spans, freqs, T_obs - self.T_back))
-        norms = np.concatenate(norms)
-        return pfactor*np.median(norms)
-
-    def _derive_line_table_sub(self, i_segment, T_pred, T_single_dict):
-        peak_store = self.create_peak_store(i_segment, T_pred)
-        freqs = np.mean(peak_store.spans_obs, axis=1)
-        loss_tp, loss_fp = self.compute_loss(i_segment, peak_store)
-        score_tp, score_fp = self.compute_score(peak_store)
-        frac_list_tp, id_list_tp, name_list_tp = self._compute_fractions(
-            i_segment, T_single_dict, peak_store.spans_inter
-        )
-        line_table = LineTable()
-        line_table_tmp = LineTable(
-            freq=freqs,
-            span=peak_store.spans_obs,
-            loss=loss_tp,
-            score=score_tp,
-            frac=frac_list_tp,
-            id=id_list_tp,
-            name=name_list_tp,
-            error=peak_store.errors_tp,
-            norm=peak_store.norms_tp_obs
-        )
-        sparsity = (peak_store.inds_inter_obs, len(peak_store.spans_obs))
-        line_table.append(line_table_tmp, sparsity=sparsity)
-
-        freq_fp = np.mean(peak_store.spans_fp, axis=1)
-        frac_list_fp, id_list_fp, name_list_fp = self._compute_fractions(
-            i_segment, T_single_dict, peak_store.spans_fp
-        )
-        line_table_fp = LineTable(
-            freq=freq_fp,
-            span=peak_store.spans_fp,
-            loss=loss_fp,
-            score=score_fp,
-            frac=frac_list_fp,
-            id=id_list_fp,
-            name=name_list_fp,
-            error=peak_store.errors_fp,
-            norm=peak_store.norms_fp
-        )
-        return line_table, line_table_fp
-
-    def _compute_fractions(self, i_segment, T_single_dict, spans_inter):
-        frac_list = []
-        id_list = []
-        name_list = []
-        if len(spans_inter) == 0:
-            return frac_list, id_list, name_list
-
-        fracs = []
-        ids = []
-        names = []
-        freq = self.freq_data[i_segment]
-        for i_id, sub_dict in T_single_dict.items():
-            for name, T_pred_data in sub_dict.items():
-                T_pred = T_pred_data[i_segment]
-                if T_pred is None:
-                    continue
-                fracs.append(compute_peak_norms(spans_inter, freq, T_pred))
-                ids.append(i_id)
-                names.append(name)
-        fracs = compute_contributions(fracs, self.T_back)
-        ids = np.array(ids)
-        names = np.array(names, dtype=object)
-
-        #
-        for i_inter, cond in enumerate(fracs.T > self.frac_cut):
-            fracs_sub = fracs[cond, i_inter]
-            fracs_sub = fracs_sub/np.sum(fracs_sub)
-            frac_list.append(fracs_sub)
-            id_list.append(tuple(ids[cond]))
-            name_list.append(tuple(names[cond]))
-        return frac_list, id_list, name_list
 
 
 @dataclass(frozen=True)

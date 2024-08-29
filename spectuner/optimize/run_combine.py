@@ -11,12 +11,10 @@ from .optimize import prepare_base_props, optimize, create_pool
 from ..utils import load_pred_data
 from ..preprocess import load_preprocess, get_freq_data
 from ..xclass_wrapper import combine_mol_stores
-from ..identify import (
-    filter_moleclues, derive_peak_params,
-    derive_peaks_multi, derive_intersections,
-    PeakManager,
+from ..peaks import (
+    derive_peak_params, derive_peaks_multi, derive_intersections, PeakManager,
 )
-from ..identify.identify import identify
+from ..identify import identify
 
 
 __all__ = ["run_combine"]
@@ -282,6 +280,50 @@ def has_intersections(spans_a, spans_b):
 
 def get_save_dir(config):
     return Path(config["save_dir"])/Path(config["opt"]["dirname"])
+
+
+def filter_moleclues(mol_store, config, params,
+                     freq_data, T_pred_data, T_back, prominence, rel_height,
+                     frac_cut=.05):
+    """Select molecules that have emission lines.
+
+    Args:
+        idn (Identification): Optimization result.
+        pm (ParameterManager): Parameter manager.
+        params (array): Parameters.
+
+    Returns:
+        mol_store (MoleculeStore): None if no emission lines.
+        params (array): None if no emission lines.
+    """
+    height = T_back + prominence
+    T_single_dict = sl_model.compute_T_single_data(mol_store, config, params, freq_data)
+    names_pos = set()
+
+    for i_segment in range(len(T_pred_data)):
+        freq = freq_data[i_segment]
+        T_pred = T_pred_data[i_segment]
+        if T_pred is None:
+            continue
+        spans_pred = derive_peaks(freq, T_pred, height, prominence, rel_height)[0]
+
+        names = []
+        fracs = []
+        for sub_dict in T_single_dict.values():
+            for name, T_single_data in sub_dict.items():
+                T_single = T_single_data[i_segment]
+                if T_single is None:
+                    continue
+                names.append(name)
+                fracs.append(compute_peak_norms(spans_pred, freq, T_single))
+        fracs = compute_contributions(fracs, T_back)
+        names = np.array(names, dtype=object)
+        for cond in fracs.T > frac_cut:
+            names_pos.update(set(names[cond]))
+
+    if len(names_pos) == 0:
+        return None, None
+    return mol_store.select_subset_with_params(names_pos, params, config)
 
 
 @dataclass

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from ..utils import is_exclusive
 from ..xclass_wrapper import combine_mol_stores
-from ..identify.identify import identify
+from ..identify import identify
 
 
 __all__ = ["modify"]

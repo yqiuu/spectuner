@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 
 from .config import create_config, load_config
 from .optimize import run_single, run_combine, modify
-from .identify.identify import identify
+from .identify import identify
 
 
 def exec_config():

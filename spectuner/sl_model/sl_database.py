@@ -5,7 +5,7 @@ import numpy as np
 import re
 
 from .atoms import MolecularDecomposer
-from ..identify import create_spans, compute_shift
+from ..peaks import create_spans, compute_shift
 
 
 def query_species(sl_database, freq_list,

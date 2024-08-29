@@ -6,7 +6,7 @@ import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 from tqdm import trange
 
-from ..identify import create_spans
+from ..peaks import create_spans
 
 
 def optimize(model, config_opt, pool):
