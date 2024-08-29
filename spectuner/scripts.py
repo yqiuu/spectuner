@@ -3,8 +3,9 @@ from pathlib import Path
 from argparse import ArgumentParser
 
 from .config import create_config, load_config
-from .optimize import run_single, run_combine, modify
+from .optimize import run_single, run_combine
 from .identify import identify
+from .modify import modify
 
 
 def exec_config():

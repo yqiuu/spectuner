@@ -2,12 +2,12 @@ import pickle
 import re
 from pathlib import Path
 
-from ..utils import is_exclusive
-from ..sl_model import (
+from .utils import is_exclusive
+from .sl_model import (
     derive_sub_specie_list_with_params, combine_specie_lists,
     SpectralLineModelFactory
 )
-from ..identify import identify
+from .identify import identify
 
 
 __all__ = ["modify"]
