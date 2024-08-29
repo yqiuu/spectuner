@@ -36,7 +36,6 @@ def run_combine(config, result_dir, need_identify=True):
     config["opt"]["n_cycle_dim"] = 0
 
     obs_data = load_preprocess(config["obs_info"])
-    config_slm = config["sl_model"]
 
     prominence = config["peak_manager"]["prominence"]
     rel_height = config["peak_manager"]["rel_height"]
@@ -53,9 +52,7 @@ def run_combine(config, result_dir, need_identify=True):
 
     pack_list = []
     for pred_data in pred_data_list:
-        pack_list.append(prepare_properties(
-            pred_data, config_slm, prominence, rel_height, need_filter=False
-        ))
+        pack_list.append(prepare_properties(pred_data, prominence, rel_height))
 
     fname_base = config.get("fname_base", None)
     if fname_base is not None:
@@ -64,9 +61,7 @@ def run_combine(config, result_dir, need_identify=True):
         config_ = append_exclude_info(
             config, base_props["freqs_exclude"], base_props["exclude_list"]
         )
-        pack_base = prepare_properties(
-            base_data, config_slm, prominence, rel_height, need_filter=False
-        )
+        pack_base = prepare_properties(base_data, prominence, rel_height)
     else:
         config_ = config
         pack_base = None
@@ -189,8 +184,7 @@ def combine_greedy(pack_list, pack_base, obs_data, config, save_dir):
                 pickle.dump(res_dict, open(save_name, "wb"))
 
 
-def prepare_properties(pred_data, config_slm, prominence,
-                       rel_height, need_filter):
+def prepare_properties(pred_data, prominence, rel_height):
     specie_list = pred_data["specie"]
     params = pred_data["params_best"]
     T_pred_data = pred_data["T_pred"]
@@ -205,23 +199,7 @@ def prepare_properties(pred_data, config_slm, prominence,
         prom_list=prom_list,
         rel_height=rel_height
     )[0]
-    # Filter molecules
-    if need_filter:
-        pass
-        #mol_store_new, params_new = filter_moleclues(
-        #    mol_store=mol_store,
-        #    config_slm=config_slm,
-        #    params=params,
-        #    freq_data=freq_data,
-        #    T_pred_data=T_pred_data,
-        #    T_back=T_back,
-        #    prominence=prominence,
-        #    rel_height=rel_height
-        #)
-    else:
-        specie_list_new = specie_list
-        params_new = params
-    return Pack(specie_list_new, params_new, T_pred_data, spans_pred)
+    return Pack(specie_list, params, T_pred_data, spans_pred)
 
 
 def derive_first_pack(pack_list, idn, config):
@@ -292,50 +270,6 @@ def has_intersections(spans_a, spans_b):
 
 def get_save_dir(config):
     return Path(config["save_dir"])/Path(config["opt"]["dirname"])
-
-
-def filter_moleclues(mol_store, config, params,
-                     freq_data, T_pred_data, T_back, prominence, rel_height,
-                     frac_cut=.05):
-    """Select molecules that have emission lines.
-
-    Args:
-        idn (Identification): Optimization result.
-        pm (ParameterManager): Parameter manager.
-        params (array): Parameters.
-
-    Returns:
-        mol_store (MoleculeStore): None if no emission lines.
-        params (array): None if no emission lines.
-    """
-    height = T_back + prominence
-    T_single_dict = sl_model.compute_T_single_data(mol_store, config, params, freq_data)
-    names_pos = set()
-
-    for i_segment in range(len(T_pred_data)):
-        freq = freq_data[i_segment]
-        T_pred = T_pred_data[i_segment]
-        if T_pred is None:
-            continue
-        spans_pred = derive_peaks(freq, T_pred, height, prominence, rel_height)[0]
-
-        names = []
-        fracs = []
-        for sub_dict in T_single_dict.values():
-            for name, T_single_data in sub_dict.items():
-                T_single = T_single_data[i_segment]
-                if T_single is None:
-                    continue
-                names.append(name)
-                fracs.append(compute_peak_norms(spans_pred, freq, T_single))
-        fracs = compute_contributions(fracs, T_back)
-        names = np.array(names, dtype=object)
-        for cond in fracs.T > frac_cut:
-            names_pos.update(set(names[cond]))
-
-    if len(names_pos) == 0:
-        return None, None
-    return mol_store.select_subset_with_params(names_pos, params, config)
 
 
 @dataclass
