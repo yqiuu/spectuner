@@ -164,6 +164,8 @@ def prepare_fine_spectra(prop_list, params, base_grid, factor_freq,
                 need_cmb=need_cmb,
                 T_cmb=T_cmb
             )
+        spec[0] = 0.
+        spec[-1] = 0.
         freq_list.append(nu)
         spec_list.append(spec)
     return freq_list, spec_list
