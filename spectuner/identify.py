@@ -673,7 +673,8 @@ class IdentResult:
             fp, load_dict,
             ignore_list=["mol_data", "line_table", "line_table_fp"]
         )
-        load_dict["mol_data"] = json.loads(fp["mol_data"][()])
+        load_dict["mol_data"] = {int(key): data for key, data in
+                                 json.loads(fp["mol_data"][()]).items()}
         load_dict["line_table"] = LineTable.load_hdf(fp["line_table"])
         load_dict["line_table_fp"] = LineTable.load_hdf(fp["line_table_fp"])
 
