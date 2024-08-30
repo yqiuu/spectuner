@@ -1,13 +1,14 @@
 import sys
-import pickle
 from pathlib import Path
 from multiprocessing import Pool
 
+import h5py
 import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 from tqdm import trange
 
 from ..peaks import create_spans
+from ..identify import IdentResult
 
 
 def optimize(model, config_opt, pool):
@@ -117,7 +118,8 @@ def prepare_base_props(fname, config):
     if fname is not None:
         fname = Path(fname)
         fname = fname.with_name(f"identify_{fname.name}")
-        res = pickle.load(open(fname, "rb"))
+        with h5py.File(fname) as fp:
+            res = IdentResult.load_hdf(fp["combine"])
         T_base_data = res.get_T_pred()
         freqs_exclude = res.get_identified_lines()
         spans_include = create_spans(
