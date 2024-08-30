@@ -212,7 +212,7 @@ def derive_first_pack(pack_list, idn, config):
 
 def optimize_with_base(pack, slm_factory, obs_data, T_base_data,
                        config, need_init, need_trail):
-    print_fitting(pack.specie_list)
+    print_fitting(pack.specie_list[0]["species"])
     config_opt = deepcopy(config["opt"])
     model = FittingModel.from_config(
         slm_factory, pack.specie_list, obs_data, config, T_base_data
