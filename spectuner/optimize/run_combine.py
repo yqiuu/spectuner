@@ -5,7 +5,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from .optimize import prepare_base_props, optimize, create_pool
+from .optimize import prepare_base_props, optimize, create_pool, print_fitting
 from ..config import append_exclude_info
 from ..utils import (
     load_result_list, load_result_combine, save_fitting_result,
@@ -212,6 +212,7 @@ def derive_first_pack(pack_list, idn, config):
 
 def optimize_with_base(pack, slm_factory, obs_data, T_base_data,
                        config, need_init, need_trail):
+    print_fitting(pack.specie_list)
     config_opt = deepcopy(config["opt"])
     model = FittingModel.from_config(
         slm_factory, pack.specie_list, obs_data, config, T_base_data

@@ -1,10 +1,9 @@
-import pickle
 from pathlib import Path
 
 import h5py
 import numpy as np
 
-from .optimize import prepare_base_props, optimize, create_pool
+from .optimize import prepare_base_props, optimize, create_pool, print_fitting
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import query_species, SpectralLineDatabase, SpectralLineModelFactory
@@ -43,7 +42,7 @@ def run_single(config, result_dir, need_identify=True):
     fp = h5py.File(Path(result_dir)/"results_single.h5", "w")
     use_mpi = config["opt"].get("use_mpi", False)
     for item in specie_list:
-        print("Fitting {}.".format(item["species"]))
+        print_fitting(item["species"])
         item["id"] = item["id"] + base_props["id_offset"]
         model = FittingModel.from_config(
             slm_factory, [item], obs_data, config,  base_props["T_base"]

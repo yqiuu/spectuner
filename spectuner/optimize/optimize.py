@@ -153,6 +153,10 @@ def derive_exclude_list(res):
     return list(exclude_set)
 
 
+def print_fitting(specie_list):
+    print("Fitting: {}.".format(", ".join(specie_list)))
+
+
 def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
     """Perturb the parameters by a group of molecules.
 
