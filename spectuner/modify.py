@@ -1,8 +1,8 @@
-import pickle
-import re
 from pathlib import Path
 
-from .utils import is_exclusive
+import h5py
+
+from .utils import load_result_combine, save_fitting_result, load_result_list
 from .sl_model import (
     derive_sub_specie_list_with_params, combine_specie_lists,
     SpectralLineModelFactory
@@ -24,9 +24,9 @@ def modify(config, result_dir):
     exclude_id_list = config_modify["exclude_id_list"]
     exclude_name_set = set(config_modify["exclude_name_list"])
 
-    save_dir = Path(result_dir)/"combine"
-    save_name = save_dir/Path("combine_final.pickle")
-    data_combine = pickle.load(open(save_dir/Path("combine.pickle"), "rb"))
+    result_dir = Path(result_dir)
+    fname = result_dir/"results_combine.h5"
+    data_combine = load_result_combine(fname)
     freq_data = data_combine["freq"]
     specie_list = data_combine["specie"]
 
@@ -46,7 +46,10 @@ def modify(config, result_dir):
     if len(include_id_list) != 0:
         specie_lists = [specie_list_new]
         params_list = [params_new]
-        data_list = load_data_list(save_dir, include_id_list)
+        data_list = []
+        for pred_data in load_result_list(fname):
+            if pred_data["specie"][0]["id"] in include_id_list:
+                data_list.append(pred_data)
         for data in data_list:
             specie_list = data["specie"]
             params = data["params_best"]
@@ -67,21 +70,8 @@ def modify(config, result_dir):
         "T_pred": T_pred_data,
         "params_best": params_new
     }
-    pickle.dump(save_dict, open(save_name, "wb"))
+    save_name = result_dir/Path("combine_modified.h5")
+    with h5py.File(save_name, "w") as fp:
+        save_fitting_result(fp.create_group("combine"), save_dict)
 
-    identify(config, save_name)
-
-
-def load_data_list(target_dir, include_id_list):
-    data_list = []
-    for fname in target_dir.glob("*.pickle"):
-        if is_exclusive(fname):
-            continue
-        match = re.search(r'_(\d+)\.pickle', str(fname))
-        if match:
-            key = int(match.group(1))
-        else:
-            continue
-        if key in include_id_list:
-            data_list.append(pickle.load(open(fname, "rb")))
-    return data_list
+    identify(config, save_name, mode="combine")

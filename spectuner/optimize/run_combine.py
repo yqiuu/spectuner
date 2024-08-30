@@ -1,14 +1,16 @@
-import pickle
-import shutil
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
+import h5py
 import numpy as np
 
 from .optimize import prepare_base_props, optimize, create_pool
 from ..config import append_exclude_info
-from ..utils import load_pred_data
+from ..utils import (
+    load_result_list, load_result_combine, save_fitting_result,
+    derive_specie_save_name
+)
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import (
     combine_specie_lists, SpectralLineDatabase, SpectralLineModelFactory
@@ -41,11 +43,7 @@ def run_combine(config, result_dir, need_identify=True):
     rel_height = config["peak_manager"]["rel_height"]
     #
     result_dir = Path(result_dir)
-    single_dir = result_dir/"single"
-    save_dir = result_dir/"combine"
-    save_dir.mkdir(exist_ok=True)
-
-    pred_data_list = load_pred_data(single_dir.glob("*.pickle"), reset_id=False)
+    pred_data_list = load_result_list(result_dir/"results_single.h5")
     if len(pred_data_list) == 0:
         raise ValueError("Cannot find any individual fitting results.")
     pred_data_list.sort(key=lambda item: item["cost_best"])
@@ -56,7 +54,7 @@ def run_combine(config, result_dir, need_identify=True):
 
     fname_base = config.get("fname_base", None)
     if fname_base is not None:
-        base_data = pickle.load(open(fname_base, "rb"))
+        base_data = load_result_combine(fname_base)
         base_props = prepare_base_props(fname_base, config)
         config_ = append_exclude_info(
             config, base_props["freqs_exclude"], base_props["exclude_list"]
@@ -66,16 +64,14 @@ def run_combine(config, result_dir, need_identify=True):
         config_ = config
         pack_base = None
 
-    combine_greedy(pack_list, pack_base, obs_data, config_, save_dir)
+    with h5py.File(result_dir/"results_combine.h5", "w") as fp:
+        combine_greedy(pack_list, pack_base, obs_data, config_, fp)
 
     if need_identify:
-        save_name = save_dir/Path("combine.pickle")
-        if save_name.exists():
-            identify(config, save_name)
-            identify(config, result_dir, "combine")
+        identify(config, result_dir, "combine")
 
 
-def combine_greedy(pack_list, pack_base, obs_data, config, save_dir):
+def combine_greedy(pack_list, pack_base, obs_data, config, fp):
     config_opt = config["opt"]
     freq_data = get_freq_data(obs_data)
     sl_database = SpectralLineDatabase(config["sl_model"]["fname_db"])
@@ -118,8 +114,8 @@ def combine_greedy(pack_list, pack_base, obs_data, config, save_dir):
 
             # Save opt results
             item = pack.specie_list[0]
-            save_name = save_dir/Path("tmp_{}_{}.pickle".format(item["root"], item["id"]))
-            pickle.dump(res_dict, open(save_name, "wb"))
+            save_name = "tmp_{}".format(derive_specie_save_name(item))
+            save_fitting_result(fp.create_group(save_name), res_dict)
         else:
             params_new = pack.params
             specie_list_new = pack.specie_list
@@ -157,23 +153,22 @@ def combine_greedy(pack_list, pack_base, obs_data, config, save_dir):
         "T_pred": pack_curr.T_pred_data,
         "params_best": pack_curr.params,
     }
-    save_name = save_dir/Path("combine.pickle")
-    pickle.dump(save_dict, open(save_name, "wb"))
+    save_fitting_result(fp.create_group("combine"), save_dict)
 
     #
     for pack in cand_list:
         item = pack.specie_list[0]
-        save_name = save_dir/Path("{}_{}.pickle".format(item["root"], item["id"]))
+        save_name = derive_specie_save_name(item)
         if has_intersections(pack_curr.spans, pack.spans):
             res_dict = optimize_with_base(
                 pack, slm_factory, obs_data, pack_curr.T_pred_data, config,
                 need_init=False, need_trail=True
             )
-            pickle.dump(res_dict, open(save_name, "wb"))
+            save_fitting_result(fp.create_group(save_name), res_dict)
         else:
-            src_name = save_dir/Path("tmp_{}_{}.pickle".format(item["root"], item["id"]))
-            if src_name.exists():
-                shutil.copy(src_name, save_name)
+            src_name = "tmp_{}".format(save_name)
+            if src_name in fp:
+                fp[save_name] = fp[src_name]
             else:
                 res_dict = {
                     "specie": pack.specie_list,
@@ -181,7 +176,7 @@ def combine_greedy(pack_list, pack_base, obs_data, config, save_dir):
                     "T_pred": pack.T_pred_data,
                     "params_best": pack.params,
                 }
-                pickle.dump(res_dict, open(save_name, "wb"))
+                save_fitting_result(fp.create_group(save_name), res_dict)
 
 
 def prepare_properties(pred_data, prominence, rel_height):

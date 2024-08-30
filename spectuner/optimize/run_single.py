@@ -1,6 +1,7 @@
 import pickle
 from pathlib import Path
 
+import h5py
 import numpy as np
 
 from .optimize import prepare_base_props, optimize, create_pool
@@ -10,6 +11,7 @@ from ..sl_model import query_species, SpectralLineDatabase, SpectralLineModelFac
 from ..fitting_model import jit_fitting_model, FittingModel
 from ..peaks import PeakManager
 from ..identify import identify
+from ..utils import save_fitting_result, derive_specie_save_name
 
 
 __all__ = ["run_single", "create_specie_list"]
@@ -38,21 +40,20 @@ def run_single(config, result_dir, need_identify=True):
         sl_database, obs_data, base_props["spans_include"], config
     )
 
-    save_dir = Path(result_dir)/"single"
-    save_dir.mkdir(exist_ok=True)
-
+    fp = h5py.File(Path(result_dir)/"results_single.h5", "w")
     use_mpi = config["opt"].get("use_mpi", False)
     for item in specie_list:
         print("Fitting {}.".format(item["species"]))
-        name = item["root"]
         item["id"] = item["id"] + base_props["id_offset"]
         model = FittingModel.from_config(
             slm_factory, [item], obs_data, config,  base_props["T_base"]
         )
         jit_fitting_model(model)
         with create_pool(config["opt"]["n_process"], use_mpi) as pool:
-            ret_dict = optimize(model, config["opt"], pool)
-        pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
+            res_dict = optimize(model, config["opt"], pool)
+        grp = fp.create_group(derive_specie_save_name(item))
+        save_fitting_result(grp, res_dict)
+    fp.close()
 
     if need_identify:
         identify(config, result_dir, "single")

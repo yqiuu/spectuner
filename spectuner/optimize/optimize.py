@@ -101,7 +101,7 @@ def optimize_sub(model, config_opt, pool):
     if save_all:
         ret_dict["pos_all"] = pos_all
         ret_dict["cost_all"] = cost_all
-        ret_dict["blob"] = blob
+        ret_dict["blob"] = np.asarray(blob)
     return ret_dict
 
 

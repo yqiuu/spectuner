@@ -1,9 +1,11 @@
 import pickle
+import json
+import h5py
 from copy import deepcopy
 from pathlib import Path
 from collections import defaultdict
 from functools import partial
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 
 import numpy as np
 import pandas as pd
@@ -13,7 +15,10 @@ from .sl_model import (
     ParameterManager
 )
 from .peaks import compute_peak_norms, PeakManager
-from .utils import load_pred_data
+from .utils import (
+    load_result_list, load_fitting_result,
+    hdf_save_dict, hdf_load_dict, derive_specie_save_name
+)
 from .preprocess import load_preprocess
 
 
@@ -22,72 +27,70 @@ def identify(config, target, mode=None):
 
     Args:
         config (dict): Config.
-        target (str):
-            - If ``target`` is a file, perfrom identification for the target
-              file.
-            - If ``target`` is a directory, perform identification for all files
-              in the directory.
-
-        mode (str): This is only applicable when ``target`` is a directory.
+        target (str): Directory that saves fitting results.
+        mode (str):
             - ``single``: Use ``fname_base`` given in in the config as base
             data.
-            - ``combine``: Use ``combine.pickle`` in the target directory
-            as base data.
+            - ``combine``: Use the combined fitting results as base data.
     """
     obs_data = load_preprocess(config["obs_info"])
     idn = Identification(obs_data, **config["peak_manager"])
 
     target = Path(target)
     if target.is_file():
-        res = identify_file(idn, target, config)
-        save_name = target.parent/f"identify_{target.name}"
-        pickle.dump(res, open(save_name, "wb"))
+        fname = target
     elif target.is_dir():
         if mode == "single":
-            fname_base = config.get("fname_base", None)
+            fname = target/"results_single.h5"
         elif mode == "combine":
-            fname_base = target/"combine"/"combine.pickle"
+            fname = target/"results_combine.h5"
         else:
             raise ValueError(f"Unknown mode: {mode}.")
-
-        dirname = target/mode
-        if fname_base is None:
-            res = identify_without_base(idn, dirname, config)
-        else:
-            res = identify_with_base(idn, dirname, fname_base, config)
-        pickle.dump(res, open(dirname/Path("identify.pickle"), "wb"))
     else:
         raise ValueError(f"Unknown target: {target}.")
 
+    if mode == "single":
+        fname_base = config.get("fname_base", None)
+        if fname_base is None:
+            base_data = None
+        else:
+            with h5py.File(fname_base) as fp:
+                base_data = load_fitting_result(fp["combine"])
+    elif mode == "combine":
+        with h5py.File(fname) as fp:
+            base_data = load_fitting_result(fp["combine"])
 
-def identify_file(idn, fname, config):
-    data = pickle.load(open(fname, "rb"))
-    res = idn.identify(data["specie"], config, data["params_best"])
-    return res
+    pred_data_list = load_result_list(fname)
+    if base_data is None:
+        res_dict = identify_without_base(idn, pred_data_list, config)
+    else:
+        res_dict = identify_with_base(idn, pred_data_list, base_data, config)
+    with h5py.File(fname.parent/f"identify_{fname.name}", "w") as fp:
+        if mode == "combine":
+            res = idn.identify(base_data["specie"], config, base_data["params_best"])
+            res.save_hdf(fp.create_group("combine"))
+        for key, res in res_dict.items():
+            res.save_hdf(fp.create_group(key))
 
 
-def identify_without_base(idn, dirname, config):
-    pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=True)
+def identify_without_base(idn, pred_data_list, config):
     res_dict = {}
     for data in pred_data_list:
-        assert len(data["specie"]) == 1
-        key = data["specie"][0]["id"]
         res = idn.identify(data["specie"], config, data["params_best"])
         if res.is_empty():
-            res = None
-        res_dict[key] = res
+            continue
+        assert len(data["specie"]) == 1
+        res_dict[derive_specie_save_name(data["specie"][0])] = res
     return res_dict
 
 
-def identify_with_base(idn, dirname, fname_base, config):
-    data = pickle.load(open(fname_base, "rb"))
-    specie_list_base = data["specie"]
-    params_base = data["params_best"]
+def identify_with_base(idn, pred_data_list, base_data, config):
+    specie_list_base = base_data["specie"]
+    params_base = base_data["params_best"]
     T_single_dict_base = compute_T_single_data(
-        specie_list_base, config, params_base, data["freq"]
+        specie_list_base, config, params_base, base_data["freq"]
     )
 
-    pred_data_list = load_pred_data(dirname.glob("*.pickle"), reset_id=False)
     res_dict = {}
     for data in pred_data_list:
         specie_list_combine, params_combine = combine_specie_lists(
@@ -108,8 +111,8 @@ def identify_with_base(idn, dirname, fname_base, config):
         try:
             res = res.extract(key)
         except KeyError:
-            res = None
-        res_dict[key] = res
+            continue
+        res_dict[derive_specie_save_name(data["specie"][0])] = res
     return res_dict
 
 
@@ -316,9 +319,9 @@ class LineTable:
     span: np.ndarray = field(default_factory=partial(np.zeros, (0, 2)))
     loss: np.ndarray = field(default_factory=partial(np.zeros, 0))
     score: np.ndarray = field(default_factory=partial(np.zeros, 0))
-    frac: np.ndarray = field(default_factory=list)
-    id: np.ndarray = field(default_factory=list)
-    name: np.ndarray = field(default_factory=list)
+    frac: list = field(default_factory=list)
+    id: list = field(default_factory=list)
+    name: list = field(default_factory=list)
     error: np.ndarray = field(default_factory=partial(np.zeros, 0))
     norm: np.ndarray = field(default_factory=partial(np.zeros, 0))
 
@@ -383,6 +386,61 @@ class LineTable:
                 fp.write("{},{:.2f},{}\n".format(idx, freq, name))
             idx += 1
         fp.close()
+
+    def save_hdf(self, fp):
+        save_dict = asdict(self)
+
+        ignore_list = ["frac", "id", "name"]
+        hdf_save_dict(fp, save_dict, ignore_list=ignore_list)
+
+        indices = []
+        frac_save = []
+        id_save = []
+        name_save = []
+        for idx, (frac_list, id_list, name_list) in \
+            enumerate(zip(save_dict["frac"], save_dict["id"], save_dict["name"])):
+            if frac_list is None:
+                continue
+            for frac, id_, name in zip(frac_list, id_list, name_list):
+                indices.append(idx)
+                frac_save.append(frac)
+                id_save.append(id_)
+                name_save.append(name)
+        save_dict_ex = {
+            "index": np.asarray(indices),
+            "frac": np.asarray(frac_save),
+            "id": np.asarray(id_save),
+        }
+        hdf_save_dict(fp, save_dict_ex)
+        fp.create_dataset("name", data=json.dumps(name_save))
+
+    @classmethod
+    def load_hdf(cls, fp):
+        load_dict = {}
+        hdf_load_dict(fp, load_dict, ignore_list=["index", "frac", "id", "name"])
+
+        indices = np.asarray(fp["index"])
+        frac_data = np.asarray(fp["frac"])
+        id_data = np.asarray(fp["id"])
+        name_data = json.loads(fp["name"][()])
+
+        num = len(load_dict["freq"])
+        frac_load = [[] for _ in range(num)]
+        id_load = [[] for _ in range(num)]
+        name_load = [[] for _ in range(num)]
+        for idx, frac, id_, name in zip(indices, frac_data, id_data, name_data):
+            frac_load[idx].append(frac)
+            id_load[idx].append(id_)
+            name_load[idx].append(name)
+
+        load_dict["frac"] = [None if len(frac_list) == 0 else np.asarray(frac_list)
+                             for frac_list in frac_load]
+        load_dict["id"] = [None if len(id_list) == 0 else tuple(id_list)
+                           for id_list in id_load]
+        load_dict["name"] = [None if len(name_list) == 0 else tuple(name_list)
+                             for name_list in name_load]
+
+        return cls(**load_dict)
 
 
 @dataclass
@@ -597,3 +655,31 @@ class IdentResult:
                 freqs.append(freq)
         freqs = np.asarray(freqs)
         return freqs
+
+    def save_hdf(self, fp):
+        save_dict = {
+            "T_single_dict": self.T_single_dict,
+            "freq_data": self.freq_data
+        }
+        hdf_save_dict(fp, save_dict)
+        fp.create_dataset("mol_data", data=json.dumps(self.mol_data))
+        self.line_table.save_hdf(fp.create_group("line_table"))
+        self.line_table_fp.save_hdf(fp.create_group("line_table_fp"))
+
+    @classmethod
+    def load_hdf(cls, fp):
+        load_dict = {}
+        hdf_load_dict(
+            fp, load_dict,
+            ignore_list=["mol_data", "line_table", "line_table_fp"]
+        )
+        load_dict["mol_data"] = json.loads(fp["mol_data"][()])
+        load_dict["line_table"] = LineTable.load_hdf(fp["line_table"])
+        load_dict["line_table_fp"] = LineTable.load_hdf(fp["line_table_fp"])
+
+        # Convert the keys of T_single_dict to int
+        T_single_dict = {}
+        for key, T_single in load_dict["T_single_dict"].items():
+            T_single_dict[int(key)] = T_single
+        load_dict["T_single_dict"] = T_single_dict
+        return cls(**load_dict)
