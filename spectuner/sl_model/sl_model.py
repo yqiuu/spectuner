@@ -283,7 +283,7 @@ def derive_base_grid(trunc, eps):
     return points
 
 
-def create_spectral_line_model_state(sl_data_list, freq_list, obs_info, trunc=10., eps_grid=1e-3):
+def create_spectral_line_model_state(sl_data_list, freq_list, obs_info, trunc=5., eps_grid=1e-3):
     """
     Args:
         obs_info:
