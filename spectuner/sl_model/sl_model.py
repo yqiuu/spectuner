@@ -4,6 +4,13 @@ from numba.typed import List, Dict
 from astropy import constants, units
 
 
+__all__ = [
+    "compute_spectra_simple_grid",
+    "compute_effective_spectra",
+    "create_spectral_line_model_state",
+]
+
+
 def compute_spectra_simple_grid(slm_state, params):
     # params (M, 5)
     def compute_tau_total(slm_state, sl_data, nu, den_col, T_ex, delta_v, v_offset):
