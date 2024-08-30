@@ -126,7 +126,7 @@ def prepare_base_props(fname, config):
         exclude_list = derive_exclude_list(res)
 
         id_offset = 0
-        for key in res.mol_data:
+        for key in res.specie_data:
             id_offset = max(id_offset, key)
         id_offset += 1
     else:
@@ -147,7 +147,7 @@ def prepare_base_props(fname, config):
 
 def derive_exclude_list(res):
     exclude_set = set()
-    for sub_dict in res.mol_data.values():
+    for sub_dict in res.specie_data.values():
         for key in sub_dict:
             exclude_set.add(key.split(";")[0])
     return list(exclude_set)

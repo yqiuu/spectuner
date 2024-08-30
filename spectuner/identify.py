@@ -445,7 +445,7 @@ class LineTable:
 
 @dataclass
 class IdentResult:
-    mol_data: dict
+    specie_data: dict
     line_table: LineTable
     line_table_fp: LineTable
     T_single_dict: dict
@@ -457,7 +457,7 @@ class IdentResult:
 
     def __repr__(self):
         text = "Molecules:\n"
-        for key, sub_dict in self.mol_data.items():
+        for key, sub_dict in self.specie_data.items():
             for cols in sub_dict.values():
                 master_name = cols["master_name"]
                 break
@@ -489,7 +489,7 @@ class IdentResult:
         score_dict = defaultdict(lambda: defaultdict(dict_factory))
         increase_score_dict(self.line_table, score_dict)
         increase_score_dict(self.line_table_fp, score_dict)
-        self.update_mol_data(score_dict)
+        self.update_specie_data(score_dict)
 
     def _add_count_data(self):
         def increase_count_dict(line_table, count_dict, target):
@@ -511,23 +511,23 @@ class IdentResult:
         increase_count_dict(self.line_table, count_dict, "num_tp")
         increase_count_dict(self.line_table_fp, count_dict, "num_fp")
         increase_count_i_dict(self.line_table, count_dict, "num_tp_i")
-        self.update_mol_data(count_dict)
+        self.update_specie_data(count_dict)
 
     def is_empty(self):
-        return len(self.mol_data) == 0
+        return len(self.specie_data) == 0
 
-    def update_mol_data(self, data):
-        for key, sub_dict in self.mol_data.items():
+    def update_specie_data(self, data):
+        for key, sub_dict in self.specie_data.items():
             for name, cols in sub_dict.items():
                 cols.update(data[key][name])
 
     def get_aggregate_prop(self, key, prop_name):
-        return sum([cols[prop_name] for cols in self.mol_data[key].values()])
+        return sum([cols[prop_name] for cols in self.specie_data[key].values()])
 
     def derive_stats_dict(self):
         stats_dict = {
-            "n_master": len(self.mol_data),
-            "n_mol": sum([len(sub_dict) for sub_dict in self.mol_data.values()])
+            "n_master": len(self.specie_data),
+            "n_mol": sum([len(sub_dict) for sub_dict in self.specie_data.values()])
         }
 
         n_idn = 0
@@ -543,7 +543,7 @@ class IdentResult:
     def derive_df_mol(self, max_order=3):
         tx_score_dict = self.compute_tx_score(max_order, use_id=False)
         data = []
-        for key, sub_dict in self.mol_data.items():
+        for key, sub_dict in self.specie_data.items():
             for name, cols in sub_dict.items():
                 data.append({"id": key, "name": name, **cols, **tx_score_dict[name]})
         df = pd.DataFrame.from_dict(data)
@@ -557,7 +557,7 @@ class IdentResult:
     def derive_df_mol_master(self, max_order=3):
         tx_score_dict = self.compute_tx_score(max_order, use_id=True)
         data = []
-        for key, sub_dict in self.mol_data.items():
+        for key, sub_dict in self.specie_data.items():
             for cols in sub_dict.values():
                 master_name = cols["master_name"]
                 break
@@ -590,10 +590,10 @@ class IdentResult:
                 score_list_dict[key].append(score_sub)
 
         if use_id:
-            key_list = self.mol_data.keys()
+            key_list = self.specie_data.keys()
         else:
             key_list = set()
-            for sub_dict in self.mol_data.values():
+            for sub_dict in self.specie_data.values():
                 key_list.update(sub_dict.keys())
 
         score_dict = {}
@@ -609,7 +609,7 @@ class IdentResult:
         return score_dict
 
     def extract(self, key):
-        mol_data_new = {key: deepcopy(self.mol_data[key])}
+        specie_data_new = {key: deepcopy(self.specie_data[key])}
         #
         inds = self.filter_name_list(set((key,)), self.line_table.id)
         line_table_new = self.line_table.extract(inds, is_sparse=True)
@@ -619,7 +619,7 @@ class IdentResult:
         #
         T_single_dict_new = {key: deepcopy(self.T_single_dict[key])}
         return IdentResult(
-            mol_data=mol_data_new,
+            specie_data=specie_data_new,
             line_table=line_table_new,
             line_table_fp=line_table_fp_new,
             T_single_dict=T_single_dict_new,
@@ -662,7 +662,7 @@ class IdentResult:
             "freq_data": self.freq_data
         }
         hdf_save_dict(fp, save_dict)
-        fp.create_dataset("mol_data", data=json.dumps(self.mol_data))
+        fp.create_dataset("specie_data", data=json.dumps(self.specie_data))
         self.line_table.save_hdf(fp.create_group("line_table"))
         self.line_table_fp.save_hdf(fp.create_group("line_table_fp"))
 
@@ -671,10 +671,10 @@ class IdentResult:
         load_dict = {}
         hdf_load_dict(
             fp, load_dict,
-            ignore_list=["mol_data", "line_table", "line_table_fp"]
+            ignore_list=["specie_data", "line_table", "line_table_fp"]
         )
-        load_dict["mol_data"] = {int(key): data for key, data in
-                                 json.loads(fp["mol_data"][()]).items()}
+        load_dict["specie_data"] = {int(key): data for key, data in
+                                    json.loads(fp["specie_data"][()]).items()}
         load_dict["line_table"] = LineTable.load_hdf(fp["line_table"])
         load_dict["line_table_fp"] = LineTable.load_hdf(fp["line_table_fp"])
 

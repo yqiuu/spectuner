@@ -243,7 +243,7 @@ def derive_initial_pos(params, bounds, n_swarm):
 
 def check_criteria(res, id_mol, criteria):
     max_order = get_max_order(criteria)
-    if id_mol in res.mol_data:
+    if id_mol in res.specie_data:
         score_dict = {"score": res.get_aggregate_prop(id_mol, "score")}
         score_dict.update(res.compute_tx_score(max_order, use_id=True)[id_mol])
     else:
