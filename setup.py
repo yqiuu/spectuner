@@ -7,7 +7,10 @@ exec(open('spectuner/version.py', 'r').read())
 description = "A tool for automated line identification of interstellar molecules."
 
 install_requires = [
+    "astropy>=6.1.0",
+    "h5py>=3.11",
     "numpy>=1.23",
+    "numba>=0.60",
     "scipy>=1.10",
     "pandas>=2.0",
     "swing-opt",
