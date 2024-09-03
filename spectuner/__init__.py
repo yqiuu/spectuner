@@ -1,5 +1,6 @@
 from .sl_model import *
 from .identify import *
+from .modify import *
 from .optimize import *
 from .fitting_model import *
 from .preprocess import *
