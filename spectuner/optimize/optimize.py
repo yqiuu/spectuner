@@ -39,7 +39,7 @@ def optimize_sub(model, config_opt, pool):
     kwargs_opt = config_opt.get("kwargs_opt", {})
     blob = config_opt.get("blob", False)
     save_all = config_opt.get("save_all", False)
-    opt = cls_opt(model, model.bounds, pool=pool, blob=blob, **kwargs_opt)
+    opt = cls_opt(model, model.bounds, pool=pool, **kwargs_opt)
 
     n_cycle_min = config_opt["n_cycle_min"] \
         + (len(model.bounds) - 5)*config_opt["n_cycle_dim"]

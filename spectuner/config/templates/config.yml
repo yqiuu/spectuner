@@ -63,4 +63,3 @@ opt:
   criteria:
     score: 2.7
     t3_score: 0.8
-  blob: False
