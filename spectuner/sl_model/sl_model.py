@@ -1,6 +1,6 @@
 import numpy as np
-from numba import types, jit
-from numba.typed import List, Dict
+from numba import jit
+from numba.typed import List
 from astropy import constants, units
 
 
@@ -49,11 +49,13 @@ def compute_spectra_simple_grid(slm_state, params):
 
 def compute_effective_spectra(slm_state, params):
     args = prepare_properties(slm_state, params)
-    prop_list = prepare_prop_list(*args)
+    prop_list, bounds = prepare_prop_list(*args)
     freq_list_fine, spec_list_fine = prepare_fine_spectra(
-        prop_list, params,
+        prop_list, bounds, params,
         factor_freq=slm_state["factor_freq"],
-        base_grid=slm_state["base_grid"],
+        x_grid=slm_state["x_grid"],
+        y_grid=slm_state["y_grid"],
+        factor_grid=slm_state["factor_grid"],
         is_sd_list=slm_state["is_single_dish"],
         beam_size_sq_list=slm_state["beam_size_sq"],
         factor_beam_list=slm_state["factor_beam"],
@@ -126,28 +128,41 @@ def prepare_prop_list(inds_specie, inds_segment, tau_norm, mu, sigma, left, righ
             tmp[2].append(tau_norm_i)
             tmp[3].append(mu_i)
             tmp[4].append(sigma_i)
-    return prop_list
+
+    bounds = List([(left, right) for left, right in merged])
+    return prop_list, bounds
 
 
 @jit(cache=True)
-def prepare_fine_spectra(prop_list, params, base_grid, factor_freq,
-                         is_sd_list, beam_size_sq_list, factor_beam_list,
+def prepare_fine_spectra(prop_list, bounds, params,
+                         x_grid, y_grid, factor_grid,
+                         factor_freq, is_sd_list, beam_size_sq_list, factor_beam_list,
                          T_bg_list, need_cmb_list, T_cmb):
     freq_list = []
     spec_list = []
-    for i_segment, inds_specie, tau_norm, mu, sigma in prop_list:
-        tau_norm = np.asarray(tau_norm)[:, None]
-        mu = np.asarray(mu)[:, None]
-        sigma = np.asarray(sigma)[:, None]
-        nu = np.sort(np.ravel(mu + sigma*base_grid))
-        tau = tau_norm*gauss_profile(nu, mu, sigma)
+    for i_interval in range(len(bounds)):
+        left, right = bounds[i_interval]
+        i_segment, inds_specie, tau_norm, mu, sigma = prop_list[i_interval]
 
-        tmp_dict = Dict.empty(key_type=types.int64, value_type=types.float64[:])
+        idx = 0
+        lookup = {}
         for i_specie in inds_specie:
-            if i_specie not in tmp_dict:
-                tmp_dict[i_specie] = np.zeros_like(nu)
-        for i_specie, tau_i in zip(inds_specie, tau):
-            tmp_dict[i_specie] += tau_i
+            if i_specie in lookup:
+                continue
+            lookup[i_specie] = idx
+            idx += 1
+
+        n_grid = max(3, factor_grid*int((right - left)/min(sigma)))
+        if len(mu) == 1:
+            nu = mu[0] + sigma[0]*x_grid
+            tau_list = [(tau_norm[0]/sigma[0])*y_grid]
+        else:
+            mu = np.asarray(mu)[:, None]
+            sigma = np.asarray(sigma)[:, None]
+            nu = np.linspace(left, right, n_grid)
+            tau_list = [np.zeros_like(nu) for _ in range(len(lookup))]
+            for i_specie, tau_norm_i, mu_i, sigma_i in zip(inds_specie, tau_norm, mu, sigma):
+                tau_list[lookup[i_specie]] += tau_norm_i*gauss_profile(nu, mu_i, sigma_i)
 
         theta = params[:, :1]
         T_ex = params[:, 1:2]
@@ -158,11 +173,11 @@ def prepare_fine_spectra(prop_list, params, base_grid, factor_freq,
         need_cmb = need_cmb_list[i_segment]
 
         spec = np.zeros_like(nu)
-        for i_specie, tau_total in tmp_dict.items():
+        for i_specie, idx in lookup.items():
             theta_i = theta[i_specie]
             T_ex_i = T_ex[i_specie]
             spec += compute_intensity(
-                nu, tau_total, theta_i, T_ex_i,
+                nu, tau_list[idx], theta_i, T_ex_i,
                 factor_freq=factor_freq,
                 is_single_dish=is_single_dish,
                 beam_size_sq=beam_size_sq,
@@ -287,10 +302,12 @@ def derive_base_grid(trunc, eps):
     adaptive_trapz(func, -trunc, trunc, points, eps)
     points.sort()
     points = np.asarray(points)
-    return points
+    values = func(points)
+    return points, values
 
 
-def create_spectral_line_model_state(sl_data_list, freq_list, obs_info, trunc=5., eps_grid=1e-3):
+def create_spectral_line_model_state(sl_data_list, freq_list, obs_info,
+                                     trunc=5., eps_grid=1e-3, factor_grid=10):
     """
     Args:
         obs_info:
@@ -351,6 +368,7 @@ def create_spectral_line_model_state(sl_data_list, freq_list, obs_info, trunc=5.
     slm_state["T_cmb"] = 2.726 # K
     #
     slm_state["trunc"] = trunc
-    slm_state["base_grid"] = derive_base_grid(trunc, eps_grid)
+    slm_state["x_grid"], slm_state["y_grid"] = derive_base_grid(trunc, eps_grid)
+    slm_state["factor_grid"] = factor_grid
     #
     return slm_state
