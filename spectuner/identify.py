@@ -679,20 +679,83 @@ class ResultManager:
     def __init__(self, dirname):
         dirname = Path(dirname)
         file_list = (
-            "results_single.h5",
-            "identify_results_single.h5",
-            "results_combine.h5",
-            "identify_results_combine.h5",
-            "combine_modified.h5",
-            "identify_combine_modified.h5"
+            ("fitting_single", "results_single.h5"),
+            ("fitting_combine", "results_combine.h5"),
+            ("fitting_modified", "combine_modified.h5"),
+            ("ident_single", "identify_results_single.h5"),
+            ("ident_combine", "identify_results_combine.h5"),
+            ("ident_modified", "identify_combine_modified.h5")
         )
-        for fname in file_list:
-            attr_name = "_f_{}".format(fname.replace(".h5",""))
+        for key, fname in file_list:
             fname_ = dirname/fname
+            attr_name_1 = "_f_{}".format(key)
+            attr_name_2 = "_names_{}".format(key)
             if fname_.is_file():
-                setattr(self, attr_name, fname_)
+                setattr(self, attr_name_1, fname_)
+                setattr(self, attr_name_2, tuple(h5py.File(fname_).keys()))
             else:
-                setattr(self, attr_name, None)
+                setattr(self, attr_name_1, None)
+                setattr(self, attr_name_2, None)
+
+    def __repr__(self):
+        text = ""
+        if self._names_fitting_single is not None:
+            text += "Fitting results (single):\n"
+            for name in self._names_fitting_single:
+                text += "  - {}\n".format(name)
+            text += "\n"
+        if self._names_ident_single is not None:
+            text += "Identification results (single):\n"
+            for name in self._names_fitting_single:
+                text += "  - {}\n".format(name)
+            text += "\n"
+        if self._names_fitting_combine is not None:
+            text += "Fitting results (combine):\n"
+            for name in self._names_fitting_combine:
+                text += "  - {}\n".format(name)
+            text += "\n"
+        if self._names_ident_combine is not None:
+            text += "Identification results (combine):\n"
+            for name in self._names_ident_combine:
+                text += "  - {}\n".format(name)
+            text += "\n"
+        if self._names_fitting_modified is not None:
+            text += "Fitting results (modified):\n"
+            for name in self._names_fitting_modified:
+                text += "  - {}\n".format(name)
+            text += "\n"
+        if self._names_ident_modified is not None:
+            text += "Identification results (modified):\n"
+            for name in self._names_ident_modified:
+                text += "  - {}\n".format(name)
+            text += "\n"
+        return text
+
+    def _validate_target(self, target):
+        if target not in ["single", "combine", "modified"]:
+            raise ValueError("Set target from ['single', 'combine', 'modified'].")
+
+    def list_fitting_results(self, target):
+        self._validate_target(target)
+        return getattr(self, f"_names_fitting_{target}")
+
+    def list_ident_results(self, target):
+        self._validate_target(target)
+        return getattr(self, f"_names_ident_{target}")
+
+    def load_fitting_result(self, target, name):
+        self._validate_target(target)
+        fname = getattr(self, f"_f_fitting_{target}")
+        with h5py.File(fname) as fp:
+            res = load_fitting_result(fp[name])
+        return res
+
+    def load_ident_result(self, target, name):
+        self._validate_target(target)
+        fname = getattr(self, f"_f_ident_{target}")
+        with h5py.File(fname) as fp:
+            res = IdentResult.load_hdf(fp[name])
+        return res
 
     def derive_df_mol_master(self, mode="combine"):
         if mode == "single":
