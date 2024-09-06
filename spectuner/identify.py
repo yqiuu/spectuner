@@ -116,17 +116,6 @@ def identify_with_base(idn, pred_data_list, base_data, config):
     return res_dict
 
 
-def derive_df_mol_master_from_res_dict(res_dict):
-    df_mol_master = pd.concat([
-        res.derive_df_mol_master() for res in res_dict.values() if res is not None
-    ])
-    df_mol_master.sort_values(
-        ["t3_score", "t2_score", "t1_score", "num_tp_i"], ascending=False, inplace=True
-    )
-    df_mol_master.reset_index(drop=True, inplace=True)
-    return df_mol_master
-
-
 def compute_contributions(values, T_back=0.):
     """Compute the contributions of each blending peaks.
 
@@ -684,3 +673,44 @@ class IdentResult:
             T_single_dict[int(key)] = T_single
         load_dict["T_single_dict"] = T_single_dict
         return cls(**load_dict)
+
+
+class ResultManager:
+    def __init__(self, dirname):
+        dirname = Path(dirname)
+        file_list = (
+            "results_single.h5",
+            "identify_results_single.h5",
+            "results_combine.h5",
+            "identify_results_combine.h5",
+            "combine_modified.h5",
+            "identify_combine_modified.h5"
+        )
+        for fname in file_list:
+            attr_name = "_f_{}".format(fname.replace(".h5",""))
+            fname_ = dirname/fname
+            if fname_.is_file():
+                setattr(self, attr_name, fname_)
+            else:
+                setattr(self, attr_name, None)
+
+    def derive_df_mol_master(self, mode="combine"):
+        if mode == "single":
+            fname = self._f_identify_results_single
+        else:
+            fname = self._f_identify_results_combine
+        if fname is None:
+            raise ValueError
+
+        res_list = []
+        with h5py.File(fname) as fp:
+            for key, grp in fp.items():
+                if key.startswith("combine"):
+                    continue
+                res_list.append(IdentResult.load_hdf(grp))
+        df_mol_master = pd.concat([res.derive_df_mol_master() for res in res_list])
+        df_mol_master.sort_values(
+            ["t3_score", "t2_score", "t1_score", "num_tp_i"], ascending=False, inplace=True
+        )
+        df_mol_master.reset_index(drop=True, inplace=True)
+        return df_mol_master
