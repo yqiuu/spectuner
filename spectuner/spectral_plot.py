@@ -181,7 +181,7 @@ class SpectralPlot:
     @classmethod
     def from_config(cls, config, freq_per_row=1000., width=15., height=3.,
                     axes=None, color="k", **kwargs):
-        obs_data = [np.loadtxt(fname) for fname in config["files"]]
+        obs_data = [np.loadtxt(item["fname"]) for item in config["obs_info"]]
         freq_data = get_freq_data(obs_data)
         plot = cls(
             freq_data=freq_data,
