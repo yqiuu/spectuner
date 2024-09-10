@@ -6,7 +6,12 @@ from pathlib import Path
 import numpy as np
 
 
-__all__ = ["create_config", "load_config", "append_exclude_info"]
+__all__ = [
+    "create_config",
+    "load_config",
+    "preprocess_config",
+    "append_exclude_info"
+]
 
 
 def create_config(dir="./"):
@@ -33,18 +38,27 @@ def create_config(dir="./"):
 def load_config(dir):
     dir = Path(dir)
     config = yaml.safe_load(open(dir/"config.yml"))
-    if config["peak_manager"]["prominence"] is None:
-        raise ValueError("'prominence' cannot be None.")
-    if config["peak_manager"]["rel_height"] is None:
-        raise ValueError("'rel_height' cannot be None.")
     for key, fname in iter_config_names():
         config[key] = yaml.safe_load(open(dir/fname))
+    preprocess_config(config)
+    return config
+
+
+def preprocess_config(config):
+    """This function does the following (in-place):
+        1. Derive and set ``prominence`` in ``config["peak_manager"]``.
+        2. Set ``freqs_exclude`` in ``config["peak_manager"]``.
+    """
+    if "prominence" not in config["peak_manager"]:
+        noises = np.array([item["noise"] for item in config["obs_info"]])
+        noise_factor = config["peak_manager"].pop("noise_factor")
+        config["peak_manager"]["prominence"] = noise_factor*noises
+
     if config["peak_manager"]["freqs_exclude"] is None:
         config["peak_manager"]["freqs_exclude"] = np.zeros(0)
     else:
         config["peak_manager"]["freqs_exclude"] \
             = np.loadtxt(config["peak_manager"]["freqs_exclude"])
-    return config
 
 
 def iter_config_names():
