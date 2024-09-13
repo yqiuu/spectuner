@@ -63,6 +63,9 @@ def compute_effective_spectra(slm_state, params):
         need_cmb_list=slm_state["need_cmb"],
         T_cmb=slm_state["T_cmb"]
     )
+    if len(freq_list_fine) == 0:
+        return [np.zeros_like(freq) for freq in slm_state["freq_list"]]
+
     freqs_fine = np.concatenate(freq_list_fine)
     spectra_fine = np.concatenate(spec_list_fine)
     return prepare_effective_spectra(slm_state["freq_list"], freqs_fine, spectra_fine)
