@@ -1,4 +1,3 @@
-import pickle
 import json
 import h5py
 from copy import deepcopy
@@ -694,41 +693,35 @@ class ResultManager:
                 setattr(self, attr_name_1, fname_)
                 setattr(self, attr_name_2, tuple(h5py.File(fname_).keys()))
             else:
-                setattr(self, attr_name_1, None)
-                setattr(self, attr_name_2, None)
+                setattr(self, attr_name_1, tuple())
+                setattr(self, attr_name_2, tuple())
 
     def __repr__(self):
         text = ""
-        if self._names_fitting_single is not None:
-            text += "Fitting results (single):\n"
-            for name in self._names_fitting_single:
-                text += "  - {}\n".format(name)
-            text += "\n"
-        if self._names_ident_single is not None:
-            text += "Identification results (single):\n"
-            for name in self._names_fitting_single:
-                text += "  - {}\n".format(name)
-            text += "\n"
-        if self._names_fitting_combine is not None:
-            text += "Fitting results (combine):\n"
-            for name in self._names_fitting_combine:
-                text += "  - {}\n".format(name)
-            text += "\n"
-        if self._names_ident_combine is not None:
-            text += "Identification results (combine):\n"
-            for name in self._names_ident_combine:
-                text += "  - {}\n".format(name)
-            text += "\n"
-        if self._names_fitting_modified is not None:
-            text += "Fitting results (modified):\n"
-            for name in self._names_fitting_modified:
-                text += "  - {}\n".format(name)
-            text += "\n"
-        if self._names_ident_modified is not None:
-            text += "Identification results (modified):\n"
-            for name in self._names_ident_modified:
-                text += "  - {}\n".format(name)
-            text += "\n"
+        text += "Fitting results (single):\n"
+        for name in self._names_fitting_single:
+            text += "  - {}\n".format(name)
+        text += "\n"
+        text += "Identification results (single):\n"
+        for name in self._names_fitting_single:
+            text += "  - {}\n".format(name)
+        text += "\n"
+        text += "Fitting results (combine):\n"
+        for name in self._names_fitting_combine:
+            text += "  - {}\n".format(name)
+        text += "\n"
+        text += "Identification results (combine):\n"
+        for name in self._names_ident_combine:
+            text += "  - {}\n".format(name)
+        text += "\n"
+        text += "Fitting results (modified):\n"
+        for name in self._names_fitting_modified:
+            text += "  - {}\n".format(name)
+        text += "\n"
+        text += "Identification results (modified):\n"
+        for name in self._names_ident_modified:
+            text += "  - {}\n".format(name)
+        text += "\n"
         return text
 
     def _validate_target(self, target):
