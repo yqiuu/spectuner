@@ -31,7 +31,7 @@ def run_combine(config, result_dir, need_identify=True):
     Args:
         config (dict): Config.
         result_dir (str): Directory to save results. This should be the same
-        directory to save the results of the individual fitting.
+            directory to save the results of the individual fitting.
         need_identify (bool):  If ``True``, peform the identification.
     """
     config = deepcopy(config)
@@ -45,7 +45,8 @@ def run_combine(config, result_dir, need_identify=True):
     result_dir = Path(result_dir)
     pred_data_list = load_result_list(result_dir/"results_single.h5")
     if len(pred_data_list) == 0:
-        raise ValueError("Cannot find any individual fitting results.")
+        return
+
     pred_data_list.sort(key=lambda item: item["cost_best"])
 
     pack_list = []
