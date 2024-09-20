@@ -14,6 +14,9 @@ def query_species(sl_database, freq_list,
                   iso_mode="combined", iso_order=1,
                   version_mode="default", include_hyper=False,
                   separate_all=False, exclude_list=None, rename_dict=None):
+    if freqs_include is not None and len(freqs_include) == 0:
+        return []
+
     rename_dict_ = {
         "NH2CN": "H2NCN",
         "H2CCHCN": "CH2CHCN",
