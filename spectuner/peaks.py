@@ -359,21 +359,28 @@ class PeakManager:
         if len(peak_store.spans_fp) > 0:
             centres_obs = np.mean(peak_store.spans_obs, axis=1)
             centres_pred = np.mean(peak_store.spans_fp, axis=1)
-            side = np.zeros(len(centres_pred), dtype="i4")
-            inds_r = np.searchsorted(centres_obs, centres_pred)
-            inds_l = inds_r - 1
-            # Right
-            cond = inds_r == len(centres_obs)
-            inds_r[cond] = len(centres_obs) - 1
-            x_right = centres_obs[inds_r]
-            x_right[cond] = freq[-1]
-            side[cond] = 1
-            # Left
-            cond = inds_l < 0
-            inds_l[cond] = 0
-            x_left = centres_obs[inds_l]
-            x_left[cond] = freq[0]
-            side[cond] = -1
+            if len(centres_obs) > 0:
+                side = np.zeros(len(centres_pred), dtype="i4")
+                inds_r = np.searchsorted(centres_obs, centres_pred)
+                inds_l = inds_r - 1
+                # Right
+                cond = inds_r == len(centres_obs)
+                inds_r[cond] = len(centres_obs) - 1
+                x_right = centres_obs[inds_r]
+                x_right[cond] = freq[-1]
+                side[cond] = 1
+                # Left
+                cond = inds_l < 0
+                inds_l[cond] = 0
+                x_left = centres_obs[inds_l]
+                x_left[cond] = freq[0]
+                side[cond] = -1
+            else:
+                x_right = np.full(len(centres_pred), freq[-1])
+                x_left = np.full(len(centres_pred), freq[0])
+                side = np.ones(len(centres_pred), dtype="i4")
+                cond = np.abs(centres_pred - x_left) < np.abs(centres_pred - x_right)
+                side[cond] = -1
             #
             values = self.transform(peak_store.errors_fp)
             loss_fp = linear_deacy(centres_pred, x_left, x_right, side, values)
