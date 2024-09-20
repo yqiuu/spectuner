@@ -63,7 +63,7 @@ def identify(config, target, mode=None):
     else:
         res_dict = identify_with_base(idn, pred_data_list, base_data, config)
     with h5py.File(fname.parent/f"identify_{fname.name}", "w") as fp:
-        if mode == "combine":
+        if mode == "combine" and base_data is not None:
             res = idn.identify(base_data["specie"], config, base_data["params_best"])
             res.save_hdf(fp.create_group("combine"))
         for key, res in res_dict.items():
