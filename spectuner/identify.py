@@ -15,7 +15,7 @@ from .sl_model import (
 )
 from .peaks import compute_peak_norms, PeakManager
 from .utils import (
-    load_result_list, load_fitting_result,
+    load_result_list, load_fitting_result, load_result_combine,
     hdf_save_dict, hdf_load_dict, derive_specie_save_name
 )
 from .preprocess import load_preprocess
@@ -53,11 +53,9 @@ def identify(config, target, mode=None):
         if fname_base is None:
             base_data = None
         else:
-            with h5py.File(fname_base) as fp:
-                base_data = load_fitting_result(fp["combine"])
+            base_data = load_result_combine(fname_base)
     elif mode == "combine":
-        with h5py.File(fname) as fp:
-            base_data = load_fitting_result(fp["combine"])
+        base_data = load_result_combine(fname)
 
     pred_data_list = load_result_list(fname)
     if base_data is None:

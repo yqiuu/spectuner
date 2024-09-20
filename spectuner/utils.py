@@ -23,7 +23,10 @@ def load_result_list(fname, reset_id=False):
 def load_result_combine(fname):
     """Load the combined fitting result."""
     with h5py.File(fname) as fp:
-        pred_data = load_fitting_result(fp["combine"])
+        if "combine" in fp:
+            pred_data = load_fitting_result(fp["combine"])
+        else:
+            pred_data = None
     return pred_data
 
 
