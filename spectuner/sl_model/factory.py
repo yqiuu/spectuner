@@ -207,6 +207,14 @@ class ParameterManager:
         self._n_tot = self._derive_n_tot()
         #
         self._scales = [params_info[key]["is_log"] for key in self.param_names]
+        if "special" in params_info["theta"]:
+            self._beam_size = derive_average_beam_size(obs_info)
+            self._special = params_info["theta"]["special"]
+            if self._special not in ["scaled", "eta"]:
+                raise ValueError("Unknown name: {}.".format(self._special))
+        else:
+            self._beam_size = None
+            self._special = None
 
     @classmethod
     def from_config(cls, specie_list, config):
@@ -224,6 +232,18 @@ class ParameterManager:
             params = params[idx:]
         params_mol = np.vstack(params_list)
         for idx, is_log in enumerate(self._scales):
+            if idx == 0 and self._special is not None:
+                if self._special == "scaled":
+                    if is_log:
+                        params_mol[:, 0] = self._beam_size*10**params_mol[:, 0]
+                    else:
+                        params_mol[:, 0] = self._beam_size*params_mol[:, 0]
+                elif self._special == "eta":
+                    eta = params_mol[:, 0]
+                    if is_log:
+                        eta = 10**eta
+                    params_mol[:, 0] = self._beam_size*np.sqrt(eta/(1 - eta))
+                continue
             if is_log:
                 params_mol[:, idx] = 10**params_mol[:, idx]
         return params_mol
