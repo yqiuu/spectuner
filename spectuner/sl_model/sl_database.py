@@ -359,7 +359,6 @@ class SpectralLineDatabase:
             idx_b = np.searchsorted(freqs, freq_min)
             freq_max = freq[-1]
             idx_e = np.searchsorted(freqs, freq_max)
-            idx_e = min(idx_e, len(freqs) - 1)
             data_ret["segment"].append(np.full(idx_e - idx_b, i_segment))
             for col in self.cols:
                 data_ret[col].append(prop_dict[col][idx_b:idx_e])
