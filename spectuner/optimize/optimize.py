@@ -60,7 +60,7 @@ def optimize_sub(model, config_opt, pool):
             if save_all:
                 pos_all.append(data["pos"])
                 cost_all.append(data["cost"])
-                if data["blob"] is not None:
+                if data.get("blob", None) is not None:
                     blob.extend(data["blob"])
 
         if i_cycle > 1:
