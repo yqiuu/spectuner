@@ -53,7 +53,7 @@ def exec_fit():
     elif args.mode == "combine":
         run_combine(config, save_dir)
     elif args.mode == "entire":
-        run_single(config, save_dir, need_identify=False)
+        run_single(config, save_dir)
         run_combine(config, save_dir)
     else:
         raise ValueError(f"Unknown mode: {args.mode}.")
