@@ -701,7 +701,7 @@ class ResultManager:
             text += "  - {}\n".format(name)
         text += "\n"
         text += "Identification results (single):\n"
-        for name in self._names_fitting_single:
+        for name in self._names_ident_single:
             text += "  - {}\n".format(name)
         text += "\n"
         text += "Fitting results (combine):\n"
