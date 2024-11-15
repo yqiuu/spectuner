@@ -32,7 +32,7 @@ class FittingModel:
                 T_base_data=T_base_data
             )
         elif loss_fn == "mse":
-            self.loss_fn = MSE(obs_data)
+            self.loss_fn = MSE(obs_data, T_back, T_base_data)
         else:
             raise ValueError(f"Unknown loss function {loss_fn}.")
         self.T_base_data = T_base_data
@@ -89,12 +89,17 @@ class FittingModel:
 
 
 class MSE:
-    def __init__(self, obs_data):
-        self.T_obs_data = get_T_data(obs_data)
+    def __init__(self, obs_data, T_back=0., T_base_data=None):
+        T_obs_data = get_T_data(obs_data)
+        if T_base_data is None:
+            self.T_obs_data = T_obs_data
+        else:
+            self.T_obs_data = [T_obs - T_base + T_back for T_obs, T_base
+                               in zip(T_obs_data, T_base_data)]
 
     def __call__(self, T_pred_data):
         loss = 0.
         for T_obs, T_pred in zip(self.T_obs_data, T_pred_data):
             loss += np.mean(np.square(T_obs - T_pred))
         loss /= len(T_pred_data)
-        return loss
+        return loss, 0.
