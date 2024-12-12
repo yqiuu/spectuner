@@ -4,7 +4,11 @@ from collections import defaultdict
 import numpy as np
 
 from .sl_database import SpectralLineDatabase
-from .sl_model import create_spectral_line_model_state, compute_effective_spectra
+from .sl_model import (
+    create_spectral_line_model_state,
+    compute_effective_spectra,
+    derive_average_beam_size
+)
 
 
 def derive_sub_specie_list(specie_list, species):
@@ -189,7 +193,7 @@ class ParameterManager:
     """A class to decode parameters into a 2D array and apply scaling."""
     param_names = ["theta", "T_ex", "N_tot", "delta_v", "v_LSR"]
 
-    def __init__(self, specie_list, params_info):
+    def __init__(self, specie_list, params_info, obs_info):
         self.specie_list = specie_list
         #
         inds_shared = []

@@ -8,6 +8,7 @@ __all__ = [
     "compute_spectra_simple_grid",
     "compute_effective_spectra",
     "create_spectral_line_model_state",
+    "const_factor_mu_sigma"
 ]
 
 
@@ -309,6 +310,23 @@ def derive_base_grid(trunc, eps):
     return points, values
 
 
+def derive_average_beam_size(obs_info):
+    factor_beam = 1.22*3600*180/np.pi*(constants.c/units.MHz).to(units.m).value
+    beam_size_list = [] # Arcsecond
+    for item in obs_info:
+        beam_info = item["beam_info"]
+        if np.isscalar(beam_info):
+            # Single dish
+            freq_c = .5*(item["spec"][0, 0] + item["spec"][-1, 0])
+            beam_size = factor_beam/(beam_info*freq_c)
+        else:
+            # Interferometery
+            # Convert degree to arcsecond
+            beam_size = np.sqrt(beam_info[0]*beam_info[1])*3600
+        beam_size_list.append(beam_size)
+    return np.mean(beam_size_list)
+
+
 def create_spectral_line_model_state(sl_data_list, freq_list, obs_info,
                                      trunc=5., eps_grid=1e-3, factor_grid=10):
     """
@@ -336,10 +354,9 @@ def create_spectral_line_model_state(sl_data_list, freq_list, obs_info,
     slm_state["slice_list"] = slice_list
     #
     slm_state["factor_theta"] = 1.22*3600*180/np.pi*(constants.c/units.MHz).to(units.m).value
-    slm_state["factor_v_offset"] = 1./(constants.c).to(units.km/units.second).value
-    slm_state["factor_delta_v"] = slm_state["factor_v_offset"]/(2*np.sqrt(2*np.log(2)))
     slm_state["factor_tau"] = ((constants.c/units.MHz)**2/units.second).to(units.cm**2*units.MHz).value/(8*np.pi)
     slm_state["factor_freq"] = (constants.h/constants.k_B*units.MHz).to(units.Kelvin).value
+    slm_state["factor_v_offset"], slm_state["factor_delta_v"] = const_factor_mu_sigma()
     # Set beam info
     is_single_dish = []
     factor_beam = []
@@ -375,3 +392,9 @@ def create_spectral_line_model_state(sl_data_list, freq_list, obs_info,
     slm_state["factor_grid"] = factor_grid
     #
     return slm_state
+
+
+def const_factor_mu_sigma():
+    factor_v_offset = 1./(constants.c).to(units.km/units.second).value
+    factor_delta_v = factor_v_offset/(2*np.sqrt(2*np.log(2)))
+    return factor_v_offset, factor_delta_v
