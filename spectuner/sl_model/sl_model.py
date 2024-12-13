@@ -1,7 +1,11 @@
+from bisect import bisect_left, bisect_right
+
 import numpy as np
 from numba import jit
 from numba.typed import List
 from astropy import constants, units
+
+from ..peaks import derive_intersections
 
 
 __all__ = [
@@ -64,12 +68,10 @@ def compute_effective_spectra(slm_state, params):
         need_cmb_list=slm_state["need_cmb"],
         T_cmb=slm_state["T_cmb"]
     )
+    freq_list = slm_state["freq_list"]
     if len(freq_list_fine) == 0:
-        return [np.zeros_like(freq) for freq in slm_state["freq_list"]]
-
-    freqs_fine = np.concatenate(freq_list_fine)
-    spectra_fine = np.concatenate(spec_list_fine)
-    return prepare_effective_spectra(slm_state["freq_list"], freqs_fine, spectra_fine)
+        return [np.zeros_like(freq) for freq in freq_list]
+    return prepare_effective_spectra(freq_list, freq_list_fine, spec_list_fine)
 
 
 def prepare_properties(slm_state, params):
@@ -197,31 +199,50 @@ def prepare_fine_spectra(prop_list, bounds, params,
     return freq_list, spec_list
 
 
-@jit(cache=True)
-def prepare_effective_spectra(freq_list, freqs_fine, spectra_fine):
-    spec_list = []
-    for freqs in freq_list:
-        freqs_p = np.zeros(len(freqs) + 1)
-        freqs_p[1:-1] = .5*(freqs[1:] + freqs[:-1])
-        freqs_p[0] = freqs[0] - .5*(freqs[1] - freqs[0])
-        freqs_p[-1] = freqs[-1] + .5*(freqs[-1] - freqs[-2])
-        spectra_p = np.interp(freqs_p, freqs_fine, spectra_fine)
-        inds = np.searchsorted(freqs_fine, freqs_p)
-        spec_eff = [0.]*len(freqs)
-        for i_freq in range(len(freqs)):
-            idx_b = inds[i_freq]
-            idx_e = inds[i_freq + 1]
-            x_freq = np.zeros(idx_e - idx_b + 2)
-            x_freq[1:-1] = freqs_fine[idx_b:idx_e]
-            x_freq[0] = freqs_p[i_freq]
-            x_freq[-1] = freqs_p[i_freq + 1]
-            y_spec = np.zeros(idx_e - idx_b + 2)
-            y_spec[1:-1] = spectra_fine[idx_b:idx_e]
-            y_spec[0] = spectra_p[i_freq]
-            y_spec[-1] =  spectra_p[i_freq + 1]
-            spec_eff[i_freq] = np.trapz(y_spec, x_freq)
-        spec_list.append(np.asarray(spec_eff)/np.diff(freqs_p))
+def prepare_effective_spectra(freq_list, freq_list_fine, spec_list_fine):
+    spans_tgt = [(freqs[0], freqs[-1]) for freqs in freq_list]
+    spans_fine = [(freqs[0], freqs[-1]) for freqs in freq_list_fine]
+    spans_inter, inds_tgt, inds_fine = derive_intersections(spans_tgt, spans_fine)
+
+    slice_list = []
+    for (left, right), idx_tgt in zip(spans_inter, inds_tgt):
+        freqs = freq_list[idx_tgt]
+        idx_left = bisect_left(freqs, left)
+        idx_right = bisect_right(freqs, right)
+        slice_list.append((idx_left, idx_right))
+
+    spec_list = [np.zeros_like(freq) for freq in freq_list]
+    for idx_fine, idx_tgt, (idx_l, idx_r) in zip(inds_fine, inds_tgt, slice_list):
+        if idx_r - idx_l < 2:
+            continue
+        spec_list[idx_tgt][idx_l:idx_r] = integrate_fine_spectra(
+            freq_list[idx_tgt][idx_l:idx_r], freq_list_fine[idx_fine], spec_list_fine[idx_fine]
+        )
     return spec_list
+
+
+@jit(cache=True)
+def integrate_fine_spectra(freqs, freqs_fine, spectra_fine):
+    freqs_p = np.zeros(len(freqs) + 1)
+    freqs_p[1:-1] = .5*(freqs[1:] + freqs[:-1])
+    freqs_p[0] = freqs[0] - .5*(freqs[1] - freqs[0])
+    freqs_p[-1] = freqs[-1] + .5*(freqs[-1] - freqs[-2])
+    spectra_p = np.interp(freqs_p, freqs_fine, spectra_fine)
+    inds = np.searchsorted(freqs_fine, freqs_p)
+    spec_eff = [0.]*len(freqs)
+    for i_freq in range(len(freqs)):
+        idx_b = inds[i_freq]
+        idx_e = inds[i_freq + 1]
+        x_freq = np.zeros(idx_e - idx_b + 2)
+        x_freq[1:-1] = freqs_fine[idx_b:idx_e]
+        x_freq[0] = freqs_p[i_freq]
+        x_freq[-1] = freqs_p[i_freq + 1]
+        y_spec = np.zeros(idx_e - idx_b + 2)
+        y_spec[1:-1] = spectra_fine[idx_b:idx_e]
+        y_spec[0] = spectra_p[i_freq]
+        y_spec[-1] =  spectra_p[i_freq + 1]
+        spec_eff[i_freq] = np.trapz(y_spec, x_freq)
+    return np.asarray(spec_eff)/np.diff(freqs_p)
 
 
 def compute_tau_norm(slm_state, sl_data, den_col, T_ex):
