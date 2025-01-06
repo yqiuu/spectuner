@@ -174,7 +174,7 @@ class SpectralLineModelFactory:
             sl_data_list, self._freq_list, self._obs_info,
             self._trunc, self._eps_grid
         )
-        param_mgr = ParameterManager(specie_list, self._params_info)
+        param_mgr = ParameterManager(specie_list, self._params_info, self._obs_info)
         return SpectralLineModel(slm_state, param_mgr)
 
 
