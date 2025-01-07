@@ -222,7 +222,7 @@ class ParameterManager:
 
     @classmethod
     def from_config(cls, specie_list, config):
-        return cls(specie_list, config["sl_model"]["params"])
+        return cls(specie_list, config["sl_model"]["params"], config["obs_info"])
 
     def derive_params(self, params):
         """Decode input parameters into a 2D array and apply scaling."""
