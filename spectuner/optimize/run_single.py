@@ -39,8 +39,25 @@ def run_single(config, result_dir, need_identify=True):
         sl_database, obs_data, base_props["spans_include"], config
     )
 
-    fp = h5py.File(Path(result_dir)/"results_single.h5", "w")
-    use_mpi = config["opt"].get("use_mpi", False)
+    with h5py.File(Path(result_dir)/"results_single.h5", "w") as fp:
+        if config["opt"]["n_process"] == 1:
+            fit_save(
+                fp, config, slm_factory, obs_data,
+                specie_list, base_props, pool=None
+            )
+        else:
+            use_mpi = config["opt"].get("use_mpi", False)
+            with create_pool(config["opt"]["n_process"], use_mpi) as pool:
+                fit_save(
+                    fp, config, slm_factory, obs_data,
+                    specie_list, base_props, pool=pool
+                )
+
+    if need_identify:
+        identify(config, result_dir, "single")
+
+
+def fit_save(fp, config, slm_factory, obs_data, specie_list, base_props, pool):
     for item in specie_list:
         print_fitting(item["species"])
         item["id"] = item["id"] + base_props["id_offset"]
@@ -48,14 +65,9 @@ def run_single(config, result_dir, need_identify=True):
             slm_factory, [item], obs_data, config,  base_props["T_base"]
         )
         jit_fitting_model(model)
-        with create_pool(config["opt"]["n_process"], use_mpi) as pool:
-            res_dict = optimize(model, config["opt"], pool)
+        res_dict = optimize(model, config["opt"], pool)
         grp = fp.create_group(derive_specie_save_name(item))
         save_fitting_result(grp, res_dict)
-    fp.close()
-
-    if need_identify:
-        identify(config, result_dir, "single")
 
 
 def create_specie_list(sl_database, obs_data, spans, config):
