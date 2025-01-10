@@ -13,6 +13,7 @@ install_requires = [
     "numba>=0.60",
     "scipy>=1.10",
     "pandas>=2.0",
+    "matplotlib>=3.7",
     "swing-opt>=0.1.2",
 ]
 
