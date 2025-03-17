@@ -53,28 +53,41 @@ def compute_spectra_simple_grid(slm_state, params):
 
 
 def compute_effective_spectra(slm_state, params):
-    args = prepare_properties(slm_state, params)
-    prop_list, bounds = prepare_prop_list(*args)
-    freq_list_fine, spec_list_fine = prepare_fine_spectra(
-        prop_list, bounds, params,
-        factor_freq=slm_state["factor_freq"],
-        x_grid=slm_state["x_grid"],
-        y_grid=slm_state["y_grid"],
-        factor_grid=slm_state["factor_grid"],
-        is_sd_list=slm_state["is_single_dish"],
-        beam_size_sq_list=slm_state["beam_size_sq"],
-        factor_beam_list=slm_state["factor_beam"],
-        T_bg_list=slm_state["T_bg"],
-        need_cmb_list=slm_state["need_cmb"],
-        T_cmb=slm_state["T_cmb"]
-    )
     freq_list = slm_state["freq_list"]
-    if len(freq_list_fine) == 0:
-        return [np.zeros_like(freq) for freq in freq_list]
-    return prepare_effective_spectra(freq_list, freq_list_fine, spec_list_fine)
+    spec_list = None
+    for params_i, sl_dict in zip(params, slm_state["sl_data"]):
+        args = prepare_properties(slm_state, [sl_dict], params_i[None, ...])
+        prop_list, bounds = prepare_prop_list(*args)
+        freq_list_fine, spec_list_fine = prepare_fine_spectra(
+            prop_list, bounds, params,
+            factor_freq=slm_state["factor_freq"],
+            x_grid=slm_state["x_grid"],
+            y_grid=slm_state["y_grid"],
+            factor_grid=slm_state["factor_grid"],
+            is_sd_list=slm_state["is_single_dish"],
+            beam_size_sq_list=slm_state["beam_size_sq"],
+            factor_beam_list=slm_state["factor_beam"],
+            T_bg_list=slm_state["T_bg"],
+            need_cmb_list=slm_state["need_cmb"],
+            T_cmb=slm_state["T_cmb"]
+        )
+        if len(freq_list_fine) == 0:
+            continue
+
+        spec_list_sub = prepare_effective_spectra(
+            freq_list, freq_list_fine, spec_list_fine
+        )
+        if spec_list is None:
+            spec_list = spec_list_sub
+        else:
+            for i_segment, spec in enumerate(spec_list_sub):
+                spec_list[i_segment] += spec
+    if spec_list is None:
+        spec_list = [np.zeros_like(freq) for freq in freq_list]
+    return spec_list
 
 
-def prepare_properties(slm_state, params):
+def prepare_properties(slm_state, sl_dict_list, params):
     # params (M, 5)
     num = len(params)
     tau_norm_list = [None]*num
@@ -82,7 +95,7 @@ def prepare_properties(slm_state, params):
     sigma_list = [None]*num
     inds_speice = [None]*num
     inds_segment = [None]*num
-    for i_specie, (params_i, sl_data_i) in enumerate(zip(params, slm_state["sl_data"])):
+    for i_specie, (params_i, sl_data_i) in enumerate(zip(params, sl_dict_list)):
         _, T_ex, den_col, delta_v, v_offset = params_i
         tau_norm = compute_tau_norm(slm_state, sl_data_i, den_col, T_ex)
         tau_norm_list[i_specie] = tau_norm
