@@ -105,8 +105,8 @@ def hdf_load_dict(fp, load_dict, ignore_list=None):
                 load_dict[key] = None
             elif type_name == "list":
                 tmp = []
-                for data_sub in data.values():
-                    tmp.append(np.array(data_sub))
+                for i_segment in range(len(data)):
+                    tmp.append(np.array(data[f"{i_segment}"]))
                 load_dict[key] = tmp
             elif type_name == "dict":
                 load_dict_sub = {}
