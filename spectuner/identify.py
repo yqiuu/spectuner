@@ -64,7 +64,7 @@ def identify(config, target, mode=None):
         res_dict = identify_with_base(idn, pred_data_list, base_data, config)
     with h5py.File(fname.parent/f"identify_{fname.name}", "w") as fp:
         if mode == "combine" and base_data is not None:
-            res = idn.identify(base_data["specie"], config, base_data["params_best"])
+            res = idn.identify(base_data["specie"], config, base_data["x"])
             res.save_hdf(fp.create_group("combine"))
         for key, res in res_dict.items():
             res.save_hdf(fp.create_group(key))
@@ -73,7 +73,7 @@ def identify(config, target, mode=None):
 def identify_without_base(idn, pred_data_list, config):
     res_dict = {}
     for data in pred_data_list:
-        res = idn.identify(data["specie"], config, data["params_best"])
+        res = idn.identify(data["specie"], config, data["x"])
         if res.is_empty():
             continue
         assert len(data["specie"]) == 1
@@ -83,7 +83,7 @@ def identify_without_base(idn, pred_data_list, config):
 
 def identify_with_base(idn, pred_data_list, base_data, config):
     specie_list_base = base_data["specie"]
-    params_base = base_data["params_best"]
+    params_base = base_data["x"]
     T_single_dict_base = compute_T_single_data(
         specie_list_base, config, params_base, base_data["freq"]
     )
@@ -92,11 +92,11 @@ def identify_with_base(idn, pred_data_list, base_data, config):
     for data in pred_data_list:
         specie_list_combine, params_combine = combine_specie_lists(
             [specie_list_base, data["specie"]],
-            [params_base, data["params_best"]],
+            [params_base, data["x"]],
         )
         T_single_dict = deepcopy(T_single_dict_base)
         T_single_dict.update(compute_T_single_data(
-            data["specie"], config, data["params_best"], data["freq"]
+            data["specie"], config, data["x"], data["freq"]
         ))
         res = idn.identify(
             specie_list_combine, config, params_combine, T_single_dict

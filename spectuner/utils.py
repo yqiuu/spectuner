@@ -1,5 +1,4 @@
 import json
-import pickle
 
 import h5py
 import numpy as np
@@ -32,7 +31,7 @@ def load_result_combine(fname):
 
 def save_fitting_result(fp, res_dict):
     missing = []
-    for key in ["specie", "freq", "T_pred", "params_best"]:
+    for key in ("specie", "freq", "T_pred", "x", "fun", "nfev"):
         if key not in res_dict:
             missing.append(key)
     if len(missing) > 0:
@@ -64,7 +63,8 @@ def hdf_save_dict(fp, save_dict, ignore_list=None):
             continue
 
         key = f"{key}"
-        if isinstance(data, float) or isinstance(data, int):
+        if isinstance(data, float) or isinstance(data, int) \
+            or isinstance(data, np.floating) or isinstance(data, np.integer):
             fp.create_dataset(key, data=data)
         elif isinstance(data, np.ndarray):
             save_array(fp, key, data)

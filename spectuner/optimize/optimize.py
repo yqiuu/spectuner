@@ -1,109 +1,25 @@
+from __future__ import annotations
 import sys
+import inspect
+from abc import ABC, abstractmethod
 from pathlib import Path
+from copy import deepcopy
 from multiprocessing import Pool
 
 import h5py
 import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
+from scipy.optimize import minimize
 from tqdm import trange
 
 from ..peaks import create_spans
 from ..identify import IdentResult
 
 
-def optimize(model, config_opt, pool):
-    res_list = []
-    for _ in range(config_opt["n_trail"]):
-        res_list.append(optimize_sub(model, config_opt, pool))
-    ret_dict = min(res_list, key=lambda x: x["cost_best"])
-    save_all = config_opt.get("save_all", False)
-    if save_all:
-        cost_all = np.concatenate([res["cost_all"] for res in res_list])
-        pos_all = np.vstack([res["pos_all"] for res in res_list])
-        blob = []
-        for res in res_list:
-            blob.extend(res["blob"])
-        ret_dict["cost_all"] = cost_all
-        ret_dict["pos_all"] = pos_all
-        ret_dict["blob"] = blob
-    return ret_dict
-
-
-def optimize_sub(model, config_opt, pool):
-    opt_name = config_opt["optimizer"]
-    if opt_name == "pso":
-        cls_opt = ParticleSwarm
-    elif opt_name == "abc":
-        cls_opt = ArtificialBeeColony
-    else:
-        raise ValueError("Unknown optimizer: {}.".format(cls_opt))
-    kwargs_opt = config_opt.get("kwargs_opt", {})
-    blob = config_opt.get("blob", False)
-    save_all = config_opt.get("save_all", False)
-    opt = cls_opt(model, model.bounds, pool=pool, blob=blob, **kwargs_opt)
-
-    n_cycle_min = config_opt["n_cycle_min"] \
-        + (len(model.bounds) - 5)*config_opt["n_cycle_dim"]
-    n_cycle_max = config_opt["n_cycle_max"]
-    n_stop = config_opt["n_stop"]
-    tol_stop = config_opt["tol_stop"]
-
-    def compute_rate(opt):
-        history = opt.memo["cost"]
-        return abs(history[-2] - history[-1])/abs(history[-2])
-
-    pos_all = []
-    cost_all = []
-    blob = []
-    n_stuck = 0
-    for i_cycle in trange(n_cycle_max, file=sys.stdout):
-        for data in opt.swarm(niter=1, progress_bar=False).values():
-            if save_all:
-                pos_all.append(data["pos"])
-                cost_all.append(data["cost"])
-                if data["blob"] is not None:
-                    blob.extend(data["blob"])
-
-        if i_cycle > 1:
-            rate = compute_rate(opt)
-            if rate < tol_stop:
-                n_stuck += 1
-            else:
-                n_stuck = 0
-
-        if n_stuck >= n_stop and i_cycle + 1 >= n_cycle_min:
-            break
-
-    if len(pos_all) != 0:
-        pos_all = np.vstack(pos_all)
-        cost_all = np.concatenate(cost_all)
-
-    T_pred_data = model.sl_model(opt.pos_global_best)
-
-    ret_dict = {
-        "specie": model.sl_model.param_mgr.specie_list,
-        "freq": model.freq_data,
-        "T_pred": T_pred_data,
-        "T_obs": model.T_obs_data,
-        "T_base": model.T_base_data,
-        "cost_best": opt.cost_global_best,
-        "params_best": opt.pos_global_best,
-    }
-    if config_opt.get("save_local_best", False):
-        T_pred_data_local = [model.sl_model(pos) for pos in opt.pos_local_best]
-        local_best = {
-            "cost_best": opt.cost_local_best,
-            "params_best": opt.pos_local_best,
-            "T_pred": T_pred_data_local,
-        }
-        ret_dict["local_best"] = local_best
-    if config_opt.get("save_history", False):
-        ret_dict["history"] = opt.memo
-    if save_all:
-        ret_dict["pos_all"] = pos_all
-        ret_dict["cost_all"] = cost_all
-        ret_dict["blob"] = np.asarray(blob)
-    return ret_dict
+def optimize(fitting_model, config_opt, pool):
+    opt = crate_optimizer(config_opt)
+    res = opt(fitting_model)
+    return res
 
 
 def create_pool(n_process, use_mpi):
@@ -194,3 +110,202 @@ def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
             params_den[inds] = np.random.uniform(lb_den[inds], ub_den[inds])
     params_new = np.concatenate([params_mol, params_den, params_misc])
     return params_new
+
+
+def crate_optimizer(config_opt: dict) -> Optimizer:
+    method = config_opt["method"]
+    kwargs = config_opt.get("kwargs_opt", {})
+    if method in ("pso", "abc"):
+        cls_opt = SwingOptimizer
+    else:
+        cls_opt = ScipyOptimizer
+    sig = inspect.signature(cls_opt)
+    default_keys = tuple(k for k, v in sig.parameters.items()
+                         if v.default is not inspect.Parameter.empty)
+    for key in default_keys:
+        if key in config_opt:
+            kwargs[key] = config_opt[key]
+    return cls_opt(method, **kwargs)
+
+
+class Optimizer(ABC):
+    def __init__(self, n_draw=1):
+        self._n_draw = n_draw
+
+    @abstractmethod
+    def __call__(self, fitting_model, *args) -> dict:
+        raise NotImplementedError
+
+    @property
+    def n_draw(self):
+        return self._n_draw
+
+
+class SwingOptimizer(Optimizer):
+    def __init__(self, method, n_cycle_min=100, n_cycle_max=1000, n_cycle_dim=5,
+                 n_stop=15, tol_stop=1.e-5, n_trail=1,
+                 save_history=True, save_all=False, **kwargs):
+        super().__init__(n_draw=kwargs["nswarm"])
+        self._method = method
+        self._n_cycle_min = n_cycle_min
+        self._n_cycle_max = n_cycle_max
+        self._n_cycle_dim = n_cycle_dim
+        self._n_stop = n_stop
+        self._tol_stop = tol_stop
+        self._n_trail = n_trail
+        self._save_history = save_history
+        self._save_all = save_all
+        self._kwargs = kwargs
+
+    def __call__(self, fitting_model, *args, pool=None) -> dict:
+        res_list = []
+        for _ in range(self._n_trail):
+            res_list.append(self._run_sub(fitting_model, *args, pool=pool))
+        res_dict = deepcopy(min(res_list, key=lambda x: x["fun"]))
+        if len(res_list) > 1:
+            res_dict["res_list"] = res_list
+        if self._save_all:
+            cost_all = np.concatenate([res["cost_all"] for res in res_list])
+            pos_all = np.vstack([res["pos_all"] for res in res_list])
+            blob = []
+            for res in res_list:
+                blob.extend(res["blob"])
+            res_dict["cost_all"] = cost_all
+            res_dict["pos_all"] = pos_all
+            res_dict["blob"] = blob
+        return res_dict
+
+    def _run_sub(self, fitting_model, *args, pool=None) -> dict:
+        if self._method == "pso":
+            cls_opt = ParticleSwarm
+        elif self._method == "abc":
+            cls_opt = ArtificialBeeColony
+        else:
+            raise ValueError("Unknown optimizer: {}.".format(self._method))
+
+        blob = self._kwargs.get("blob", False)
+        if len(args) > 0:
+            initial_pos = args[0]
+        else:
+            initial_pos = None
+        opt = cls_opt(
+            fitting_model,
+            fitting_model.bounds,
+            pool=pool,
+            blob=blob,
+            initial_pos=initial_pos,
+            **self._kwargs
+        )
+        n_cycle_min = self._n_cycle_min \
+            + (len(fitting_model.bounds) - 5)*self._n_cycle_dim
+        n_cycle_max = self._n_cycle_max
+
+        def compute_rate(opt):
+            history = opt.memo["cost"]
+            return abs(history[-2] - history[-1])/abs(history[-2])
+
+        pos_all = []
+        cost_all = []
+        blob = []
+        n_stuck = 0
+        for i_cycle in trange(n_cycle_max, file=sys.stdout):
+            for data in opt.swarm(niter=1, progress_bar=False).values():
+                if self._save_all:
+                    pos_all.append(data["pos"])
+                    cost_all.append(data["cost"])
+                    if data["blob"] is not None:
+                        blob.extend(data["blob"])
+
+            if i_cycle > 1:
+                rate = compute_rate(opt)
+                if rate < self._tol_stop:
+                    n_stuck += 1
+                else:
+                    n_stuck = 0
+
+            if n_stuck >= self._n_stop and i_cycle + 1 >= n_cycle_min:
+                break
+
+        if len(pos_all) != 0:
+            pos_all = np.vstack(pos_all)
+            cost_all = np.concatenate(cost_all)
+
+        T_pred_data = fitting_model.sl_model(opt.pos_global_best)
+
+        res_dict = {
+            "x":  opt.pos_global_best,
+            "fun": opt.cost_global_best,
+            "nfev": opt.memo["ncall"][-1],
+            "specie": fitting_model.sl_model.param_mgr.specie_list,
+            "freq": fitting_model.freq_data,
+            "T_pred": T_pred_data,
+        }
+        if self._save_history:
+            res_dict["history"] = opt.memo
+        if self._save_all:
+            res_dict["pos_all"] = pos_all
+            res_dict["cost_all"] = cost_all
+            res_dict["blob"] = np.asarray(blob)
+        return res_dict
+
+
+class ScipyOptimizer(Optimizer):
+    def __init__(self, method, n_draw=50, n_compute=50, jac="2-point"):
+        super().__init__(n_draw)
+        self._n_compute = n_compute
+        self._method = method
+        self._jac = jac
+
+    def __call__(self, fitting_model, *args) -> dict:
+        if len(args) == 0:
+            lower, upper = fitting_model.bounds.T
+            samps_ = lower \
+                + (upper - lower)*np.random.rand(self._n_compute, len(lower))
+            samps_sub = samps_
+        else:
+            samps_, log_prob = args
+            cut = np.percentile(log_prob, 75.)
+            samps_sub = samps_[log_prob > cut]
+
+        values = tuple(map(fitting_model, samps_[:self._n_compute]))
+        l_tot = np.asarray(values)
+        x0 = samps_[np.argmin(l_tot)].astype("f8")
+        if self._method == "vanilla":
+            return {
+                "x": x0,
+                "T_pred": fitting_model.sl_model(x0),
+                "nfev": self._n_compute + 1,
+                "success": True,
+            }
+
+        kwargs = {"method": self._method}
+        if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
+            lower = np.min(samps_sub)
+            upper = np.max(samps_sub)
+            h = 1.e-5
+            kwargs.update(
+                jac=self._jac,
+                options={"eps": h*(upper - lower)}
+            )
+        res = minimize(
+            fitting_model,
+            x0=x0,
+            bounds=fitting_model.bounds,
+            **kwargs
+        )
+        l_tot_min = np.min(l_tot)
+        if res.fun < l_tot_min:
+            x_best = res.x
+            fun = res.fun
+        else:
+            x_best = x0
+            fun = l_tot_min
+
+        return {
+            "x":  x_best,
+            "fun": fun,
+            "nfev": res.nfev + self._n_compute + 1,
+            "specie": fitting_model.sl_model.param_mgr.specie_list,
+            "freq": fitting_model.freq_data,
+            "T_pred": fitting_model.sl_model(x_best),
+        }
