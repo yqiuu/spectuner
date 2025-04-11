@@ -96,9 +96,9 @@ def choose_version(entries, version_mode, include_hyper):
         for prefix, post_list in mol_dict.items():
             for postfix in post_list:
                 specie_names.append(";".join([prefix, postfix[0]]))
-        for prefix, post_list in mol_dict_hyp.items():
-            for postfix in post_list:
-                specie_names.append(";".join([prefix, postfix[0]]))
+        #for prefix, post_list in mol_dict_hyp.items():
+        #    for postfix in post_list:
+        #        specie_names.append(";".join([prefix, postfix[0]]))
         return specie_names
 
     if version_mode == "default":
