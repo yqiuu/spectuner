@@ -394,9 +394,13 @@ class PeakManager:
             return x
         return self.scale*np.log(1 + x/self.scale)
 
-    def compute_score(self, peak_store):
+    def compute_score(self, peak_store, use_f_dice):
         if len(peak_store.spans_inter) > 0:
-            score_tp = np.maximum(1 - peak_store.errors_tp/peak_store.norms_tp_obs, 0.)
+            if use_f_dice:
+                s_max = peak_store.f_dice
+            else:
+                s_max = 1.
+            score_tp = np.maximum(s_max - peak_store.errors_tp/peak_store.norms_tp_obs, 0.)
             cond = peak_store.norms_tp_obs <= 0.
             score_tp[cond] = 0.
         else:

@@ -146,9 +146,10 @@ class Identification:
         )
         self.frac_cut = frac_cut
 
-    def identify(self, specie_list, config, params, T_single_dict=None):
+    def identify(self, specie_list, config, params,
+                 T_single_dict=None, use_f_dice=False):
         line_table, line_table_fp, T_single_dict = self.derive_line_table(
-            specie_list, config, params, T_single_dict
+            specie_list, config, params, T_single_dict, use_f_dice
         )
         param_dict = self.derive_param_dict(specie_list, config, params)
         id_set = set()
@@ -191,7 +192,7 @@ class Identification:
         param_dict = dict(param_dict)
         return param_dict
 
-    def derive_line_table(self, specie_list, config, params, T_single_dict):
+    def derive_line_table(self, specie_list, config, params, T_single_dict, use_f_dice):
         if T_single_dict is None:
             T_single_dict = compute_T_single_data(
                 specie_list, config, params, self.peak_mgr.freq_data
@@ -203,7 +204,7 @@ class Identification:
             if T_pred is None:
                 continue
             line_table_sub, line_table_fp_sub \
-                = self._derive_line_table_sub(i_segment, T_pred, T_single_dict)
+                = self._derive_line_table_sub(i_segment, T_pred, T_single_dict, use_f_dice)
             line_table.append(line_table_sub)
             line_table_fp.append(line_table_fp_sub)
         return line_table, line_table_fp, T_single_dict
@@ -225,12 +226,12 @@ class Identification:
         norms = np.concatenate(norms)
         return pfactor*np.median(norms)
 
-    def _derive_line_table_sub(self, i_segment, T_pred, T_single_dict):
+    def _derive_line_table_sub(self, i_segment, T_pred, T_single_dict, use_f_dice):
         peak_mgr = self.peak_mgr
         peak_store = peak_mgr.create_peak_store(i_segment, T_pred)
         freqs = np.mean(peak_store.spans_obs, axis=1)
         loss_tp, loss_fp = peak_mgr.compute_loss(i_segment, peak_store)
-        score_tp, score_fp = peak_mgr.compute_score(peak_store)
+        score_tp, score_fp = peak_mgr.compute_score(peak_store, use_f_dice)
         frac_list_tp, id_list_tp, name_list_tp = self._compute_fractions(
             i_segment, T_single_dict, peak_store.spans_inter
         )
