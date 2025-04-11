@@ -163,7 +163,9 @@ class SwingOptimizer(Optimizer):
             res_list.append(self._run_sub(fitting_model, *args, pool=pool))
         res_dict = deepcopy(min(res_list, key=lambda x: x["fun"]))
         if len(res_list) > 1:
-            res_dict["res_list"] = res_list
+            for res in res_list:
+                del res["specie"]
+            res_dict["trial"] = {f"{idx}": res for idx, res in enumerate(res_list)}
         if self._save_all:
             cost_all = np.concatenate([res["cost_all"] for res in res_list])
             pos_all = np.vstack([res["pos_all"] for res in res_list])
