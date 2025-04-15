@@ -305,6 +305,10 @@ class PeakManager:
 
         return loss_delta + loss_ex, loss_ex
 
+    @property
+    def freqs_peak(self):
+        return np.mean(np.vstack(self.spans_obs_data), axis=1)
+
     def create_peak_store(self, i_segment, T_pred):
         freq = self.freq_data[i_segment]
         T_obs = self.T_obs_data[i_segment]
