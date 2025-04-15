@@ -1,5 +1,7 @@
+from __future__ import annotations
 import sqlite3
 from collections import defaultdict
+from typing import Optional
 
 import numpy as np
 import re
@@ -29,10 +31,38 @@ def query_species(sl_database, freq_list,
     if exclude_list is None:
         exclude_list = []
 
-    specie_names = prepare_specie_names(
-        sl_database, freq_list, v_LSR, freqs_include, v_range,
-        iso_order, version_mode, include_hyper
+    # Filter entries
+    entries = sl_database.query_specie_names(freq_list)
+    if freqs_include is not None:
+        entries = check_freqs_include(
+            entries, compute_shift(freqs_include, v_LSR), v_range
+        )
+    counter = defaultdict(int)
+    for item in entries:
+        counter[item[0]] += 1
+
+    mol_tire = MolTrie()
+    for entry in counter.keys():
+        mol_tire.insert(MolRecord(entry, rename_dict))
+
+    if species is None:
+        records_include = mol_tire.search(())
+    else:
+        records_include = []
+        for entry in species:
+            records_include.extend(mol_tire.search(MolRecord(entry, rename_dict)))
+    records_exclude = []
+    for entry in exclude_list:
+        records_exclude.extend(mol_tire.search(MolRecord(entry, rename_dict)))
+
+    records = set(records_include) - set(records_exclude)
+    records = sorted(records)
+    names_include = [record.name for record in records]
+
+    specie_names = choose_version(
+        names_include, counter, version_mode, include_hyper
     )
+    specie_names = exclude_isotopes(specie_names, iso_order)
     groups = derive_groups(
         specie_names, species, elements, iso_mode,
         exclude_list, rename_dict_, separate_all
@@ -66,14 +96,11 @@ def check_freqs_include(entries, freqs_include, v_range):
     return [item for idx, item in enumerate(entries) if cond[idx]]
 
 
-def choose_version(entries, version_mode, include_hyper):
-    counter = defaultdict(int)
-    for item in entries:
-        counter[item[0]] += 1
-
+def choose_version(names_incldue, counter, version_mode, include_hyper):
     mol_dict = defaultdict(list)
     mol_dict_hyp = defaultdict(list)
-    for name, num in counter.items():
+    for name in names_incldue:
+        num = counter[name]
         tmp = name.split(";")
         # Ingore spin states or A/E states
         if tmp[-1].startswith("ortho") or tmp[-1].startswith("para") \
@@ -330,6 +357,79 @@ def latex_mol_formula(name):
     name_ret = re.sub(r'([A-Z][a-z]?)([0-9]+)', replace_number, name_ret)
     name_ret = re.sub(r'(\([^)]+\))([0-9]+)', replace_number, name_ret)
     return name_ret
+
+
+class MolRecord(tuple):
+    """
+    Args:
+        entry: Entry name.
+        rename_dict: Rename dictionary.
+    """
+    def __new__(cls, entry: str, rename_dict: Optional[dict]=None) -> None:
+        def expand(fm):
+            """Expand formulae.
+                HC3N > HCCCN
+                CH3CN > CHHHCN
+            """
+            for pattern in re.findall("[A-Z][a-z]?\d", fm):
+                fm = fm.replace(pattern, pattern[:-1]*int(pattern[-1]))
+            return fm
+
+        if rename_dict is None:
+            rename_dict = {}
+
+        tmp = entry.split(";")
+        fm = tmp[0]
+        if fm in rename_dict:
+            fm = rename_dict[fm]
+
+        # Remove iso
+        pattern = r"-([0-9])([0-9])[-]?"
+        fm_root = re.sub(pattern, "", fm)
+        fm_root = fm_root.replace("D", "H")
+
+        #
+        fm = expand(fm)
+        fm_root = expand(fm_root)
+
+        instance = super().__new__(cls, (fm_root, fm, *tmp[1:]))
+        instance.name = entry
+        return instance
+
+    def __repr__(self) -> str:
+        return "{} -> {}".format(self.name, super().__repr__())
+
+
+class MolTrie:
+    def __init__(self):
+        self.children = {}
+        self.record = None
+
+    def insert(self, record):
+        node = self
+        for char in record:
+            if char not in node.children:
+                node.children[char] = MolTrie()
+            node = node.children[char]
+        node.record = record
+
+    def search(self, prefix):
+        node = self
+        for char in prefix:
+            if char not in node.children:
+                return []
+            node = node.children[char]
+
+        records = []
+        self._dfs(node, prefix, records)
+        return records
+
+    def _dfs(self, node, prefix, records):
+        if node.record is not None:
+            records.append(node.record)
+
+        for char, child_node in node.children.items():
+            self._dfs(child_node, (*prefix, char), records)
 
 
 class SpectralLineDatabase:
