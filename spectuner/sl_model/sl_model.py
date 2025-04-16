@@ -10,11 +10,9 @@ from ..peaks import derive_intersections
 
 __all__ = [
     "compute_spectra_simple_grid",
-    "compute_effective_spectra",
-    "compute_mu_sigma",
-    "compute_tau_norm",
     "create_spectral_line_model_state",
     "const_factor_mu_sigma",
+    "SpectralLineModel"
 ]
 
 
@@ -434,3 +432,26 @@ def const_factor_mu_sigma():
     factor_v_offset = 1./(constants.c).to(units.km/units.second).value
     factor_delta_v = factor_v_offset/(2*np.sqrt(2*np.log(2)))
     return factor_v_offset, factor_delta_v
+
+
+class SpectralLineModel:
+    def __init__(self, slm_state, param_mgr):
+        self.slm_state = slm_state
+        self.param_mgr = param_mgr
+
+    def __call__(self, params):
+        return compute_effective_spectra(
+            self.slm_state, self.param_mgr.derive_params(params)
+        )
+
+    def compute_tau_max(self, params):
+        tau_max = []
+        slm_state = self.slm_state
+        params_ = self.param_mgr.derive_params(params)
+        for params_i, sl_data_i in zip(params_, slm_state["sl_data"]):
+            _, T_ex, den_col, delta_v, v_offset = params_i
+            _, sigma = compute_mu_sigma(slm_state, sl_data_i, delta_v, v_offset)
+            tau_max_i = compute_tau_norm(slm_state, sl_data_i, den_col, T_ex) \
+                / (np.sqrt(2*np.pi)*sigma)
+            tau_max.append(tau_max_i)
+        return tau_max
