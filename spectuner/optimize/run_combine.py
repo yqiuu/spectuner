@@ -15,7 +15,7 @@ from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import (
     combine_specie_lists, SpectralLineDatabase, SpectralLineModelFactory
 )
-from ..fitting_model import jit_fitting_model, FittingModel
+from ..slm_factory import jit_fitting_model, FittingModel
 from ..peaks import (
     derive_peak_params, derive_peaks_multi, derive_intersections
 )

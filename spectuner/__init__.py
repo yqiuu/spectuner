@@ -2,7 +2,7 @@ from .sl_model import *
 from .identify import *
 from .modify import *
 from .optimize import *
-from .fitting_model import *
+from .slm_factory import *
 from .preprocess import *
 from .config import *
 from .spectral_plot import *

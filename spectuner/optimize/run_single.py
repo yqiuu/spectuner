@@ -7,7 +7,7 @@ from .optimize import prepare_base_props, optimize, create_pool, print_fitting
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import query_species, SpectralLineDatabase, SpectralLineModelFactory
-from ..fitting_model import jit_fitting_model, FittingModel
+from ..slm_factory import jit_fitting_model, FittingModel
 from ..peaks import PeakManager
 from ..identify import identify
 from ..utils import save_fitting_result, derive_specie_save_name
