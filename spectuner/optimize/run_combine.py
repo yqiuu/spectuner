@@ -13,7 +13,7 @@ from ..utils import (
 )
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import (
-    combine_specie_lists, SpectralLineDatabase, SpectralLineModelFactory
+    combine_specie_lists, SQLSpectralLineDB, SpectralLineModelFactory
 )
 from ..slm_factory import jit_fitting_model, FittingModel
 from ..peaks import (
@@ -75,7 +75,7 @@ def run_combine(config, result_dir, need_identify=True):
 def combine_greedy(pack_list, pack_base, obs_data, config, fp):
     config_opt = config["opt"]
     freq_data = get_freq_data(obs_data)
-    sl_database = SpectralLineDatabase(config["sl_model"]["fname_db"])
+    sl_database = SQLSpectralLineDB(config["sl_model"]["fname_db"])
     slm_factory = SpectralLineModelFactory.from_config(
         freq_data, config, sl_db=sl_database
     )

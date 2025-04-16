@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import numpy as np
 
-from .sl_database import SpectralLineDatabase
+from .sl_database import SQLSpectralLineDB
 from .sl_model import (
     create_spectral_line_model_state,
     derive_average_beam_size,
@@ -128,8 +128,8 @@ class SpectralLineModelFactory:
     """
     def __init__(self, sl_db, freq_list, obs_info, params_info, trunc=10., eps_grid=1e-3):
         if isinstance(sl_db, str):
-            self._sl_database = SpectralLineDatabase(sl_db)
-        elif isinstance(sl_db, SpectralLineDatabase):
+            self._sl_database = SQLSpectralLineDB(sl_db)
+        elif isinstance(sl_db, SQLSpectralLineDB):
             self._sl_database = sl_db
         else:
             raise ValueError(f"Invalid spectral line database: {sl_db}.")
@@ -168,7 +168,7 @@ class SpectralLineModelFactory:
         for item in specie_list:
             for specie in item["species"]:
                 sl_data_list.append(
-                    self._sl_database.query(specie, self._freq_list)
+                    self._sl_database.query_sl_dict(specie, self._freq_list)
                 )
         slm_state = create_spectral_line_model_state(
             sl_data_list, self._freq_list, self._obs_info,

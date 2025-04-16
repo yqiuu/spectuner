@@ -7,7 +7,8 @@ import numpy as np
 from .preprocess import load_preprocess, get_freq_data, get_T_data
 from .sl_model import (
     create_spectral_line_model_state,
-    SpectralLineDatabase,
+    SpectralLineDB,
+    SQLSpectralLineDB,
     SpectralLineModel,
     ParameterManager,
 )
@@ -59,10 +60,10 @@ class SpectralLineModelFactory:
     """
     def __init__(self,
                  config: dict,
-                 sl_db: Optional[SpectralLineDatabase]=None) -> None:
+                 sl_db: Optional[SpectralLineDB]=None) -> None:
         self._config = config
         if sl_db is None:
-            self._sl_db = SpectralLineDatabase(config["sl_model"]["fname_db"])
+            self._sl_db = SQLSpectralLineDB(config["sl_model"]["fname_db"])
         else:
             self._sl_db = sl_db
 
@@ -77,7 +78,8 @@ class SpectralLineModelFactory:
             sl_dict_list_ = []
             for item in specie_list:
                 for specie in item["species"]:
-                    sl_dict_list_.append(self._sl_db.query(specie, freq_data))
+                    sl_dict_list_.append(
+                        self._sl_db.query_sl_dict(specie, freq_data))
         slm_state = create_spectral_line_model_state(
             sl_data_list=sl_dict_list_,
             freq_list=freq_data,

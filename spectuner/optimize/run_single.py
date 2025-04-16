@@ -6,7 +6,7 @@ import numpy as np
 from .optimize import prepare_base_props, optimize, print_fitting
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
-from ..sl_model import query_species, SpectralLineDatabase
+from ..sl_model import query_species, SQLSpectralLineDB
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
 from ..peaks import PeakManager
 from ..identify import identify
@@ -29,7 +29,7 @@ def run_single(config, result_dir, need_identify=True):
     config = append_exclude_info(
         config, base_props["freqs_exclude"], base_props["exclude_list"]
     )
-    sl_db = SpectralLineDatabase(config["sl_model"]["fname_db"])
+    sl_db = SQLSpectralLineDB(config["sl_model"]["fname_db"])
     slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
     obs_data = load_preprocess(config["obs_info"])
     targets = create_specie_list(
