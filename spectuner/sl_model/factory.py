@@ -7,6 +7,8 @@ from .sl_database import SpectralLineDatabase
 from .sl_model import (
     create_spectral_line_model_state,
     compute_effective_spectra,
+    compute_tau_norm,
+    compute_mu_sigma,
     derive_average_beam_size
 )
 
@@ -187,6 +189,18 @@ class SpectralLineModel:
         return compute_effective_spectra(
             self.slm_state, self.param_mgr.derive_params(params)
         )
+
+    def compute_tau_max(self, params):
+        tau_max = []
+        slm_state = self.slm_state
+        params_ = self.param_mgr.derive_params(params)
+        for params_i, sl_data_i in zip(params_, slm_state["sl_data"]):
+            _, T_ex, den_col, delta_v, v_offset = params_i
+            _, sigma = compute_mu_sigma(slm_state, sl_data_i, delta_v, v_offset)
+            tau_max_i = compute_tau_norm(slm_state, sl_data_i, den_col, T_ex) \
+                / (np.sqrt(2*np.pi)*sigma)
+            tau_max.append(tau_max_i)
+        return tau_max
 
 
 class ParameterManager:
