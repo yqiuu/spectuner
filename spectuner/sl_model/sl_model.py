@@ -436,18 +436,30 @@ def const_factor_mu_sigma():
 
 class SpectralLineModel:
     def __init__(self, slm_state, param_mgr):
-        self.slm_state = slm_state
-        self.param_mgr = param_mgr
+        self._slm_state = slm_state
+        self._param_mgr = param_mgr
 
     def __call__(self, params):
         return compute_effective_spectra(
-            self.slm_state, self.param_mgr.derive_params(params)
+            self._slm_state, self._param_mgr.derive_params(params)
         )
+
+    @property
+    def freq_data(self):
+        return self._slm_state["freq_list"]
+
+    @property
+    def specie_list(self):
+        return self._param_mgr.specie_list
+
+    @property
+    def param_mgr(self):
+        return self._param_mgr
 
     def compute_tau_max(self, params):
         tau_max = []
-        slm_state = self.slm_state
-        params_ = self.param_mgr.derive_params(params)
+        slm_state = self._slm_state
+        params_ = self._param_mgr.derive_params(params)
         for params_i, sl_data_i in zip(params_, slm_state["sl_data"]):
             _, T_ex, den_col, delta_v, v_offset = params_i
             _, sigma = compute_mu_sigma(slm_state, sl_data_i, delta_v, v_offset)

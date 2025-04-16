@@ -238,8 +238,8 @@ class SwingOptimizer(Optimizer):
             "x":  opt.pos_global_best,
             "fun": opt.cost_global_best,
             "nfev": opt.memo["ncall"][-1],
-            "specie": fitting_model.sl_model.param_mgr.specie_list,
-            "freq": fitting_model.freq_data,
+            "specie": fitting_model.sl_model.specie_list,
+            "freq": fitting_model.sl_model.freq_data,
             "T_pred": T_pred_data,
         }
         if self._save_history:

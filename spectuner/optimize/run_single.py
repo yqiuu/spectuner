@@ -3,11 +3,11 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from .optimize import prepare_base_props, optimize, create_pool, print_fitting
+from .optimize import prepare_base_props, optimize, print_fitting
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
-from ..sl_model import query_species, SpectralLineDatabase, SpectralLineModelFactory
-from ..slm_factory import jit_fitting_model, FittingModel
+from ..sl_model import query_species, SpectralLineDatabase
+from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
 from ..peaks import PeakManager
 from ..identify import identify
 from ..utils import save_fitting_result, derive_specie_save_name
@@ -29,55 +29,56 @@ def run_single(config, result_dir, need_identify=True):
     config = append_exclude_info(
         config, base_props["freqs_exclude"], base_props["exclude_list"]
     )
+    sl_db = SpectralLineDatabase(config["sl_model"]["fname_db"])
+    slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
     obs_data = load_preprocess(config["obs_info"])
-    freq_list = get_freq_data(obs_data)
-    sl_database = SpectralLineDatabase(config["sl_model"]["fname_db"])
-    slm_factory = SpectralLineModelFactory.from_config(
-        freq_list, config, sl_db=sl_database
+    targets = create_specie_list(
+        sl_db, obs_data, base_props["spans_include"], config
     )
-    specie_list = create_specie_list(
-        sl_database, obs_data, base_props["spans_include"], config
+    res_list = fit_all(
+        slm_factory=slm_factory,
+        obs_info=config["obs_info"],
+        targets=targets,
+        base_props=base_props,
+        config_opt=config["opt"],
     )
-
     with h5py.File(Path(result_dir)/"results_single.h5", "w") as fp:
-        if config["opt"]["n_process"] == 1:
-            fit_save(
-                fp, config, slm_factory, obs_data,
-                specie_list, base_props, pool=None
-            )
-        else:
-            use_mpi = config["opt"].get("use_mpi", False)
-            with create_pool(config["opt"]["n_process"], use_mpi) as pool:
-                fit_save(
-                    fp, config, slm_factory, obs_data,
-                    specie_list, base_props, pool=pool
-                )
+        for res in res_list:
+            grp = fp.create_group(derive_specie_save_name(res["specie"][0]))
+            save_fitting_result(grp, res)
 
     if need_identify:
         identify(config, result_dir, "single")
 
 
-def fit_save(fp, config, slm_factory, obs_data, specie_list, base_props, pool):
-    for item in specie_list:
+def fit_all(slm_factory: SpectralLineModelFactory,
+            obs_info: list,
+            targets: list,
+            base_props: dict,
+            config_opt: dict) -> list:
+    res_list = []
+    for item in targets:
         print_fitting(item["species"])
         item["id"] = item["id"] + base_props["id_offset"]
-        model = FittingModel.from_config(
-            slm_factory, [item], obs_data, config,  base_props["T_base"]
+        fitting_model = slm_factory.create_fitting_model(
+            obs_info=obs_info,
+            specie_list=[item],
+            T_base_data=base_props["T_base"],
         )
-        jit_fitting_model(model)
-        res_dict = optimize(model, config["opt"], pool)
-        grp = fp.create_group(derive_specie_save_name(item))
-        save_fitting_result(grp, res_dict)
+        jit_fitting_model(fitting_model)
+        res_dict = optimize(fitting_model, config_opt, pool=None)
+        res_list.append(res_dict)
+    return res_list
 
 
-def create_specie_list(sl_database, obs_data, spans, config):
+def create_specie_list(sl_db, obs_data, spans, config):
     if len(spans) == 0:
         peak_mgr = PeakManager(obs_data, **config["peak_manager"])
         freqs = np.mean(np.vstack(peak_mgr.spans_obs_data), axis=1)
     else:
         freqs = np.mean(spans, axis=1)
     return query_species(
-        sl_database=sl_database,
+        sl_database=sl_db,
         freq_list=get_freq_data(obs_data),
         v_LSR=config["sl_model"].get("vLSR", 0.),
         freqs_include=freqs,
