@@ -80,6 +80,8 @@ class SpectralLineModelFactory:
                 for specie in item["species"]:
                     sl_dict_list_.append(
                         self._sl_db.query_sl_dict(specie, freq_data))
+        else:
+            sl_dict_list_ = sl_dict_list
         slm_state = create_spectral_line_model_state(
             sl_data_list=sl_dict_list_,
             freq_list=freq_data,

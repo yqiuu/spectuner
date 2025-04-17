@@ -265,7 +265,7 @@ class ScipyOptimizer(Optimizer):
                 + (upper - lower)*np.random.rand(self._n_compute, len(lower))
             samps_sub = samps_
         else:
-            samps_, log_prob = args
+            samps_, log_prob = args[:2]
             cut = np.percentile(log_prob, 75.)
             samps_sub = samps_[log_prob > cut]
 
@@ -307,7 +307,7 @@ class ScipyOptimizer(Optimizer):
             "x":  x_best,
             "fun": fun,
             "nfev": res.nfev + self._n_compute + 1,
-            "specie": fitting_model.sl_model.param_mgr.specie_list,
-            "freq": fitting_model.freq_data,
+            "specie": fitting_model.sl_model.specie_list,
+            "freq": fitting_model.sl_model.freq_data,
             "T_pred": fitting_model.sl_model(x_best),
         }

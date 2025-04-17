@@ -1,3 +1,4 @@
+from . import ai
 from .sl_model import *
 from .identify import *
 from .modify import *
