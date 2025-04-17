@@ -6,7 +6,7 @@ import numpy as np
 from .optimize import prepare_base_props, optimize, print_fitting
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
-from ..sl_model import query_species, SQLSpectralLineDB
+from ..sl_model import query_species, select_master_name, SQLSpectralLineDB
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
 from ..peaks import PeakManager
 from ..identify import identify
@@ -33,7 +33,8 @@ def run_single(config, result_dir, need_identify=True):
     slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
     obs_data = load_preprocess(config["obs_info"])
     targets = create_specie_list(
-        sl_db, obs_data, base_props["spans_include"], config
+        sl_db, obs_data, base_props["id_offset"],
+        base_props["spans_include"], config
     )
     res_list = fit_all(
         slm_factory=slm_factory,
@@ -57,12 +58,11 @@ def fit_all(slm_factory: SpectralLineModelFactory,
             base_props: dict,
             config_opt: dict) -> list:
     res_list = []
-    for item in targets:
-        print_fitting(item["species"])
-        item["id"] = item["id"] + base_props["id_offset"]
+    for specie_list in targets:
+        print_fitting(specie_list[0]["species"])
         fitting_model = slm_factory.create_fitting_model(
             obs_info=obs_info,
-            specie_list=[item],
+            specie_list=specie_list,
             T_base_data=base_props["T_base"],
         )
         jit_fitting_model(fitting_model)
@@ -71,17 +71,28 @@ def fit_all(slm_factory: SpectralLineModelFactory,
     return res_list
 
 
-def create_specie_list(sl_db, obs_data, spans, config):
+def create_specie_list(sl_db, obs_data, id_offset, spans, config):
     if len(spans) == 0:
         peak_mgr = PeakManager(obs_data, **config["peak_manager"])
         freqs = np.mean(np.vstack(peak_mgr.spans_obs_data), axis=1)
     else:
         freqs = np.mean(spans, axis=1)
-    return query_species(
-        sl_database=sl_db,
-        freq_list=get_freq_data(obs_data),
+
+    groups, _ = query_species(
+        sl_db=sl_db,
+        freq_data=get_freq_data(obs_data),
         v_LSR=config["sl_model"].get("vLSR", 0.),
         freqs_include=freqs,
         v_range=config["opt"]["bounds"]["v_LSR"],
         **config["species"],
     )
+
+    idx = id_offset
+    targets = []
+    for species in groups:
+        root_name = select_master_name(species)
+        if root_name is None:
+            continue
+        targets.append([{"id": idx, "root": root_name, "species": species}])
+        idx += 1
+    return targets

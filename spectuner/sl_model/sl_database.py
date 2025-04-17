@@ -78,6 +78,7 @@ def query_species(sl_db: SpectralLineDB,
     counter = defaultdict(int)
     for item in entries:
         counter[item[0]] += 1
+    counter = dict(counter)
 
     mol_tire = MolTrie()
     for entry in counter.keys():
@@ -116,7 +117,7 @@ def query_species(sl_db: SpectralLineDB,
     records = [record_dict[name] for name in specie_names]
 
     groups = derive_groups(records, combine_iso, combine_state)
-    return derive_specie_list(groups)
+    return groups, counter
 
 
 def check_freqs_include(entries, freqs_include, v_range):
@@ -204,7 +205,7 @@ def derive_groups(records, combine_iso, combine_state):
         else:
             key = record
         groups[key].append(record.name)
-    return groups
+    return list(groups.values())
 
 
 def derive_atom_set(fm):
@@ -221,18 +222,6 @@ def derive_atom_set(fm):
 def check_elements(record, elements):
     atom_set = derive_atom_set(record[0])
     return len(atom_set - elements) == 0
-
-
-def derive_specie_list(groups):
-    idx = 0
-    specie_list = []
-    for species in groups.values():
-        root_name = select_master_name(species)
-        if root_name is None:
-            continue
-        specie_list.append({"id": idx, "root": root_name, "species": species})
-        idx += 1
-    return specie_list
 
 
 def select_master_name(name_list):
