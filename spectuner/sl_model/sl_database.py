@@ -1,9 +1,10 @@
 from __future__ import annotations
 import sqlite3
 import re
-from collections import defaultdict
-from typing import Optional
+from typing import Optional, Literal
 from abc import abstractmethod, ABC
+from collections import defaultdict
+from functools import partial
 
 import numpy as np
 from astropy import constants, units
@@ -15,12 +16,44 @@ from ..peaks import create_spans, compute_shift
 MHZ2KELIVN = ((constants.h/constants.k_B*units.MHz).to(units.Kelvin)).value
 
 
-def query_species(sl_database, freq_list,
-                  v_LSR=0., freqs_include=None, v_range=None,
-                  species=None, elements=None,
-                  collect_iso=True, iso_mode="combined", iso_order=1,
-                  version_mode="default", include_hyper=False,
-                  separate_all=False, exclude_list=None, rename_dict=None):
+def query_species(sl_db: SpectralLineDB,
+                  freq_data: list,
+                  v_LSR: float=0.,
+                  freqs_include: Optional[tuple]=None,
+                  v_range: Optional[tuple]=None,
+                  species: Optional[tuple]=None,
+                  elements: Optional[tuple]=None,
+                  collect_iso: bool=True,
+                  iso_order: int=2,
+                  combine_iso: bool=False,
+                  combine_state: bool=False,
+                  version_mode: Literal["default", "most", "latest", "all"]="default",
+                  include_hyper: bool=False,
+                  exclude_list: Optional[tuple]=None,
+                  rename_dict: Optional[dict]=None) -> list:
+    """Query species from the database for fitting tasks.
+
+    Args:
+        sl_db: SpectralLineDB instance.
+        freq_data: List of frequency ranges.
+        v_LSR: LSR velocity [km/s].
+        freqs_include: List of frequencies to include.
+        v_range: Tolerance to check ``freqs_include``. Should be ``(min, max)``.
+        species: List of species to include. If ``None``, inlcude all species.
+        elements: List of elements to include. If ``None``, do not filter
+            elements.
+        collect_iso: If ``True``, collect isotopologues.
+        iso_order: Number of isotopes to include (Do not use this).
+        combine_iso: If ``True``, combine isotopologues and fitting them
+            jointly.
+        combine_state: If ``True``, combine states and fitting them jointly.
+        include_hyper: If ``True``, include hyperfine states.
+        exclude_list: List of species to exclude.
+        rename_dict: A dict to rename species.
+
+    Returns:
+        List of species to fit.
+    """
     if freqs_include is not None and len(freqs_include) == 0:
         return []
 
@@ -37,7 +70,7 @@ def query_species(sl_database, freq_list,
         exclude_list = []
 
     # Filter entries
-    entries = sl_database.query_transitions(freq_list)
+    entries = sl_db.query_transitions(freq_data)
     if freqs_include is not None:
         entries = check_freqs_include(
             entries, compute_shift(freqs_include, v_LSR), v_range
@@ -66,32 +99,24 @@ def query_species(sl_database, freq_list,
         records_exclude.extend(mol_tire.search(MolRecord(entry, rename_dict)))
 
     records = set(records_include) - set(records_exclude)
-    records = sorted(records)
-    names_include = [record.name for record in records]
 
+    # Filter elements
+    if elements is not None:
+        elements = set(elements)
+        if "H" in elements:
+            elements.add("D")
+        records = filter(partial(check_elements, elements=elements), records)
+
+    #
+    record_dict = {record.name: record for record in records}
     specie_names = choose_version(
-        names_include, counter, version_mode, include_hyper
+        record_dict.keys(), counter, version_mode, include_hyper
     )
     specie_names = exclude_isotopes(specie_names, iso_order)
-    groups = derive_groups(
-        specie_names, species, elements, iso_mode,
-        exclude_list, rename_dict_, separate_all
-    )
+    records = [record_dict[name] for name in specie_names]
+
+    groups = derive_groups(records, combine_iso, combine_state)
     return derive_specie_list(groups)
-
-
-def prepare_specie_names(sl_database, freq_list,
-                         v_LSR=0., freqs_include=None, v_range=None,
-                         iso_order=1, version_mode="default",
-                         include_hyper=False):
-    entries = sl_database.query_transitions(freq_list)
-    if freqs_include is not None:
-        entries = check_freqs_include(
-            entries, compute_shift(freqs_include, v_LSR), v_range
-        )
-    specie_names = choose_version(entries, version_mode, include_hyper)
-    specie_names = exclude_isotopes(specie_names, iso_order)
-    return specie_names
 
 
 def check_freqs_include(entries, freqs_include, v_range):
@@ -166,89 +191,20 @@ def choose_version(names_incldue, counter, version_mode, include_hyper):
     return specie_names
 
 
-def derive_groups(specie_names, moleclues, elements, iso_mode,
-                  exclude_list, rename_dict, separate_all):
-    specie_data = derive_specie_data(specie_names, rename_dict)
-
-    if moleclues is not None:
-        fm_set, fm_root_set \
-            = list(zip(*[derive_normal_formula(name, rename_dict)[:2] for name in moleclues]))
-    exclude_list = decompose_exclude_list(exclude_list, rename_dict)
-
-    # Filter elements and species
-    if elements is not None:
-        elements = set(elements)
-        if "H" in elements:
-            elements.add("D")
+def derive_groups(records, combine_iso, combine_state):
     groups = defaultdict(list)
-    for fm_root, fm, mol_normal, atom_set, mol in specie_data:
-        if check_exclude_list(mol_normal, exclude_list):
-            continue
-
-        if elements is not None and len(atom_set - elements) != 0:
-            continue
-
-        if iso_mode == "manual" and (moleclues is None or fm in fm_set):
-            key = mol_normal if separate_all else fm
-        elif iso_mode == "separate" and (moleclues is None or fm_root in fm_root_set):
-            key = mol_normal if separate_all else fm
-        elif iso_mode == "combined" and (moleclues is None or fm_root in fm_root_set):
-            key = mol_normal if separate_all else fm_root
+    for record in records:
+        # record (root, iso, state, version)
+        if combine_iso and combine_state:
+            key = record[0]
+        elif combine_iso and not combine_state:
+            key = (record[0], record[2])
+        elif not combine_iso and combine_state:
+            key = record[1]
         else:
-            continue
-        groups[key].append(mol)
-
+            key = record
+        groups[key].append(record.name)
     return groups
-
-
-def derive_specie_data(mol_list, rename_dict):
-    specie_data = []
-    for mol in mol_list:
-        fm, fm_root, mol_normal = derive_normal_formula(mol, rename_dict)
-        atom_set = derive_atom_set(fm_root)
-        specie_data.append((fm_root, fm, mol_normal, atom_set, mol))
-    return specie_data
-
-
-def derive_normal_formula(mol_name, rename_dict):
-    """Expand and rename an input formula.
-
-    The function also checks isotopes in the formula.
-
-    Args:
-        mol_name (str): formula.
-        rename_dict (dict): Rename dictionary.
-
-    Returns:
-        fm (str): Normal formula.
-        fm_root (str): Normal formula with isotopes removed.
-        mol_normal (str): Molecule name replaced with normal formula.
-    """
-    def expand(fm):
-        """Expand formulae.
-            HC3N > HCCCN
-            CH3CN > CHHHCN
-        """
-        for pattern in re.findall("[A-Z][a-z]?\d", fm):
-            fm = fm.replace(pattern, pattern[:-1]*int(pattern[-1]))
-        return fm
-
-    tmp = mol_name.split(";")
-    fm = tmp[0]
-    if fm in rename_dict:
-        fm = rename_dict[fm]
-
-    # Remove iso
-    pattern = r"-([0-9])([0-9])[-]?"
-    fm_root = re.sub(pattern, "", fm)
-    fm_root = fm_root.replace("D", "H")
-
-    #
-    fm = expand(fm)
-    fm_root = expand(fm_root)
-    tmp[0] = fm
-    mol_normal = ";".join(tmp)
-    return fm, fm_root, mol_normal
 
 
 def derive_atom_set(fm):
@@ -262,34 +218,9 @@ def derive_atom_set(fm):
     return atom_set
 
 
-def decompose_exclude_list(exclude_list, rename_dict):
-    """Decompose an exclude_lsit, e.g.
-
-    [CH3OH, HNCO;v=0, C2H3CN, H2C-13-CHCN;v=0;]
-    -> [[CH3OH, C2H3CN], [HNCO;v=0], [H2C-13-CHCN;v=0;]]
-    """
-    exclude_list_new = [[], [], []]
-    for name in exclude_list:
-        mol_normal = derive_normal_formula(name, rename_dict)[2]
-        num = len(mol_normal.split(";"))
-        if num == 1:
-            exclude_list_new[0].append(mol_normal)
-        elif num == 2:
-            exclude_list_new[1].append(mol_normal)
-        else:
-            exclude_list_new[2].append(mol_normal)
-    return exclude_list_new
-
-
-def check_exclude_list(name, exclude_list):
-    tmp = name.split(";")
-    if tmp[0] in exclude_list[0]:
-        return True
-    if ";".join(tmp[:2]) in exclude_list[1]:
-        return True
-    if name in exclude_list[2]:
-        return True
-    return False
+def check_elements(record, elements):
+    atom_set = derive_atom_set(record[0])
+    return len(atom_set - elements) == 0
 
 
 def derive_specie_list(groups):
