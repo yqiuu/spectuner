@@ -18,7 +18,7 @@ MHZ2KELIVN = ((constants.h/constants.k_B*units.MHz).to(units.Kelvin)).value
 def query_species(sl_database, freq_list,
                   v_LSR=0., freqs_include=None, v_range=None,
                   species=None, elements=None,
-                  iso_mode="combined", iso_order=1,
+                  collect_iso=True, iso_mode="combined", iso_order=1,
                   version_mode="default", include_hyper=False,
                   separate_all=False, exclude_list=None, rename_dict=None):
     if freqs_include is not None and len(freqs_include) == 0:
@@ -55,7 +55,12 @@ def query_species(sl_database, freq_list,
     else:
         records_include = []
         for entry in species:
-            records_include.extend(mol_tire.search(MolRecord(entry, rename_dict)))
+            record = MolRecord(entry, rename_dict)
+            if collect_iso:
+                prefix = record[:1]
+            else:
+                prefix = record
+            records_include.extend(mol_tire.search(prefix))
     records_exclude = []
     for entry in exclude_list:
         records_exclude.extend(mol_tire.search(MolRecord(entry, rename_dict)))
