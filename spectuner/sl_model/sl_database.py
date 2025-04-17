@@ -441,13 +441,25 @@ class SpectralLineDB(ABC):
     _cols = "freq", "A_ul", "E_low", "g_u"
     _q_min = 1e-10
 
-    def __init__(self, cache=False):
+    def __init__(self, freqs: list, names: list, cache: bool=False):
+        inds = np.argsort(freqs)
+        self._freqs = tuple(np.asarray(freqs)[inds])
+        self._names = tuple(np.asarray(names)[inds])
         if cache:
             self._cache = {}
         else:
             self._cache = None
 
-    @abstractmethod
+    @property
+    def freqs(self) -> np.ndarray:
+        """Frequencies of all entries."""
+        return self._freqs
+
+    @property
+    def names(self) -> np.ndarray:
+        """Names of all entries."""
+        return self._names
+
     def query_transitions(self, freq_data: list) -> list:
         """Find all entries in the given frequency ranges.
 
@@ -459,6 +471,15 @@ class SpectralLineDB(ABC):
         Returns:
             list: A list of tuples (``specie_name``, ``transition_frequecy`` [MHz]).
         """
+        data = []
+        for freq in freq_data:
+            # In some cases, freq is not ordered, so we need to use max and min
+            freq_min = np.min(freq)
+            idx_b = np.searchsorted(self.freqs, freq_min)
+            freq_max = np.max(freq)
+            idx_e = np.searchsorted(self.freqs, freq_max)
+            data.extend(list(zip(self.names[idx_b:idx_e], self.freqs[idx_b:idx_e])))
+        return data
 
     def query_sl_dict(self, key: str, freq_data: list, v_enlarge: float=0.) -> dict:
         # This function is almost the same as the one in sl_database.py
@@ -498,33 +519,26 @@ class SpectralLineDB(ABC):
 
 class SQLSpectralLineDB(SpectralLineDB):
     def __init__(self, fname, cache=False):
-        super().__init__(cache)
         self._fname = fname
 
         conn = sqlite3.connect(fname)
         cursor = conn.cursor()
-        query = "select * from partitionfunctions"
-        cursor.execute(query)
-        names = list(map(lambda x: x[0], cursor.description))
-        self._x_T = np.array([float(name[3:].replace("_", ".")) for name in names[5:-6]])
-        cursor.close()
-        conn.close()
-
-    def query_transitions(self, freq_data: list) -> list:
-        conn = sqlite3.connect(self._fname)
-        cursor = conn.cursor()
 
         query = """select T_Name, T_Frequency from transitions where """\
-            """T_Frequency between ? and ? and T_name not like '%RRL%'"""
-        data = []
-        for freq in freq_data:
-            cursor.execute(query, (freq[0], freq[-1]))
-            data.extend(cursor.fetchall())
+            """T_name not like '%RRL%'"""
+        cursor.execute(query)
+        data = cursor.fetchall()
+        names, freqs = tuple(zip(*data))
+
+        query = "select * from partitionfunctions"
+        cursor.execute(query)
+        cols = list(map(lambda x: x[0], cursor.description))
+        self._x_T = np.array([float(col[3:].replace("_", ".")) for col in cols[5:-6]])
 
         cursor.close()
         conn.close()
 
-        return data
+        super().__init__(freqs, names, cache)
 
     def _load_sl_dict(self, key: str) -> dict:
         conn = sqlite3.connect(self._fname)
