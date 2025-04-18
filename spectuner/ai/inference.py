@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable
+from typing import Optional, Callable
 from pathlib import Path
 from copy import deepcopy
 
@@ -9,6 +9,8 @@ from tqdm import tqdm
 from torch import nn
 import spectuner_ml
 
+from .embedding import create_embeding_model
+from ..sl_model import SpectralLineDB
 from ..slm_factory import SpectralLineModelFactory
 
 
@@ -109,14 +111,18 @@ class InferenceModel:
         self._slm_factory = slm_factory
 
     @classmethod
-    def from_config(cls, config) -> InferenceModel:
+    def from_config(cls,
+                    config: dict,
+                    sl_db: Optional[SpectralLineDB]=None) -> InferenceModel:
         config_inf = config["inference"]
         ckpt = torch.load(
             config_inf["ckpt"],
             map_location="cpu",
             weights_only=True
         )
-        model = spectuner_ml.create_parameter_estimator(ckpt["config"], is_sampler=False)
+        model = spectuner_ml.create_parameter_estimator(
+            ckpt["config"], is_sampler=False
+        )
         model.load_state_dict(ckpt["model_state"])
         model.to(config_inf["device"])
         model.eval()
@@ -125,7 +131,9 @@ class InferenceModel:
             norms_sl=Path(__file__).parent/"normalizations_v1.yml",
             max_length=100000
         )
-        embedding_model = spectuner_ml.create_embeding_model(ckpt["config"]["embedding"])
+        embedding_model = create_embeding_model(
+            ckpt["config"]["embedding"], sl_db=sl_db
+        )
         config = deepcopy(config)
         config["sl_model"]["params"] = ckpt["config"]["sl_model"]["params"]
         slm_factory = SpectralLineModelFactory(config, sl_db=embedding_model.sl_db)
