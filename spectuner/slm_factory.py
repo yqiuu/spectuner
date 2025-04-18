@@ -7,8 +7,8 @@ import numpy as np
 from .preprocess import load_preprocess, get_freq_data, get_T_data
 from .sl_model import (
     create_spectral_line_model_state,
+    create_spectral_line_db,
     SpectralLineDB,
-    SQLSpectralLineDB,
     SpectralLineModel,
     ParameterManager,
 )
@@ -63,7 +63,7 @@ class SpectralLineModelFactory:
                  sl_db: Optional[SpectralLineDB]=None) -> None:
         self._config = config
         if sl_db is None:
-            self._sl_db = SQLSpectralLineDB(config["sl_model"]["fname_db"])
+            self._sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
         else:
             self._sl_db = sl_db
 

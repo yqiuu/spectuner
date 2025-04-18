@@ -6,7 +6,7 @@ import numpy as np
 from .optimize import prepare_base_props, optimize, print_fitting
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
-from ..sl_model import query_species, select_master_name, SQLSpectralLineDB
+from ..sl_model import query_species, select_master_name, create_spectral_line_db
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
 from ..peaks import PeakManager
 from ..identify import identify
@@ -16,7 +16,7 @@ from ..utils import save_fitting_result, derive_specie_save_name
 __all__ = ["run_single", "create_specie_list"]
 
 
-def run_single(config, result_dir, need_identify=True):
+def run_single(config, result_dir, need_identify=True, sl_db=None):
     """Run the individual fitting phase.
 
     Args:
@@ -29,7 +29,8 @@ def run_single(config, result_dir, need_identify=True):
     config = append_exclude_info(
         config, base_props["freqs_exclude"], base_props["exclude_list"]
     )
-    sl_db = SQLSpectralLineDB(config["sl_model"]["fname_db"])
+    if sl_db is None:
+        sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
     slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
     obs_data = load_preprocess(config["obs_info"])
     targets = create_specie_list(

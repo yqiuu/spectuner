@@ -289,6 +289,10 @@ def latex_mol_formula(name):
     return name_ret
 
 
+def create_spectral_line_db(fname: str, cache: bool=False):
+    return SQLSpectralLineDB(fname, cache)
+
+
 class MolRecord(tuple):
     """
     Args:
