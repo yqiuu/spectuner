@@ -112,7 +112,7 @@ def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
     return params_new
 
 
-def crate_optimizer(config_opt: dict) -> Optimizer:
+def create_optimizer(config_opt: dict) -> Optimizer:
     method = config_opt["method"]
     kwargs = config_opt.get("kwargs_opt", {})
     if method in ("pso", "abc"):

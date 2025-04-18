@@ -1,13 +1,15 @@
+import multiprocessing as mp
 from pathlib import Path
 
 import h5py
 import numpy as np
 
-from .optimize import prepare_base_props, optimize, print_fitting
+from .optimize import prepare_base_props, optimize, create_optimizer, print_fitting
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import query_species, select_master_name, create_spectral_line_db
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
+from ..ai import predict_single_pixel, InferenceModel
 from ..peaks import PeakManager
 from ..identify import identify
 from ..utils import save_fitting_result, derive_specie_save_name
@@ -32,20 +34,34 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
     if sl_db is None:
         sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
     slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
-    obs_data = load_preprocess(config["obs_info"])
-    targets = create_specie_list(
-        sl_db, obs_data, base_props["id_offset"],
+
+    targets, trans_counts = create_specie_list(
+        sl_db, base_props["id_offset"],
         base_props["spans_include"], config
     )
-    res_list = fit_all(
-        slm_factory=slm_factory,
-        obs_info=config["obs_info"],
-        targets=targets,
-        base_props=base_props,
-        config_opt=config["opt"],
-    )
+    with mp.Pool(config["opt"]["n_process"]) as pool:
+        if config["inference"]["ckpt"] is None:
+            results = fit_all(
+                slm_factory=slm_factory,
+                obs_info=config["obs_info"],
+                targets=targets,
+                base_props=base_props,
+                config_opt=config["opt"],
+            )
+        else:
+            inf_model = InferenceModel.from_config(config, sl_db=sl_db)
+            results = fit_all_with_agent(
+                inf_model=inf_model,
+                obs_info=config["obs_info"],
+                targets=targets,
+                trans_counts=trans_counts,
+                config_opt=config["opt"],
+                config_inf=config["inference"],
+                pool=pool
+            )
+
     with h5py.File(Path(result_dir)/"results_single.h5", "w") as fp:
-        for res in res_list:
+        for res in results:
             grp = fp.create_group(derive_specie_save_name(res["specie"][0]))
             save_fitting_result(grp, res)
 
@@ -58,7 +74,7 @@ def fit_all(slm_factory: SpectralLineModelFactory,
             targets: list,
             base_props: dict,
             config_opt: dict) -> list:
-    res_list = []
+    results = []
     for specie_list in targets:
         print_fitting(specie_list[0]["species"])
         fitting_model = slm_factory.create_fitting_model(
@@ -68,18 +84,49 @@ def fit_all(slm_factory: SpectralLineModelFactory,
         )
         jit_fitting_model(fitting_model)
         res_dict = optimize(fitting_model, config_opt, pool=None)
-        res_list.append(res_dict)
-    return res_list
+        results.append(res_dict)
+    return results
 
 
-def create_specie_list(sl_db, obs_data, id_offset, spans, config):
+def fit_all_with_agent(inf_model: InferenceModel,
+                       obs_info: list,
+                       targets: list,
+                       trans_counts: dict,
+                       config_opt: dict,
+                       config_inf: dict,
+                       pool: mp.Pool) -> list:
+    specie_names = []
+    numbers = []
+    for specie_list in targets:
+        name = specie_list[0]["root"]
+        specie_names.append(name)
+        numbers.append(trans_counts[name])
+    opt = create_optimizer(config_opt)
+    results = predict_single_pixel(
+        inf_model=inf_model,
+        obs_info=obs_info,
+        entries=specie_names,
+        numbers=numbers,
+        postprocess=opt,
+        max_diff=config_inf["max_diff"],
+        max_batch_size=config_inf["max_batch_size"],
+        device=config_inf["device"],
+        pool=pool
+    )
+    for res, specie_list in zip(results, targets):
+        res["specie"] = specie_list
+    return results
+
+
+def create_specie_list(sl_db, id_offset, spans, config):
+    obs_data = load_preprocess(config["obs_info"])
     if len(spans) == 0:
         peak_mgr = PeakManager(obs_data, **config["peak_manager"])
         freqs = np.mean(np.vstack(peak_mgr.spans_obs_data), axis=1)
     else:
         freqs = np.mean(spans, axis=1)
 
-    groups, _ = query_species(
+    groups, trans_counts = query_species(
         sl_db=sl_db,
         freq_data=get_freq_data(obs_data),
         v_LSR=config["sl_model"].get("vLSR", 0.),
@@ -96,4 +143,4 @@ def create_specie_list(sl_db, obs_data, id_offset, spans, config):
             continue
         targets.append([{"id": idx, "root": root_name, "species": species}])
         idx += 1
-    return targets
+    return targets, trans_counts
