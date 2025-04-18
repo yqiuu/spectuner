@@ -127,7 +127,7 @@ class InferenceModel:
         model.to(config_inf["device"])
         model.eval()
         ckpt["config"]["embedding"].update(
-            fname=config["inference"]["fname_db"],
+            fname=config["sl_model"]["fname_db"],
             norms_sl=Path(__file__).parent/"normalizations_v1.yml",
             max_length=100000
         )
