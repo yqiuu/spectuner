@@ -272,42 +272,46 @@ class ScipyOptimizer(Optimizer):
         values = tuple(map(fitting_model, samps_[:self._n_compute]))
         l_tot = np.asarray(values)
         x0 = samps_[np.argmin(l_tot)].astype("f8")
-        if self._method == "vanilla":
-            return {
-                "x": x0,
-                "T_pred": fitting_model.sl_model(x0),
-                "nfev": self._n_compute + 1,
-                "success": True,
-            }
-
-        kwargs = {"method": self._method}
-        if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
-            lower = np.min(samps_sub)
-            upper = np.max(samps_sub)
-            h = 1.e-5
-            kwargs.update(
-                jac=self._jac,
-                options={"eps": h*(upper - lower)}
-            )
-        res = minimize(
-            fitting_model,
-            x0=x0,
-            bounds=fitting_model.bounds,
-            **kwargs
-        )
         l_tot_min = np.min(l_tot)
-        if res.fun < l_tot_min:
-            x_best = res.x
-            fun = res.fun
-        else:
+
+        if self._method == "vanilla":
             x_best = x0
             fun = l_tot_min
+            nfev = self._n_compute + 1
+            #success = True
+        else:
+            kwargs = {"method": self._method}
+            if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
+                lower = np.min(samps_sub)
+                upper = np.max(samps_sub)
+                h = 1.e-5
+                kwargs.update(
+                    jac=self._jac,
+                    options={"eps": h*(upper - lower)}
+                )
+            res = minimize(
+                fitting_model,
+                x0=x0,
+                bounds=fitting_model.bounds,
+                **kwargs
+            )
+
+            if res.fun < l_tot_min:
+                x_best = res.x
+                fun = res.fun
+            else:
+                x_best = x0
+                fun = l_tot_min
+
+            nfev = res.nfev + self._n_compute + 1
+            #success = res.success
 
         return {
             "x":  x_best,
             "fun": fun,
-            "nfev": res.nfev + self._n_compute + 1,
+            "nfev": nfev,
             "specie": fitting_model.sl_model.specie_list,
             "freq": fitting_model.sl_model.freq_data,
             "T_pred": fitting_model.sl_model(x_best),
+            #"success": success
         }
