@@ -66,7 +66,7 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
             save_fitting_result(grp, res)
 
     if need_identify:
-        identify(config, result_dir, "single")
+        identify(config, result_dir, "single", sl_db=sl_db)
 
 
 def fit_all(slm_factory: SpectralLineModelFactory,

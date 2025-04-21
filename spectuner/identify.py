@@ -1,27 +1,26 @@
 import json
-import h5py
+from typing import Optional
 from copy import deepcopy
 from pathlib import Path
 from collections import defaultdict
 from functools import partial
 from dataclasses import dataclass, field, asdict
 
+import h5py
 import numpy as np
 import pandas as pd
+import torch
 
-from .sl_model import (
-    compute_T_single_data, sum_T_single_data, combine_specie_lists,
-    ParameterManager
-)
-from .peaks import compute_peak_norms, PeakManager
+from .sl_model import sum_T_single_data, combine_specie_lists
+from .slm_factory import compute_T_single_data, SpectralLineModelFactory
+from .peaks import compute_peak_norms
 from .utils import (
     load_result_list, load_fitting_result, load_result_combine,
     hdf_save_dict, hdf_load_dict, derive_specie_save_name
 )
-from .preprocess import load_preprocess
 
 
-def identify(config, target, mode=None):
+def identify(config, target, mode=None, sl_db=None):
     """Perform identification.
 
     Args:
@@ -32,8 +31,17 @@ def identify(config, target, mode=None):
             data.
             - ``combine``: Use the combined fitting results as base data.
     """
-    obs_data = load_preprocess(config["obs_info"])
-    idn = Identification(obs_data, **config["peak_manager"])
+    if config["inference"]["ckpt"] is not None:
+        # TODO: Allow to use different parameterization
+        ckpt = torch.load(
+            config["inference"]["ckpt"],
+            map_location="cpu",
+            weights_only=True
+        )
+        config["sl_model"]["params"] = ckpt["config"]["sl_model"]["params"]
+
+    slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
+    idn = Identification(slm_factory, config["obs_info"])
 
     target = Path(target)
     if target.is_file():
@@ -59,21 +67,21 @@ def identify(config, target, mode=None):
 
     pred_data_list = load_result_list(fname)
     if base_data is None:
-        res_dict = identify_without_base(idn, pred_data_list, config)
+        res_dict = identify_without_base(idn, pred_data_list)
     else:
         res_dict = identify_with_base(idn, pred_data_list, base_data, config)
     with h5py.File(fname.parent/f"identify_{fname.name}", "w") as fp:
         if mode == "combine" and base_data is not None:
-            res = idn.identify(base_data["specie"], config, base_data["x"])
+            res = idn.identify(base_data["specie"], base_data["x"])
             res.save_hdf(fp.create_group("combine"))
         for key, res in res_dict.items():
             res.save_hdf(fp.create_group(key))
 
 
-def identify_without_base(idn, pred_data_list, config):
+def identify_without_base(idn, pred_data_list):
     res_dict = {}
     for data in pred_data_list:
-        res = idn.identify(data["specie"], config, data["x"])
+        res = idn.identify(data["specie"], data["x"])
         if res.is_empty():
             continue
         assert len(data["specie"]) == 1
@@ -99,7 +107,7 @@ def identify_with_base(idn, pred_data_list, base_data, config):
             data["specie"], config, data["x"], data["freq"]
         ))
         res = idn.identify(
-            specie_list_combine, config, params_combine, T_single_dict
+            specie_list_combine, params_combine, T_single_dict
         )
         if res.is_empty():
             continue
@@ -136,22 +144,22 @@ def compute_contributions(values, T_back=0.):
 
 
 class Identification:
-    def __init__(self, obs_data, prominence, rel_height,
-                 T_base_data=None, pfactor=None, freqs_exclude=None, frac_cut=.05):
-        self.peak_mgr = PeakManager(
-            obs_data, prominence, rel_height,
-            T_base_data=T_base_data,
-            pfactor=pfactor,
-            freqs_exclude=freqs_exclude
-        )
-        self.frac_cut = frac_cut
+    def __init__(self,
+                 slm_factory: SpectralLineModelFactory,
+                 obs_info: list,
+                 T_base_data: Optional[list]=None,
+                 frac_cut: float=0.05):
+        self._slm_factory = slm_factory
+        self._obs_info = obs_info
+        self._peak_mgr = slm_factory.create_peak_mgr(obs_info, T_base_data)
+        self._frac_cut = frac_cut
 
-    def identify(self, specie_list, config, params,
+    def identify(self, specie_list, params,
                  T_single_dict=None, use_f_dice=False):
         line_table, line_table_fp, T_single_dict = self.derive_line_table(
-            specie_list, config, params, T_single_dict, use_f_dice
+            specie_list, params, T_single_dict, use_f_dice
         )
-        param_dict = self.derive_param_dict(specie_list, config, params)
+        param_dict = self.derive_param_dict(specie_list, params)
         id_set = set()
         id_set.update(self.derive_mol_set(line_table.id))
         id_set.update(self.derive_mol_set(line_table_fp.id))
@@ -161,7 +169,7 @@ class Identification:
         specie_data = self.derive_specie_data(specie_list, param_dict, id_set, name_set)
         return IdentResult(
             specie_data, line_table, line_table_fp, T_single_dict,
-            self.peak_mgr.freq_data
+            self._peak_mgr.freq_data
         )
 
     def derive_specie_data(self, specie_list, param_dict, id_set, mol_set):
@@ -178,8 +186,8 @@ class Identification:
                 data_tree[i_id][mol] = cols
         return dict(data_tree)
 
-    def derive_param_dict(self, specie_list, config, params):
-        param_mgr = ParameterManager.from_config(specie_list, config)
+    def derive_param_dict(self, specie_list: list, params: np.ndarray) -> dict:
+        param_mgr = self._slm_factory.create_parameter_mgr(specie_list, self._obs_info)
         params_mol = param_mgr.derive_params(params)
         param_names = param_mgr.param_names
         param_dict = defaultdict(dict)
@@ -192,10 +200,10 @@ class Identification:
         param_dict = dict(param_dict)
         return param_dict
 
-    def derive_line_table(self, specie_list, config, params, T_single_dict, use_f_dice):
+    def derive_line_table(self, specie_list, params, T_single_dict, use_f_dice):
         if T_single_dict is None:
             T_single_dict = compute_T_single_data(
-                specie_list, config, params, self.peak_mgr.freq_data
+                self._slm_factory, self._obs_info, specie_list, params
             )
         T_pred_data = sum_T_single_data(T_single_dict)
         line_table = LineTable()
@@ -218,7 +226,7 @@ class Identification:
         return mol_set
 
     def _derive_scale(self, pfactor):
-        peak_mgr = self.peak_mgr
+        peak_mgr = self._peak_mgr
         norms = []
         for spans, freqs, T_obs in \
             zip(peak_mgr.spans_obs_data, peak_mgr.freq_data, peak_mgr.T_obs_data):
@@ -227,7 +235,7 @@ class Identification:
         return pfactor*np.median(norms)
 
     def _derive_line_table_sub(self, i_segment, T_pred, T_single_dict, use_f_dice):
-        peak_mgr = self.peak_mgr
+        peak_mgr = self._peak_mgr
         peak_store = peak_mgr.create_peak_store(i_segment, T_pred)
         freqs = np.mean(peak_store.spans_obs, axis=1)
         loss_tp, loss_fp = peak_mgr.compute_loss(i_segment, peak_store)
@@ -277,7 +285,7 @@ class Identification:
         fracs = []
         ids = []
         names = []
-        freq = self.peak_mgr.freq_data[i_segment]
+        freq = self._peak_mgr.freq_data[i_segment]
         for i_id, sub_dict in T_single_dict.items():
             for name, T_pred_data in sub_dict.items():
                 T_pred = T_pred_data[i_segment]
@@ -291,7 +299,7 @@ class Identification:
         names = np.array(names, dtype=object)
 
         #
-        for i_inter, cond in enumerate(fracs.T > self.frac_cut):
+        for i_inter, cond in enumerate(fracs.T > self._frac_cut):
             fracs_sub = fracs[cond, i_inter]
             fracs_sub = fracs_sub/np.sum(fracs_sub)
             frac_list.append(fracs_sub)

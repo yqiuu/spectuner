@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import Optional, Callable
 from dataclasses import dataclass
+from copy import deepcopy
+from collections import defaultdict
 
 import numpy as np
 
@@ -13,6 +15,62 @@ from .sl_model import (
     ParameterManager,
 )
 from .peaks import PeakManager
+
+
+def compute_T_single_data(slm_factory: SpectralLineModelFactory,
+                          obs_info: list,
+                          specie_list: list,
+                          params: np.ndarray) -> dict:
+    T_single_data = defaultdict(dict)
+    for item in specie_list:
+        for name in item["species"]:
+            specie_list_single, \
+            params_single = derive_sub_specie_list_with_params(
+                slm_factory, obs_info, specie_list, [name], params
+            )
+            sl_model = slm_factory.create_sl_model(obs_info, specie_list_single)
+            T_single_data[item["id"]][name] = sl_model(params_single)
+    T_single_data = dict(T_single_data)
+    return T_single_data
+
+
+def derive_sub_specie_list(specie_list, species):
+    """Return a new specie list that only contains the given species.
+
+    Args:
+        specie_list (list): Specie list.
+        species (list): A list of specie names that should be included.
+
+    Returns:
+        list: Filtered specie list.
+    """
+    species_list_new = []
+    for item in specie_list:
+        species_new = [name for name in item["species"] if name in species]
+        if len(species_new) > 0:
+            item_new = deepcopy(item)
+            item_new["species"] = species_new
+            species_list_new.append(item_new)
+    return species_list_new
+
+
+def derive_sub_specie_list_with_params(slm_factory, obs_info, specie_list, species, params):
+    """Extract a sub specie list and corresponding parameters.
+
+    Args:
+        specie_list (list): Specie list.
+        species (list): A list of specie names that should be included.
+        params (array): Parameters.
+        config (dict): Config
+
+    Returns:
+        list: Filtered specie list.
+        array: Filtered parameters.
+    """
+    specie_list_sub = derive_sub_specie_list(specie_list, species)
+    param_mgr = slm_factory.create_parameter_mgr(specie_list_sub, obs_info)
+    params_sub = param_mgr.get_subset_params(species, params)
+    return specie_list_sub, params_sub
 
 
 def jit_fitting_model(model):
@@ -67,6 +125,10 @@ class SpectralLineModelFactory:
         else:
             self._sl_db = sl_db
 
+    def create_parameter_mgr(self, specie_list: list, obs_info: list):
+        param_info = self._config["sl_model"]["params"]
+        return ParameterManager(specie_list, param_info, obs_info)
+
     def create_sl_model(self,
                         obs_info: list,
                         specie_list: list,
@@ -89,10 +151,7 @@ class SpectralLineModelFactory:
             trunc=self._config["sl_model"]["trunc"],
             eps_grid=self._config["sl_model"]["eps_grid"],
         )
-        param_info = self._config["sl_model"]["params"]
-        param_mgr = ParameterManager(
-            specie_list, param_info, obs_info
-        )
+        param_mgr = self.create_parameter_mgr(specie_list, obs_info)
         return SpectralLineModel(slm_state, param_mgr)
 
     def create_peak_mgr(self,

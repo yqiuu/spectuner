@@ -11,64 +11,12 @@ from .sl_model import (
 )
 
 
-def derive_sub_specie_list(specie_list, species):
-    """Return a new specie list that only contains the given species.
-
-    Args:
-        specie_list (list): Specie list.
-        species (list): A list of specie names that should be included.
-
-    Returns:
-        list: Filtered specie list.
-    """
-    species_list_new = []
-    for item in specie_list:
-        species_new = [name for name in item["species"] if name in species]
-        if len(species_new) > 0:
-            item_new = deepcopy(item)
-            item_new["species"] = species_new
-            species_list_new.append(item_new)
-    return species_list_new
-
-
-def derive_sub_specie_list_with_params(specie_list, species, params, config):
-    """Extract a sub specie list and corresponding parameters.
-
-    Args:
-        specie_list (list): Specie list.
-        species (list): A list of specie names that should be included.
-        params (array): Parameters.
-        config (dict): Config
-
-    Returns:
-        list: Filtered specie list.
-        array: Filtered parameters.
-    """
-    specie_list_sub = derive_sub_specie_list(specie_list, species)
-    param_mgr = ParameterManager.from_config(specie_list, config)
-    params_sub = param_mgr.get_subset_params(species, params)
-    return specie_list_sub, params_sub
-
-
 def combine_specie_lists(specie_lists, params_list):
     specie_list_ret = []
     for specie_list in specie_lists:
         specie_list_ret.extend(specie_list)
     params_ret = np.concatenate(params_list)
     return specie_list_ret, params_ret
-
-
-def compute_T_single_data(specie_list, config, params, freq_list):
-    slm_factory = SpectralLineModelFactory.from_config(freq_list, config)
-    T_single_data = defaultdict(dict)
-    for item in specie_list:
-        for name in item["species"]:
-            specie_list_single, params_single \
-                = derive_sub_specie_list_with_params(specie_list, [name], params, config)
-            sl_model = slm_factory.create(specie_list_single)
-            T_single_data[item["id"]][name] = sl_model(params_single)
-    T_single_data = dict(T_single_data)
-    return T_single_data
 
 
 def sum_T_single_data(T_single_dict, T_back=0., key=None):
