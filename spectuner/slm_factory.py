@@ -68,7 +68,7 @@ def derive_sub_specie_list_with_params(slm_factory, obs_info, specie_list, speci
         array: Filtered parameters.
     """
     specie_list_sub = derive_sub_specie_list(specie_list, species)
-    param_mgr = slm_factory.create_parameter_mgr(specie_list_sub, obs_info)
+    param_mgr = slm_factory.create_parameter_mgr(specie_list, obs_info)
     params_sub = param_mgr.get_subset_params(species, params)
     return specie_list_sub, params_sub
 
