@@ -17,7 +17,7 @@ from ..identify import IdentResult
 
 
 def optimize(fitting_model, config_opt, pool):
-    opt = crate_optimizer(config_opt)
+    opt = create_optimizer(config_opt)
     res = opt(fitting_model)
     return res
 
@@ -186,16 +186,14 @@ class SwingOptimizer(Optimizer):
             raise ValueError("Unknown optimizer: {}.".format(self._method))
 
         blob = self._kwargs.get("blob", False)
+        kwargs = deepcopy(self._kwargs)
         if len(args) > 0:
-            initial_pos = args[0]
-        else:
-            initial_pos = None
+            kwargs["initial_pos"] = args[0]
         opt = cls_opt(
             fitting_model,
             fitting_model.bounds,
             pool=pool,
             blob=blob,
-            initial_pos=initial_pos,
             **self._kwargs
         )
         n_cycle_min = self._n_cycle_min \

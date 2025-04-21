@@ -93,7 +93,7 @@ def identify_with_base(idn, pred_data_list, base_data, config):
     specie_list_base = base_data["specie"]
     params_base = base_data["x"]
     T_single_dict_base = compute_T_single_data(
-        specie_list_base, config, params_base, base_data["freq"]
+        idn._slm_factory, idn._obs_info, specie_list_base, params_base
     )
 
     res_dict = {}
@@ -104,7 +104,7 @@ def identify_with_base(idn, pred_data_list, base_data, config):
         )
         T_single_dict = deepcopy(T_single_dict_base)
         T_single_dict.update(compute_T_single_data(
-            data["specie"], config, data["x"], data["freq"]
+            idn._slm_factory, idn._obs_info, data["specie"], data["x"]
         ))
         res = idn.identify(
             specie_list_combine, params_combine, T_single_dict

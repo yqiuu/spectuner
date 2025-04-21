@@ -13,9 +13,10 @@ from ..utils import (
 )
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import (
-    combine_specie_lists, SQLSpectralLineDB, SpectralLineModelFactory
+    combine_specie_lists, create_spectral_line_db,
+    SpectralLineModelFactory
 )
-from ..slm_factory import jit_fitting_model, FittingModel
+from ..slm_factory import jit_fitting_model, FittingModel, SpectralLineModelFactory
 from ..peaks import (
     derive_peak_params, derive_peaks_multi, derive_intersections
 )
@@ -25,7 +26,7 @@ from ..identify import identify, Identification
 __all__ = ["run_combine"]
 
 
-def run_combine(config, result_dir, need_identify=True):
+def run_combine(config, result_dir, need_identify=True, sl_db=None):
     """Combine all individual fitting results.
 
     Args:
@@ -37,8 +38,6 @@ def run_combine(config, result_dir, need_identify=True):
     config = deepcopy(config)
     config["opt"]["n_cycle_dim"] = 0
 
-    obs_data = load_preprocess(config["obs_info"])
-
     prominence = config["peak_manager"]["prominence"]
     rel_height = config["peak_manager"]["rel_height"]
     #
@@ -47,7 +46,7 @@ def run_combine(config, result_dir, need_identify=True):
     if len(pred_data_list) == 0:
         return
 
-    pred_data_list.sort(key=lambda item: item["cost_best"])
+    pred_data_list.sort(key=lambda item: item["fun"])
 
     pack_list = []
     for pred_data in pred_data_list:
@@ -66,20 +65,20 @@ def run_combine(config, result_dir, need_identify=True):
         pack_base = None
 
     with h5py.File(result_dir/"results_combine.h5", "w") as fp:
-        combine_greedy(pack_list, pack_base, obs_data, config_, fp)
+        combine_greedy(pack_list, pack_base, config_, fp, sl_db=sl_db)
 
     if need_identify:
         identify(config, result_dir, "combine")
 
 
-def combine_greedy(pack_list, pack_base, obs_data, config, fp):
+def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
     config_opt = config["opt"]
-    freq_data = get_freq_data(obs_data)
-    sl_database = SQLSpectralLineDB(config["sl_model"]["fname_db"])
-    slm_factory = SpectralLineModelFactory.from_config(
-        freq_data, config, sl_db=sl_database
-    )
-    idn = Identification(obs_data, **config["peak_manager"])
+    if sl_db is None:
+        sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
+    slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
+    obs_info = config["obs_info"]
+    idn = Identification(slm_factory, obs_info)
+    freq_data = get_freq_data(load_preprocess(obs_info))
 
     if pack_base is None:
         pack_curr, pack_list, cand_list = derive_first_pack(pack_list, idn, config)
@@ -97,17 +96,22 @@ def combine_greedy(pack_list, pack_base, obs_data, config, fp):
 
         if has_intersections(pack_curr.spans, pack.spans) and need_opt:
             res_dict = optimize_with_base(
-                pack, slm_factory, obs_data, pack_curr.T_pred_data, config,
-                need_init=True, need_trail=False
+                pack=pack,
+                slm_factory=slm_factory,
+                obs_info=obs_info,
+                T_base_data=pack_curr.T_pred_data,
+                config=config,
+                need_init=True,
+                need_trail=False
             )
             specie_list_new = pack.specie_list
-            params_new = res_dict["params_best"]
+            params_new = res_dict["x"]
             T_pred_data_new = res_dict["T_pred"]
             spans_new = derive_peaks_multi(
                 freq_data, T_pred_data_new,
-                idn.peak_mgr.height_list,
-                idn.peak_mgr.prom_list,
-                idn.peak_mgr.rel_height
+                idn._peak_mgr.height_list,
+                idn._peak_mgr.prom_list,
+                idn._peak_mgr.rel_height
             )[0]
             pack_new = Pack(
                 specie_list_new, params_new, T_pred_data_new, spans_new
@@ -127,17 +131,17 @@ def combine_greedy(pack_list, pack_base, obs_data, config, fp):
             [pack_curr.specie_list, specie_list_new],
             [pack_curr.params, params_new],
         )
-        sl_model = slm_factory.create(specie_list_combine)
+        sl_model = slm_factory.create_sl_model(obs_info, specie_list_combine)
         T_pred_data_combine = sl_model(params_combine)
 
-        res = idn.identify(specie_list_combine, config, params_combine)
+        res = idn.identify(specie_list_combine, params_combine)
         id_new = specie_list_new[0]["id"]
         if check_criteria(res, id_new, config_opt["criteria"]):
             spans_combine = derive_peaks_multi(
                 freq_data, T_pred_data_combine,
-                idn.peak_mgr.height_list,
-                idn.peak_mgr.prom_list,
-                idn.peak_mgr.rel_height
+                idn._peak_mgr.height_list,
+                idn._peak_mgr.prom_list,
+                idn._peak_mgr.rel_height
             )[0]
             pack_curr = Pack(
                 specie_list_combine, params_combine,
@@ -152,7 +156,9 @@ def combine_greedy(pack_list, pack_base, obs_data, config, fp):
         "specie": pack_curr.specie_list,
         "freq": freq_data,
         "T_pred": pack_curr.T_pred_data,
-        "params_best": pack_curr.params,
+        "x": pack_curr.params,
+        "fun": np.nan,
+        "nfev": 0,
     }
     save_fitting_result(fp.create_group("combine"), save_dict)
 
@@ -162,8 +168,13 @@ def combine_greedy(pack_list, pack_base, obs_data, config, fp):
         save_name = derive_specie_save_name(item)
         if has_intersections(pack_curr.spans, pack.spans):
             res_dict = optimize_with_base(
-                pack, slm_factory, obs_data, pack_curr.T_pred_data, config,
-                need_init=False, need_trail=True
+                pack=pack,
+                slm_factory=slm_factory,
+                obs_info=obs_info,
+                T_base_data=pack_curr.T_pred_data,
+                config=config,
+                need_init=False,
+                need_trail=True
             )
             save_fitting_result(fp.create_group(save_name), res_dict)
         else:
@@ -175,14 +186,16 @@ def combine_greedy(pack_list, pack_base, obs_data, config, fp):
                     "specie": pack.specie_list,
                     "freq": freq_data,
                     "T_pred": pack.T_pred_data,
-                    "params_best": pack.params,
+                    "x": pack.params,
+                    "fun": np.nan,
+                    "nfev": 0,
                 }
                 save_fitting_result(fp.create_group(save_name), res_dict)
 
 
 def prepare_properties(pred_data, prominence, rel_height):
     specie_list = pred_data["specie"]
-    params = pred_data["params_best"]
+    params = pred_data["x"]
     T_pred_data = pred_data["T_pred"]
     T_back = 0.
     height_list, prom_list \
@@ -202,7 +215,7 @@ def derive_first_pack(pack_list, idn, config):
     cand_list = []
     for i_pack in range(len(pack_list)):
         pack = pack_list[i_pack]
-        res = idn.identify(pack.specie_list, config, pack.params)
+        res = idn.identify(pack.specie_list, pack.params)
         key = pack.specie_list[0]["id"]
         if check_criteria(res, key, config["opt"]["criteria"]):
             return pack, pack_list[i_pack+1:], cand_list
@@ -211,25 +224,26 @@ def derive_first_pack(pack_list, idn, config):
     return None, None, cand_list
 
 
-def optimize_with_base(pack, slm_factory, obs_data, T_base_data,
+def optimize_with_base(pack, slm_factory, obs_info, T_base_data,
                        config, need_init, need_trail):
     print_fitting(pack.specie_list[0]["species"])
     config_opt = deepcopy(config["opt"])
-    model = FittingModel.from_config(
-        slm_factory, pack.specie_list, obs_data, config, T_base_data
+    fitting_model = slm_factory.create_fitting_model(
+        obs_info=obs_info,
+        specie_list=pack.specie_list,
+        T_base_data=T_base_data,
     )
-    jit_fitting_model(model)
+    jit_fitting_model(fitting_model)
     if need_init:
         initial_pos = derive_initial_pos(
-            pack.params, model.bounds, config_opt["kwargs_opt"]["nswarm"],
+            pack.params, fitting_model.bounds,
+            config_opt["kwargs_opt"]["nswarm"],
         )
         config_opt["kwargs_opt"]["initial_pos"] = initial_pos
     if not need_trail:
         config_opt["n_trail"] = 1
 
-    use_mpi = config["opt"].get("use_mpi", False)
-    with create_pool(config["opt"]["n_process"], use_mpi) as pool:
-        res_dict = optimize(model, config_opt, pool)
+    res_dict = optimize(fitting_model, config_opt, pool=None)
     return res_dict
 
 
