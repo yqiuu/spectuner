@@ -4,6 +4,7 @@ from pathlib import Path
 
 import h5py
 import numpy as np
+from tqdm import tqdm
 
 from .optimize import prepare_base_props, optimize, print_fitting
 from ..config import append_exclude_info
@@ -91,12 +92,15 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
         need_opt = False
         cand_list = []
 
-    for pack in pack_list:
+    pbar = tqdm(pack_list)
+    for pack in pbar:
         if pack.specie_list is None:
+            pbar.update()
             continue
 
         if has_intersections(pack_curr.spans, pack.spans) and need_opt:
-            print_fitting(pack.specie_list[0]["species"])
+            pbar.set_description("Combining {}".format(
+                join_specie_names(pack.specie_list[0]["species"])))
             res_dict = optimize(
                 slm_factory=slm_factory,
                 obs_info=obs_info,
@@ -153,6 +157,9 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
             need_opt = True
         else:
             cand_list.append(pack_new)
+
+        pbar.update()
+    pbar.close()
 
     # Save results
     save_dict = {
@@ -287,6 +294,10 @@ def has_intersections(spans_a, spans_b):
 
 def get_save_dir(config):
     return Path(config["save_dir"])/Path(config["opt"]["dirname"])
+
+
+def join_specie_names(species):
+    return ", ".join(species)
 
 
 @dataclass
