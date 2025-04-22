@@ -5,7 +5,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from .optimize import prepare_base_props, optimize, create_pool, print_fitting
+from .optimize import prepare_base_props, optimize, print_fitting
 from ..config import append_exclude_info
 from ..utils import (
     load_result_list, load_result_combine, save_fitting_result,
@@ -16,7 +16,7 @@ from ..sl_model import (
     combine_specie_lists, create_spectral_line_db,
     SpectralLineModelFactory
 )
-from ..slm_factory import jit_fitting_model, FittingModel, SpectralLineModelFactory
+from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
 from ..peaks import (
     derive_peak_params, derive_peaks_multi, derive_intersections
 )
@@ -96,14 +96,14 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
             continue
 
         if has_intersections(pack_curr.spans, pack.spans) and need_opt:
-            res_dict = optimize_with_base(
-                pack=pack,
+            print_fitting(pack.specie_list[0]["species"])
+            res_dict = optimize(
                 slm_factory=slm_factory,
                 obs_info=obs_info,
+                specie_list=pack.specie_list,
+                config_opt=config_opt,
                 T_base_data=pack_curr.T_pred_data,
-                config=config,
-                need_init=True,
-                need_trail=False
+                x0=pack.params
             )
             specie_list_new = pack.specie_list
             params_new = res_dict["x"]

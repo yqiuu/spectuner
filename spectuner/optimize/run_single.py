@@ -8,7 +8,7 @@ from .optimize import prepare_base_props, optimize, create_optimizer, print_fitt
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import query_species, select_master_name, create_spectral_line_db
-from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
+from ..slm_factory import SpectralLineModelFactory
 from ..ai import predict_single_pixel, InferenceModel
 from ..peaks import PeakManager
 from ..identify import identify
@@ -77,13 +77,13 @@ def fit_all(slm_factory: SpectralLineModelFactory,
     results = []
     for specie_list in targets:
         print_fitting(specie_list[0]["species"])
-        fitting_model = slm_factory.create_fitting_model(
+        res_dict = optimize(
+            slm_factory=slm_factory,
             obs_info=obs_info,
             specie_list=specie_list,
             T_base_data=base_props["T_base"],
+            config_opt=config_opt,
         )
-        jit_fitting_model(fitting_model)
-        res_dict = optimize(fitting_model, config_opt, pool=None)
         results.append(res_dict)
     return results
 
