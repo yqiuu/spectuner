@@ -37,7 +37,7 @@ def predict_single_pixel(inf_model: InferenceModel,
         max_diff=max_diff,
         max_batch_size=max_batch_size
     )
-    results = inf_model(inputs, postprocess, pool, device, disable_pbar)
+    results = inf_model.call_multi(inputs, postprocess, pool, device, disable_pbar)
     results = [results[lookup_re[idx]] for idx in range(len(results))]
     return results
 
@@ -139,8 +139,34 @@ class InferenceModel:
         slm_factory = SpectralLineModelFactory(config, sl_db=embedding_model.sl_db)
         return cls(model, embedding_model, slm_factory)
 
-    def __call__(self, inputs, postprocess,
-                 pool=None, device=None, disable_pbar=False):
+    def call_single(self,
+                    obs_info: list,
+                    specie_name: str,
+                    postprocess: Callable,
+                    T_base_data: Optional[list]=None,
+                    device: Optional[str]=None) -> dict:
+        if T_base_data is None:
+            obs_info_ = obs_info
+        else:
+            obs_info_ = deepcopy(obs_info)
+            for i_segment, T_base in zip(obs_info, T_base_data):
+                obs_info_[i_segment]["spec"] += T_base
+
+        embed_obs, embed_sl, sl_dict, specie_list \
+                = self.embedding_model(obs_info, specie_name)
+        fitting_model = self.slm_factory.create_fitting_model(
+            obs_info, specie_list, [sl_dict]
+        )
+        embed_obs = torch.from_numpy(embed_obs).unsqueeze(0).to(device)
+        embed_sl = torch.from_numpy(embed_sl).unsqueeze(0).to(device)
+        mask = None
+        samps, log_prob, embed = self.draw_samples(
+            postprocess.n_draw, embed_obs, embed_sl, mask
+        )
+        return postprocess(fitting_model, samps[0], log_prob[0], embed[0])
+
+    def call_multi(self, inputs, postprocess,
+                   pool=None, device=None, disable_pbar=False):
         results = []
         wait_list = []
         total = len(inputs)
