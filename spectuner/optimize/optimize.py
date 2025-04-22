@@ -261,11 +261,9 @@ class ScipyOptimizer(Optimizer):
             lower, upper = fitting_model.bounds.T
             samps_ = lower \
                 + (upper - lower)*np.random.rand(self._n_compute, len(lower))
-            samps_sub = samps_
         else:
             samps_, log_prob = args[:2]
             cut = np.percentile(log_prob, 75.)
-            samps_sub = samps_[log_prob > cut]
 
         values = tuple(map(fitting_model, samps_[:self._n_compute]))
         l_tot = np.asarray(values)
@@ -280,8 +278,7 @@ class ScipyOptimizer(Optimizer):
         else:
             kwargs = {"method": self._method}
             if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
-                lower = np.min(samps_sub)
-                upper = np.max(samps_sub)
+                lower, upper = fitting_model.bounds.T
                 h = 1.e-5
                 kwargs.update(
                     jac=self._jac,
