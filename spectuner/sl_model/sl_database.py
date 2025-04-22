@@ -91,7 +91,8 @@ def query_species(sl_db: SpectralLineDB,
         for entry in species:
             record = MolRecord(entry, rename_dict)
             if collect_iso:
-                prefix = record[:1]
+                prefix = list(record)
+                prefix[1] = "?"
             else:
                 prefix = record
             records_include.extend(mol_tire.search(prefix))
@@ -348,22 +349,26 @@ class MolTrie:
         node.record = record
 
     def search(self, prefix):
-        node = self
-        for char in prefix:
-            if char not in node.children:
-                return []
-            node = node.children[char]
-
         records = []
-        self._dfs(node, prefix, records)
+        self._dfs(self, prefix, (), records)
         return records
 
-    def _dfs(self, node, prefix, records):
-        if node.record is not None:
-            records.append(node.record)
+    def _dfs(self, node, prefix, current_path, records):
+        if not prefix:
+            if node.record is not None:
+                records.append(node.record)
+            for child_char, child_node in node.children.items():
+                self._dfs(child_node, prefix, (*current_path, child_char), records)
+            return
 
-        for char, child_node in node.children.items():
-            self._dfs(child_node, (*prefix, char), records)
+        char = prefix[0]
+
+        if char == "?":
+            for child_char, child_node in node.children.items():
+                self._dfs(child_node, prefix[1:], (*current_path, child_char), records)
+        else:
+            if char in node.children:
+                self._dfs(node.children[char], prefix[1:], (*current_path, char), records)
 
 
 class SpectralLineDB(ABC):
