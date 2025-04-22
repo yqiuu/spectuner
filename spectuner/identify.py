@@ -39,6 +39,7 @@ def identify(config, target, mode=None, sl_db=None):
             weights_only=True
         )
         config["sl_model"]["params"] = ckpt["config"]["sl_model"]["params"]
+    use_f_dice = config["identify"]["use_f_dice"]
 
     slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
     idn = Identification(slm_factory, config["obs_info"])
@@ -67,21 +68,25 @@ def identify(config, target, mode=None, sl_db=None):
 
     pred_data_list = load_result_list(fname)
     if base_data is None:
-        res_dict = identify_without_base(idn, pred_data_list)
+        res_dict = identify_without_base(idn, pred_data_list, use_f_dice)
     else:
-        res_dict = identify_with_base(idn, pred_data_list, base_data, config)
+        res_dict = identify_with_base(idn, pred_data_list, base_data, use_f_dice)
     with h5py.File(fname.parent/f"identify_{fname.name}", "w") as fp:
         if mode == "combine" and base_data is not None:
-            res = idn.identify(base_data["specie"], base_data["x"])
+            res = idn.identify(
+                base_data["specie"], base_data["x"], use_f_dice=use_f_dice
+            )
             res.save_hdf(fp.create_group("combine"))
         for key, res in res_dict.items():
             res.save_hdf(fp.create_group(key))
 
 
-def identify_without_base(idn, pred_data_list):
+def identify_without_base(idn, pred_data_list, use_f_dice):
     res_dict = {}
     for data in pred_data_list:
-        res = idn.identify(data["specie"], data["x"])
+        res = idn.identify(
+            data["specie"], data["x"], use_f_dice=use_f_dice
+        )
         if res.is_empty():
             continue
         assert len(data["specie"]) == 1
@@ -89,7 +94,7 @@ def identify_without_base(idn, pred_data_list):
     return res_dict
 
 
-def identify_with_base(idn, pred_data_list, base_data, config):
+def identify_with_base(idn, pred_data_list, base_data, use_f_dice):
     specie_list_base = base_data["specie"]
     params_base = base_data["x"]
     T_single_dict_base = compute_T_single_data(
@@ -107,7 +112,8 @@ def identify_with_base(idn, pred_data_list, base_data, config):
             idn._slm_factory, idn._obs_info, data["specie"], data["x"]
         ))
         res = idn.identify(
-            specie_list_combine, params_combine, T_single_dict
+            specie_list_combine, params_combine, T_single_dict,
+            use_f_dice=use_f_dice
         )
         if res.is_empty():
             continue

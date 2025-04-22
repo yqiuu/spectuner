@@ -79,6 +79,7 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
     obs_info = config["obs_info"]
     idn = Identification(slm_factory, obs_info)
     freq_data = get_freq_data(load_preprocess(obs_info))
+    use_f_dice = config["identify"]["use_f_dice"]
 
     if pack_base is None:
         pack_curr, pack_list, cand_list = derive_first_pack(pack_list, idn, config)
@@ -134,7 +135,9 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
         sl_model = slm_factory.create_sl_model(obs_info, specie_list_combine)
         T_pred_data_combine = sl_model(params_combine)
 
-        res = idn.identify(specie_list_combine, params_combine)
+        res = idn.identify(
+            specie_list_combine, params_combine, use_f_dice=use_f_dice
+        )
         id_new = specie_list_new[0]["id"]
         if check_criteria(res, id_new, config_opt["criteria"]):
             spans_combine = derive_peaks_multi(
@@ -215,7 +218,10 @@ def derive_first_pack(pack_list, idn, config):
     cand_list = []
     for i_pack in range(len(pack_list)):
         pack = pack_list[i_pack]
-        res = idn.identify(pack.specie_list, pack.params)
+        res = idn.identify(
+            pack.specie_list, pack.params,
+            use_f_dice=config["identify"]["use_f_dice"]
+        )
         key = pack.specie_list[0]["id"]
         if check_criteria(res, key, config["opt"]["criteria"]):
             return pack, pack_list[i_pack+1:], cand_list
