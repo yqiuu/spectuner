@@ -1,6 +1,7 @@
 from __future__ import annotations
 import sys
 import inspect
+from typing import Optional
 from abc import ABC, abstractmethod
 from pathlib import Path
 from copy import deepcopy
@@ -13,13 +14,26 @@ from scipy.optimize import minimize
 from tqdm import trange
 
 from ..peaks import create_spans
+from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
 from ..identify import IdentResult
 
 
-def optimize(fitting_model, config_opt, pool):
+def optimize(slm_factory: SpectralLineModelFactory,
+             obs_info: list,
+             specie_list: list,
+             config_opt: dict,
+             T_base_data: Optional[list]=None,
+             x0: Optional[np.ndarray]=None):
+    fitting_model = slm_factory.create_fitting_model(
+        obs_info=obs_info,
+        specie_list=specie_list,
+        T_base_data=T_base_data,
+    )
+    jit_fitting_model(fitting_model)
     opt = create_optimizer(config_opt)
-    res = opt(fitting_model)
-    return res
+    if x0 is None:
+        return opt(fitting_model)
+    return opt(fitting_model, x0)
 
 
 def create_pool(n_process, use_mpi):
@@ -134,6 +148,14 @@ class Optimizer(ABC):
 
     @abstractmethod
     def __call__(self, fitting_model, *args) -> dict:
+        """
+        This method may have the following input signatures:
+
+          - ``len(args) == 0``: Default mode.
+          - ``len(args) == 1``: Possible initial guess is provided.
+          - ``len(args) > 1``: Possible initial guess ``(n_draw, D)``
+            is provided.
+        """
         raise NotImplementedError
 
     @property
@@ -188,7 +210,9 @@ class SwingOptimizer(Optimizer):
         blob = self._kwargs.get("blob", False)
         kwargs = deepcopy(self._kwargs)
         if len(args) > 0:
-            kwargs["initial_pos"] = args[0]
+            kwargs["initial_pos"] = self.derive_initial_pos(
+                args[0], fitting_model.bounds, kwargs["nswarm"]
+            )
         opt = cls_opt(
             fitting_model,
             fitting_model.bounds,
@@ -248,13 +272,18 @@ class SwingOptimizer(Optimizer):
             res_dict["blob"] = np.asarray(blob)
         return res_dict
 
+    def derive_initial_pos(self, x0, bounds, n_swarm):
+        assert n_swarm >= 1
 
-class ScipyOptimizer(Optimizer):
-    def __init__(self, method, n_draw=50, n_compute=50, jac="2-point"):
+        lb, ub = bounds.T
+        initial_pos = lb + (ub - lb)*np.random.rand(n_swarm - 1, 1)
+        initial_pos = np.vstack([x0, initial_pos])
+        return initial_pos
+
+
+class UniformOptimizer(Optimizer):
+    def __init__(self, n_draw=50):
         super().__init__(n_draw)
-        self._n_compute = n_compute
-        self._method = method
-        self._jac = jac
 
     def __call__(self, fitting_model, *args) -> dict:
         if len(args) == 0:
@@ -262,44 +291,71 @@ class ScipyOptimizer(Optimizer):
             samps_ = lower \
                 + (upper - lower)*np.random.rand(self._n_compute, len(lower))
         else:
-            samps_, log_prob = args[:2]
-            cut = np.percentile(log_prob, 75.)
+            samps_ = args[0]
 
         values = tuple(map(fitting_model, samps_[:self._n_compute]))
         l_tot = np.asarray(values)
-        x0 = samps_[np.argmin(l_tot)].astype("f8")
-        l_tot_min = np.min(l_tot)
+        idx = np.argmin(l_tot)
+        x0 = samps_[idx]
+        l_tot_min = l_tot[idx]
 
-        if self._method == "vanilla":
+        return {
+            "x":  x0,
+            "fun": l_tot_min,
+            "nfev": self._n_compute + 1,
+            "specie": fitting_model.sl_model.specie_list,
+            "freq": fitting_model.sl_model.freq_data,
+            "T_pred": fitting_model.sl_model(x0),
+        }
+
+
+class ScipyOptimizer(Optimizer):
+    def __init__(self, method, n_draw=50, jac="2-point"):
+        super().__init__(n_draw)
+        self._method = method
+        self._jac = jac
+
+    def __call__(self, fitting_model, *args) -> dict:
+        if len(args) == 1:
+            x0 = args[0]
+            l_tot_min = fitting_model(x0)
+            nfev = 1
+        else:
+            if len(args) == 0:
+                lower, upper = fitting_model.bounds.T
+                samps_ = lower \
+                    + (upper - lower)*np.random.rand(self.n_draw, len(lower))
+            else:
+                samps_ = args[0]
+            values = tuple(map(fitting_model, samps_))
+            l_tot = np.asarray(values)
+            x0 = samps_[np.argmin(l_tot)].astype("f8")
+            l_tot_min = np.min(l_tot)
+            nfev = self.n_draw
+
+        kwargs = {"method": self._method}
+        if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
+            lower, upper = fitting_model.bounds.T
+            h = 1.e-5
+            kwargs.update(
+                jac=self._jac,
+                options={"eps": h*(upper - lower)}
+            )
+        res = minimize(
+            fitting_model,
+            x0=x0,
+            bounds=fitting_model.bounds,
+            **kwargs
+        )
+
+        if res.fun < l_tot_min:
+            x_best = res.x
+            fun = res.fun
+        else:
             x_best = x0
             fun = l_tot_min
-            nfev = self._n_compute + 1
-            #success = True
-        else:
-            kwargs = {"method": self._method}
-            if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
-                lower, upper = fitting_model.bounds.T
-                h = 1.e-5
-                kwargs.update(
-                    jac=self._jac,
-                    options={"eps": h*(upper - lower)}
-                )
-            res = minimize(
-                fitting_model,
-                x0=x0,
-                bounds=fitting_model.bounds,
-                **kwargs
-            )
 
-            if res.fun < l_tot_min:
-                x_best = res.x
-                fun = res.fun
-            else:
-                x_best = x0
-                fun = l_tot_min
-
-            nfev = res.nfev + self._n_compute + 1
-            #success = res.success
+        nfev += res.nfev + 1
 
         return {
             "x":  x_best,
