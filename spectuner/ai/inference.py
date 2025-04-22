@@ -149,13 +149,13 @@ class InferenceModel:
             obs_info_ = obs_info
         else:
             obs_info_ = deepcopy(obs_info)
-            for i_segment, T_base in zip(obs_info, T_base_data):
-                obs_info_[i_segment]["spec"] += T_base
+            for item, T_base in zip(obs_info_, T_base_data):
+                item["spec"][:, 1] -= T_base
 
         embed_obs, embed_sl, sl_dict, specie_list \
-                = self.embedding_model(obs_info, specie_name)
+                = self.embedding_model(obs_info_, specie_name)
         fitting_model = self.slm_factory.create_fitting_model(
-            obs_info, specie_list, [sl_dict]
+            obs_info, specie_list, [sl_dict], T_base_data=T_base_data
         )
         embed_obs = torch.from_numpy(embed_obs).unsqueeze(0).to(device)
         embed_sl = torch.from_numpy(embed_sl).unsqueeze(0).to(device)
