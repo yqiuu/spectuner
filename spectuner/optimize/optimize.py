@@ -1,5 +1,4 @@
 from __future__ import annotations
-import sys
 import inspect
 import multiprocessing as mp
 from typing import Optional, Union
@@ -11,7 +10,6 @@ import h5py
 import numpy as np
 from swing import ParticleSwarm, ArtificialBeeColony
 from scipy.optimize import minimize
-from tqdm import trange
 
 from ..peaks import create_spans
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
@@ -293,7 +291,7 @@ class SwingOptimizer(Optimizer):
         cost_all = []
         blob = []
         n_stuck = 0
-        for i_cycle in trange(n_cycle_max, file=sys.stdout):
+        for i_cycle in range(n_cycle_max):
             for data in opt.swarm(niter=1, progress_bar=False).values():
                 if self._save_all:
                     pos_all.append(data["pos"])
