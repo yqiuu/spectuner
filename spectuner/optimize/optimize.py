@@ -19,33 +19,34 @@ from ..ai import predict_single_pixel, InferenceModel
 from ..identify import IdentResult
 
 
-def optimize(slm_factory: SpectralLineModelFactory,
+def optimize(engine: Union[SpectralLineModelFactory, InferenceModel],
              obs_info: list,
              specie_list: list,
              config_opt: dict,
              T_base_data: Optional[list]=None,
              x0: Optional[np.ndarray]=None,
-             inf_model: Optional[InferenceModel]=None,
-             device: Optional[str]=None):
+             config_inf: dict=None):
     opt = create_optimizer(config_opt)
-    if inf_model is not None:
-        return inf_model.call_single(
+    if isinstance(engine, SpectralLineModelFactory):
+        fitting_model = engine.create_fitting_model(
+            obs_info=obs_info,
+            specie_list=specie_list,
+            T_base_data=T_base_data,
+        )
+        jit_fitting_model(fitting_model)
+        if x0 is None:
+            return opt(fitting_model)
+        return opt(fitting_model, x0)
+    elif isinstance(engine, InferenceModel) is not None:
+        return engine.call_single(
             obs_info=obs_info,
             specie_name=specie_list[0]["root"],
             postprocess=opt,
             T_base_data=T_base_data,
-            device=device,
+            device=config_inf["device"],
         )
-
-    fitting_model = slm_factory.create_fitting_model(
-        obs_info=obs_info,
-        specie_list=specie_list,
-        T_base_data=T_base_data,
-    )
-    jit_fitting_model(fitting_model)
-    if x0 is None:
-        return opt(fitting_model)
-    return opt(fitting_model, x0)
+    else:
+        raise ValueError(f"Unknown engine: {engine}.")
 
 
 def optimize_all(engine: Union[SpectralLineModelFactory, InferenceModel],

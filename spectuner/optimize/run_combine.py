@@ -80,10 +80,8 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
     slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
     if config["inference"]["ckpt"] is not None:
         inf_model = InferenceModel.from_config(config, sl_db=sl_db)
-        device = config["inference"]["device"]
     else:
         inf_model = None
-        device = None
     obs_info = config["obs_info"]
     idn = Identification(slm_factory, obs_info)
     freq_data = get_freq_data(load_preprocess(obs_info))
@@ -108,15 +106,18 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
         if has_intersections(pack_curr.spans, pack.spans) and need_opt:
             pbar.set_description("Combining {}".format(
                 join_specie_names(pack.specie_list[0]["species"])))
+            if inf_model is None:
+                engine = slm_factory
+            else:
+                engine = inf_model
             res_dict = optimize(
-                slm_factory=slm_factory,
+                engine=engine,
                 obs_info=obs_info,
                 specie_list=pack.specie_list,
                 config_opt=config_opt,
                 T_base_data=pack_curr.T_pred_data,
                 x0=pack.params,
-                inf_model=inf_model,
-                device=device,
+                config_inf=config["inference"]
             )
             specie_list_new = pack.specie_list
             params_new = res_dict["x"]
