@@ -15,6 +15,7 @@ from tqdm import trange
 
 from ..peaks import create_spans
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
+from ..ai import InferenceModel
 from ..identify import IdentResult
 
 
@@ -23,14 +24,25 @@ def optimize(slm_factory: SpectralLineModelFactory,
              specie_list: list,
              config_opt: dict,
              T_base_data: Optional[list]=None,
-             x0: Optional[np.ndarray]=None):
+             x0: Optional[np.ndarray]=None,
+             inf_model: Optional[InferenceModel]=None,
+             device: Optional[str]=None):
+    opt = create_optimizer(config_opt)
+    if inf_model is not None:
+        return inf_model.call_single(
+            obs_info=obs_info,
+            specie_name=specie_list[0]["root"],
+            postprocess=opt,
+            T_base_data=T_base_data,
+            device=device,
+        )
+
     fitting_model = slm_factory.create_fitting_model(
         obs_info=obs_info,
         specie_list=specie_list,
         T_base_data=T_base_data,
     )
     jit_fitting_model(fitting_model)
-    opt = create_optimizer(config_opt)
     if x0 is None:
         return opt(fitting_model)
     return opt(fitting_model, x0)

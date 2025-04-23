@@ -18,6 +18,7 @@ from ..sl_model import (
     SpectralLineModelFactory
 )
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
+from ..ai import InferenceModel
 from ..peaks import (
     derive_peak_params, derive_peaks_multi, derive_intersections
 )
@@ -77,6 +78,12 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
     if sl_db is None:
         sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
     slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
+    if config["inference"]["ckpt"] is not None:
+        inf_model = InferenceModel.from_config(config, sl_db=sl_db)
+        device = config["inference"]["device"]
+    else:
+        inf_model = None
+        device = None
     obs_info = config["obs_info"]
     idn = Identification(slm_factory, obs_info)
     freq_data = get_freq_data(load_preprocess(obs_info))
@@ -92,10 +99,9 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
         need_opt = False
         cand_list = []
 
-    pbar = tqdm(pack_list)
+    pbar = tqdm(pack_list[:30])
     for pack in pbar:
         if pack.specie_list is None:
-            pbar.update()
             continue
 
         if has_intersections(pack_curr.spans, pack.spans) and need_opt:
@@ -107,7 +113,9 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
                 specie_list=pack.specie_list,
                 config_opt=config_opt,
                 T_base_data=pack_curr.T_pred_data,
-                x0=pack.params
+                x0=pack.params,
+                inf_model=inf_model,
+                device=device,
             )
             specie_list_new = pack.specie_list
             params_new = res_dict["x"]
@@ -158,7 +166,6 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
         else:
             cand_list.append(pack_new)
 
-        pbar.update()
     pbar.close()
 
     # Save results
