@@ -39,9 +39,6 @@ def run_combine(config, result_dir, need_identify=True, sl_db=None):
             directory to save the results of the individual fitting.
         need_identify (bool):  If ``True``, peform the identification.
     """
-    config = deepcopy(config)
-    config["opt"]["n_cycle_dim"] = 0
-
     prominence = config["peak_manager"]["prominence"]
     rel_height = config["peak_manager"]["rel_height"]
     #
@@ -81,7 +78,6 @@ def run_combine(config, result_dir, need_identify=True, sl_db=None):
 
 
 def combine_greedy(pack_list, pack_base, config, sl_db=None):
-    config_opt = config["opt"]
     if sl_db is None:
         sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
     slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
@@ -106,7 +102,7 @@ def combine_greedy(pack_list, pack_base, config, sl_db=None):
         cand_list = []
 
     save_dict = {}
-    pbar = tqdm(pack_list[:10])
+    pbar = tqdm(pack_list)
     for pack in pbar:
         if pack.specie_list is None:
             continue
@@ -118,7 +114,7 @@ def combine_greedy(pack_list, pack_base, config, sl_db=None):
                 engine=engine,
                 obs_info=obs_info,
                 specie_list=pack.specie_list,
-                config_opt=config_opt,
+                config_opt=config["opt_combine"],
                 T_base_data=pack_curr.T_pred_data,
                 x0=pack.params,
                 config_inf=config["inference"]
@@ -213,12 +209,12 @@ def combine_greedy(pack_list, pack_base, config, sl_db=None):
     else:
         trans_counts = None
 
-    with mp.Pool(config["opt"]["n_process"]) as pool:
+    with mp.Pool(config["opt_single"]["n_process"]) as pool:
         results = optimize_all(
             engine=engine,
             obs_info=obs_info,
             targets=targets,
-            config_opt=config["opt"],
+            config_opt=config["opt_single"],
             T_base_data=pack_curr.T_pred_data,
             trans_counts=trans_counts,
             config_inf=config["inference"],
@@ -317,10 +313,6 @@ def get_max_order(criteria):
 
 def has_intersections(spans_a, spans_b):
     return len(derive_intersections(spans_a, spans_b)[0]) > 0
-
-
-def get_save_dir(config):
-    return Path(config["save_dir"])/Path(config["opt"]["dirname"])
 
 
 def join_specie_names(species):

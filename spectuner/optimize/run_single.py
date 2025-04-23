@@ -39,7 +39,7 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
         sl_db, base_props["id_offset"],
         base_props["spans_include"], config
     )
-    with mp.Pool(config["opt"]["n_process"]) as pool:
+    with mp.Pool(config["opt_single"]["n_process"]) as pool:
         if config["inference"]["ckpt"] is None:
             engine = slm_factory
         else:
@@ -48,7 +48,7 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
             engine=engine,
             obs_info=config["obs_info"],
             targets=targets,
-            config_opt=config["opt"],
+            config_opt=config["opt_single"],
             T_base_data=base_props["T_base"],
             trans_counts=trans_counts,
             config_inf=config["inference"],
@@ -77,7 +77,7 @@ def create_specie_list(sl_db, id_offset, spans, config):
         freq_data=get_freq_data(obs_data),
         v_LSR=config["sl_model"].get("vLSR", 0.),
         freqs_include=freqs,
-        v_range=config["opt"]["bounds"]["v_LSR"],
+        v_range=config["bound_info"]["v_LSR"],
         **config["species"],
     )
 
