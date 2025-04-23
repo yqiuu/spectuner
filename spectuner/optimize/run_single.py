@@ -4,12 +4,12 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from .optimize import prepare_base_props, optimize, create_optimizer, print_fitting
+from .optimize import prepare_base_props, optimize_all
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import query_species, select_master_name, create_spectral_line_db
 from ..slm_factory import SpectralLineModelFactory
-from ..ai import predict_single_pixel, InferenceModel
+from ..ai import InferenceModel
 from ..peaks import PeakManager
 from ..identify import identify
 from ..utils import save_fitting_result, derive_specie_save_name
@@ -41,24 +41,19 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
     )
     with mp.Pool(config["opt"]["n_process"]) as pool:
         if config["inference"]["ckpt"] is None:
-            results = fit_all(
-                slm_factory=slm_factory,
-                obs_info=config["obs_info"],
-                targets=targets,
-                base_props=base_props,
-                config_opt=config["opt"],
-            )
+            engine = slm_factory
         else:
-            inf_model = InferenceModel.from_config(config, sl_db=sl_db)
-            results = fit_all_with_agent(
-                inf_model=inf_model,
-                obs_info=config["obs_info"],
-                targets=targets,
-                trans_counts=trans_counts,
-                config_opt=config["opt"],
-                config_inf=config["inference"],
-                pool=pool
-            )
+            engine = InferenceModel.from_config(config, sl_db=sl_db)
+        results = optimize_all(
+            engine=engine,
+            obs_info=config["obs_info"],
+            targets=targets,
+            config_opt=config["opt"],
+            T_base_data=base_props["T_base"],
+            trans_counts=trans_counts,
+            config_inf=config["inference"],
+            pool=pool,
+        )
 
     with h5py.File(Path(result_dir)/"results_single.h5", "w") as fp:
         for res in results:
@@ -67,55 +62,6 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
 
     if need_identify:
         identify(config, result_dir, "single", sl_db=sl_db)
-
-
-def fit_all(slm_factory: SpectralLineModelFactory,
-            obs_info: list,
-            targets: list,
-            base_props: dict,
-            config_opt: dict) -> list:
-    results = []
-    for specie_list in targets:
-        print_fitting(specie_list[0]["species"])
-        res_dict = optimize(
-            slm_factory=slm_factory,
-            obs_info=obs_info,
-            specie_list=specie_list,
-            T_base_data=base_props["T_base"],
-            config_opt=config_opt,
-        )
-        results.append(res_dict)
-    return results
-
-
-def fit_all_with_agent(inf_model: InferenceModel,
-                       obs_info: list,
-                       targets: list,
-                       trans_counts: dict,
-                       config_opt: dict,
-                       config_inf: dict,
-                       pool: mp.Pool) -> list:
-    specie_names = []
-    numbers = []
-    for specie_list in targets:
-        name = specie_list[0]["root"]
-        specie_names.append(name)
-        numbers.append(trans_counts[name])
-    opt = create_optimizer(config_opt)
-    results = predict_single_pixel(
-        inf_model=inf_model,
-        obs_info=obs_info,
-        entries=specie_names,
-        numbers=numbers,
-        postprocess=opt,
-        max_diff=config_inf["max_diff"],
-        max_batch_size=config_inf["max_batch_size"],
-        device=config_inf["device"],
-        pool=pool
-    )
-    for res, specie_list in zip(results, targets):
-        res["specie"] = specie_list
-    return results
 
 
 def create_specie_list(sl_db, id_offset, spans, config):

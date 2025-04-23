@@ -1,11 +1,11 @@
 from __future__ import annotations
 import sys
 import inspect
-from typing import Optional
+import multiprocessing as mp
+from typing import Optional, Union
 from abc import ABC, abstractmethod
 from pathlib import Path
 from copy import deepcopy
-from multiprocessing import Pool
 
 import h5py
 import numpy as np
@@ -15,7 +15,7 @@ from tqdm import trange
 
 from ..peaks import create_spans
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
-from ..ai import InferenceModel
+from ..ai import predict_single_pixel, InferenceModel
 from ..identify import IdentResult
 
 
@@ -46,6 +46,54 @@ def optimize(slm_factory: SpectralLineModelFactory,
     if x0 is None:
         return opt(fitting_model)
     return opt(fitting_model, x0)
+
+
+def optimize_all(engine: Union[SpectralLineModelFactory, InferenceModel],
+                 obs_info: list,
+                 targets: list,
+                 config_opt: dict,
+                 T_base_data: list=None,
+                 trans_counts: dict=None,
+                 config_inf: dict=None,
+                 pool: mp.Pool=None):
+    # Optimize without inference model
+    if isinstance(engine, SpectralLineModelFactory):
+        results = []
+        for specie_list in targets:
+            print_fitting(specie_list[0]["species"])
+            res_dict = optimize(
+                slm_factory=engine,
+                obs_info=obs_info,
+                specie_list=specie_list,
+                T_base_data=T_base_data,
+                config_opt=config_opt,
+            )
+            results.append(res_dict)
+        return results
+    elif isinstance(engine, InferenceModel):
+        specie_names = []
+        numbers = []
+        for specie_list in targets:
+            name = specie_list[0]["root"]
+            specie_names.append(name)
+            numbers.append(trans_counts[name])
+        opt = create_optimizer(config_opt)
+        results = predict_single_pixel(
+            inf_model=engine,
+            obs_info=obs_info,
+            entries=specie_names,
+            numbers=numbers,
+            postprocess=opt,
+            max_diff=config_inf["max_diff"],
+            max_batch_size=config_inf["max_batch_size"],
+            device=config_inf["device"],
+            pool=pool
+        )
+        for res, specie_list in zip(results, targets):
+            res["specie"] = specie_list
+        return results
+    else:
+        raise ValueError(f"Unknown engine: {engine}.")
 
 
 def create_pool(n_process, use_mpi):
