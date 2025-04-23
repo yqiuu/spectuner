@@ -1,12 +1,14 @@
+import multiprocessing as mp
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
+from collections import Counter
 
 import h5py
 import numpy as np
 from tqdm import tqdm
 
-from .optimize import prepare_base_props, optimize, print_fitting
+from .optimize import prepare_base_props, optimize, optimize_all, print_fitting
 from ..config import append_exclude_info
 from ..utils import (
     load_result_list, load_result_combine, save_fitting_result,
@@ -66,22 +68,27 @@ def run_combine(config, result_dir, need_identify=True, sl_db=None):
         config_ = config
         pack_base = None
 
+    combine_dict, save_dict = combine_greedy(
+        pack_list, pack_base, config_, sl_db=sl_db
+    )
     with h5py.File(result_dir/"results_combine.h5", "w") as fp:
-        combine_greedy(pack_list, pack_base, config_, fp, sl_db=sl_db)
+        save_fitting_result(fp.create_group("combine"), combine_dict)
+        for save_name, res in save_dict.items():
+            save_fitting_result(fp.create_group(save_name), res)
 
     if need_identify:
         identify(config, result_dir, "combine")
 
 
-def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
+def combine_greedy(pack_list, pack_base, config, sl_db=None):
     config_opt = config["opt"]
     if sl_db is None:
         sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
     slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
-    if config["inference"]["ckpt"] is not None:
-        inf_model = InferenceModel.from_config(config, sl_db=sl_db)
+    if config["inference"]["ckpt"] is None:
+        engine = slm_factory
     else:
-        inf_model = None
+        engine = InferenceModel.from_config(config, sl_db=sl_db)
     obs_info = config["obs_info"]
     idn = Identification(slm_factory, obs_info)
     freq_data = get_freq_data(load_preprocess(obs_info))
@@ -98,6 +105,7 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
         need_opt = False
         cand_list = []
 
+    save_dict = {}
     pbar = tqdm(pack_list[:10])
     for pack in pbar:
         if pack.specie_list is None:
@@ -106,10 +114,6 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
         if has_intersections(pack_curr.spans, pack.spans) and need_opt:
             pbar.set_description("Combining {}".format(
                 join_specie_names(pack.specie_list[0]["species"])))
-            if inf_model is None:
-                engine = slm_factory
-            else:
-                engine = inf_model
             res_dict = optimize(
                 engine=engine,
                 obs_info=obs_info,
@@ -135,7 +139,7 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
             # Save opt results
             item = pack.specie_list[0]
             save_name = "tmp_{}".format(derive_specie_save_name(item))
-            save_fitting_result(fp.create_group(save_name), res_dict)
+            save_dict[save_name] = res_dict
         else:
             params_new = pack.params
             specie_list_new = pack.specie_list
@@ -170,8 +174,8 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
 
     pbar.close()
 
-    # Save results
-    save_dict = {
+    # Set result
+    combine_dict = {
         "specie": pack_curr.specie_list,
         "freq": freq_data,
         "T_pred": pack_curr.T_pred_data,
@@ -179,29 +183,22 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
         "fun": np.nan,
         "nfev": 0,
     }
-    save_fitting_result(fp.create_group("combine"), save_dict)
 
-    #
+    # Process candidates
+    targets = []
+    target_names = []
     for pack in cand_list:
         item = pack.specie_list[0]
         save_name = derive_specie_save_name(item)
         if has_intersections(pack_curr.spans, pack.spans):
-            res_dict = optimize_with_base(
-                pack=pack,
-                slm_factory=slm_factory,
-                obs_info=obs_info,
-                T_base_data=pack_curr.T_pred_data,
-                config=config,
-                need_init=False,
-                need_trail=True
-            )
-            save_fitting_result(fp.create_group(save_name), res_dict)
+            targets.append(pack.specie_list)
+            target_names.append(save_name)
         else:
             src_name = "tmp_{}".format(save_name)
-            if src_name in fp:
-                fp[save_name] = fp[src_name]
+            if src_name in save_dict:
+                save_dict[save_name] = save_dict[src_name]
             else:
-                res_dict = {
+                save_dict[save_name] = {
                     "specie": pack.specie_list,
                     "freq": freq_data,
                     "T_pred": pack.T_pred_data,
@@ -209,7 +206,28 @@ def combine_greedy(pack_list, pack_base, config, fp, sl_db=None):
                     "fun": np.nan,
                     "nfev": 0,
                 }
-                save_fitting_result(fp.create_group(save_name), res_dict)
+
+    if isinstance(engine, InferenceModel):
+        entries = sl_db.query_transitions(freq_data)
+        trans_counts = Counter([name for name, _ in entries])
+    else:
+        trans_counts = None
+
+    with mp.Pool(config["opt"]["n_process"]) as pool:
+        results = optimize_all(
+            engine=engine,
+            obs_info=obs_info,
+            targets=targets,
+            config_opt=config["opt"],
+            T_base_data=pack_curr.T_pred_data,
+            trans_counts=trans_counts,
+            config_inf=config["inference"],
+            pool=pool,
+        )
+    for save_name, res in zip(target_names, results):
+        save_dict[save_name] = res
+
+    return combine_dict, save_dict
 
 
 def prepare_properties(pred_data, prominence, rel_height):
