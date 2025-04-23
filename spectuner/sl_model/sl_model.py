@@ -56,10 +56,11 @@ def compute_effective_spectra(slm_state, params):
     freq_list = slm_state["freq_list"]
     spec_list = None
     for params_i, sl_dict in zip(params, slm_state["sl_data"]):
-        args = prepare_properties(slm_state, [sl_dict], params_i[None, ...])
+        params_i = params_i[None, ...]
+        args = prepare_properties(slm_state, [sl_dict], params_i)
         prop_list, bounds = prepare_prop_list(*args)
         freq_list_fine, spec_list_fine = prepare_fine_spectra(
-            prop_list, bounds, params,
+            prop_list, bounds, params_i,
             factor_freq=slm_state["factor_freq"],
             x_grid=slm_state["x_grid"],
             y_grid=slm_state["y_grid"],
