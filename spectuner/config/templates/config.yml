@@ -17,8 +17,9 @@ sl_model:
   eps_grid: 1.e-3
   params:
     theta:
-      is_shared: True
+      is_shared: False
       is_log: True
+      special: eta
     T_ex:
       is_shared: False
       is_log: False
@@ -26,35 +27,56 @@ sl_model:
       is_shared: False
       is_log: True
     delta_v:
-      is_shared: True
+      is_shared: False
       is_log: True
     v_LSR:
-      is_shared: True
+      is_shared: False
       is_log: False
 peak_manager:
   noise_factor: null
   rel_height: 0.25
   freqs_exclude: null
-opt:
-  optimizer: "pso"
-  bounds:
-    theta: [0.7, 2.3]
-    T_ex: [10., 400.]
-    N_tot: [12., 20.]
-    delta_v: [0., 1.5]
-    v_LSR: [-10., 10.]
-  n_process: 2
+opt_single:
+  method: "pso"
+  n_process: 8
   n_trail: 1
   n_cycle_min: 100
   n_cycle_max: 1000
   n_cycle_dim: 5
   n_stop: 15
   tol_stop: 1.e-5
-  kwargs_opt:
-    nswarm: 28
   save_history: True
-  save_all: True
+  save_all: False
+  blob: False
+  kwargs_opt:
+    nswarm: 32
+opt_combine:
+  method: "pso"
+  n_process: 8
+  n_trail: 1
+  n_cycle_min: 0
+  n_cycle_max: 1000
+  n_cycle_dim: 5
+  n_stop: 15
+  tol_stop: 1.e-5
+  save_history: True
+  save_all: False
+  blob: False
+  kwargs_opt:
+    nswarm: 32
+bound_info:
+  theta: [-3, -0.00043]
+  T_ex:  [1.0, 1000.0]
+  N_tot: [12.0, 20.0]
+  delta_v: [-0.5, 1.5]
+  v_LSR: [-12., 12.]
+identify:
+  use_f_dice: True
   criteria:
     score: 2.7
     t3_score: 0.8
-  blob: False
+inference:
+  ckpt: null
+  device: "cuda:0"
+  max_diff: 10
+  max_batch_size: 128
