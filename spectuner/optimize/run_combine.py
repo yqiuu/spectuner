@@ -2,7 +2,7 @@ import multiprocessing as mp
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from collections import Counter
+from collections import defaultdict, Counter
 
 import h5py
 import numpy as np
@@ -47,7 +47,9 @@ def run_combine(config, result_dir, need_identify=True, sl_db=None):
     if len(pred_data_list) == 0:
         return
 
-    pred_data_list.sort(key=lambda item: item["fun"])
+    pred_data_list = sort_result_list(
+        pred_data_list, version_mode=config["species"]["version_mode"]
+    )
 
     pack_list = []
     for pred_data in pred_data_list:
@@ -65,13 +67,15 @@ def run_combine(config, result_dir, need_identify=True, sl_db=None):
         config_ = config
         pack_base = None
 
-    combine_dict, save_dict = combine_greedy(
+    result = combine_greedy(
         pack_list, pack_base, config_, sl_db=sl_db
     )
-    with h5py.File(result_dir/"results_combine.h5", "w") as fp:
-        save_fitting_result(fp.create_group("combine"), combine_dict)
-        for save_name, res in save_dict.items():
-            save_fitting_result(fp.create_group(save_name), res)
+    if result is not None:
+        with h5py.File(result_dir/"results_combine.h5", "w") as fp:
+            combine_dict, save_dict = result
+            save_fitting_result(fp.create_group("combine"), combine_dict)
+            for save_name, res in save_dict.items():
+                save_fitting_result(fp.create_group(save_name), res)
 
     if need_identify:
         identify(config, result_dir, "combine")
@@ -309,6 +313,25 @@ def check_criteria(res, id_mol, criteria):
 def get_max_order(criteria):
     key_list = [key for key in criteria if key.startswith("t")]
     return max(int(key.split("_")[0][1:]) for key in key_list)
+
+
+def sort_result_list(pred_data_list, version_mode):
+    if version_mode == "all":
+        tmp_dict = defaultdict(list)
+        for pred_data in pred_data_list:
+            key = pred_data["specie"][0]["root"]
+            key = ";".join(key.split(";")[:-1])
+            tmp_dict[key].append(pred_data)
+        for res_list in tmp_dict.values():
+            res_list.sort(key=lambda item: item["fun"])
+        pred_data_list_ = []
+        for res_list in tmp_dict.values():
+            pred_data_list_.append(res_list[0])
+    else:
+        pred_data_list_ = pred_data_list
+
+    pred_data_list_.sort(key=lambda item: item["fun"])
+    return pred_data_list_
 
 
 def has_intersections(spans_a, spans_b):
