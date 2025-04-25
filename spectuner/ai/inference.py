@@ -3,13 +3,18 @@ from typing import Optional, Callable
 from pathlib import Path
 from copy import deepcopy
 
+import h5py
 import numpy as np
 import torch
 from tqdm import tqdm
 from torch import nn
+from torch.utils.data import Dataset, DataLoader
+from torch.nn.utils.rnn import pad_sequence
+
 import spectuner_ml
 
 from .embedding import create_embeding_model
+from ..preprocess import preprocess_spectrum
 from ..sl_model import SpectralLineDB
 from ..slm_factory import SpectralLineModelFactory
 
@@ -99,6 +104,121 @@ def split_list_by_number(lst1, lst2, max_diff, max_batch_size):
         start = end
 
     return result
+
+
+def predict_cube(inf_model: InferenceModel,
+                 fname_cube: str,
+                 species: str,
+                 batch_size: int,
+                 postprocess: Callable,
+                 save_spectra: bool=False,
+                 pool=None,
+                 device=None):
+    # Create data loader
+    dataset = CubeDataset(
+        fname=fname_cube,
+        species=species,
+        inf_model=inf_model,
+    )
+    data_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        collate_fn=collate_fn_padding,
+        shuffle=False,
+        num_workers=2,
+    )
+    #
+    results = inf_model.call_multi(data_loader, postprocess, pool, device)
+    properties = np.zeros([len(results), 5])
+    for idx, res in enumerate(results):
+        properties[idx] = res["x"]
+
+    return properties
+
+
+def collate_fn_padding(batch):
+    embed_obs_batch = [torch.from_numpy(item[0]) for item in batch]
+    embed_sl_batch = [torch.from_numpy(item[1]) for item in batch]
+    embed_obs_batch = pad_sequence(embed_obs_batch, batch_first=True)
+    embed_sl_batch = pad_sequence(embed_sl_batch, batch_first=True)
+    mask = torch.all(embed_sl_batch == 0, dim=-1)
+    others = tuple(zip(*[item[2:] for item in batch]))
+    return (embed_obs_batch, embed_sl_batch, mask) + others
+
+
+def create_obs_info(freq_data, T_obs_data, T_bg_data, noise_data, beam_data):
+    obs_info = []
+    for i_segment, freq in enumerate(freq_data):
+        spec = np.vstack([freq, T_obs_data[i_segment]]).T
+        spec = preprocess_spectrum(spec)
+        obs_info.append({
+            "spec": spec,
+            "beam_info": beam_data[i_segment],
+            "T_bg": T_bg_data[i_segment],
+            "need_cmb": True,
+            "noise": noise_data[i_segment],
+        })
+    return obs_info
+
+
+def load_misc_data(fname):
+    """
+    Returns:
+        freq_data (list):
+        noise_data (list):
+        beam_data (list):
+    """
+    with h5py.File(fname) as fp:
+        freq_data = []
+        noise_data = []
+        beam_data = []
+        for i_segment in range(len(fp["cube"])):
+            grp = fp["cube"][str(i_segment)]
+            freq_data.append(np.array(grp["freq"]))
+            noise_data.append(np.array(grp["noise"]))
+            beam_data.append(np.array(grp["beam"]))
+    return freq_data, noise_data, beam_data
+
+
+class CubeDataset(Dataset):
+    def __init__(self, fname: str, species: str, inf_model: InferenceModel):
+        self._fname = fname
+        self._species = species
+        self._embedding_model = inf_model.embedding_model
+        self._slm_factory = inf_model.slm_factory
+        self._misc_data = load_misc_data(fname)
+        self._n_pixel = h5py.File(fname)["index"].shape[0]
+
+    def __len__(self):
+        return self._n_pixel
+
+    def __getitem__(self, idx):
+        idx_specie, idx_pixel = divmod(idx, self.n_pixel)
+        T_obs_data = []
+        T_bg_data = []
+        with h5py.File(self._fname) as fp:
+            for i_segment in range(len(fp["cube"])):
+                grp = fp["cube"][str(i_segment)]
+                T_obs_data.append(np.array(grp["T_obs"][idx_pixel]))
+                T_bg_data.append(np.array(grp["T_bg"][idx_pixel]))
+        freq_data, noise_data, beam_data = self._misc_data
+        obs_info = create_obs_info(
+            freq_data=freq_data,
+            T_obs_data=T_obs_data,
+            T_bg_data=T_bg_data,
+            noise_data=noise_data,
+            beam_data=beam_data,
+        )
+        embed_obs, embed_sl, sl_dict, specie_list \
+            = self._embedding_model(obs_info, self._species[idx_specie])
+        fitting_model = self._slm_factory.create_fitting_model(
+            obs_info, specie_list, [sl_dict]
+        )
+        return embed_obs, embed_sl, fitting_model
+
+    @property
+    def n_pixel(self):
+        return self._n_pixel
 
 
 class InferenceModel:
