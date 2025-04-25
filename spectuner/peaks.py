@@ -412,10 +412,17 @@ class PeakManager:
 
         return loss_tp, loss_fp
 
-    def transform(self, x):
-        if self.scale is None:
-            return x
-        return self.scale*np.log(1 + x/self.scale)
+    def compute_score_all(self, T_pred_data: list, use_f_dice: bool):
+        score_tp = []
+        score_fp = []
+        for i_segment, T_pred in enumerate(T_pred_data):
+            peak_store = self.create_peak_store(i_segment, T_pred)
+            s_tp, s_fp = self.compute_score(peak_store, use_f_dice)
+            score_tp.append(s_tp)
+            score_fp.append(s_fp)
+        score_tp = np.concatenate(score_tp)
+        score_fp = np.concatenate(score_fp)
+        return score_tp, score_fp
 
     def compute_score(self, peak_store, use_f_dice):
         if len(peak_store.spans_inter) > 0:
@@ -435,6 +442,11 @@ class PeakManager:
             score_fp = np.zeros(0)
 
         return score_tp, score_fp
+
+    def transform(self, x):
+        if self.scale is None:
+            return x
+        return self.scale*np.log(1 + x/self.scale)
 
 
 @dataclass(frozen=True)

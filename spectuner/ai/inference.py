@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Optional, Callable
 from pathlib import Path
-from copy import deepcopy
+from copy import copy, deepcopy
 
 import h5py
 import numpy as np
@@ -111,7 +111,7 @@ def predict_cube(inf_model: InferenceModel,
                  species: str,
                  batch_size: int,
                  postprocess: Callable,
-                 save_spectra: bool=False,
+                 need_spectra: bool=True,
                  pool=None,
                  device=None):
     # Create data loader
@@ -127,13 +127,52 @@ def predict_cube(inf_model: InferenceModel,
         shuffle=False,
         num_workers=2,
     )
-    #
-    results = inf_model.call_multi(data_loader, postprocess, pool, device)
-    properties = np.zeros([len(results), 5])
-    for idx, res in enumerate(results):
-        properties[idx] = res["x"]
 
-    return properties
+    #
+    postprocess_ = _AddExtraProps(
+        inf_model.slm_factory, postprocess, need_spectra
+    )
+    results = inf_model.call_multi(data_loader, postprocess_, pool, device)
+
+    # Format results
+    res_dict = {}
+    for res in results:
+        name = res["specie"][0]["root"]
+        if name not in res_dict:
+            res_dict[name] = {
+                "params": [],
+                "t1_score": [],
+                "t2_score": [],
+                "t3_score": [],
+                "t4_score": [],
+                "s_tp_tot": [],
+                "num_tp": [],
+                "s_fp_tot": [],
+                "num_fp": []
+            }
+            if need_spectra:
+                res_dict[name]["T_pred"] = {
+                    f"{idx}": [] for idx in range(len(res["T_pred"]))
+                }
+
+        sub_dict = res_dict[name]
+        for key in sub_dict:
+            if key != "T_pred":
+                sub_dict[key].append(res[key])
+            if need_spectra:
+                for idx, T_pred in enumerate(res["T_pred"]):
+                    sub_dict["T_pred"][f"{idx}"].append(T_pred)
+
+    for sub_dict in res_dict.values():
+        for key, val in sub_dict.items():
+            if key == "params":
+                sub_dict[key] = np.vstack(val)
+            if key == "T_pred":
+                for idx, T_data in sub_dict[key].items():
+                    sub_dict[key][idx] = np.vstack(T_data)
+            else:
+                sub_dict[key] = np.asarray(val)
+    return res_dict
 
 
 def collate_fn_padding(batch):
@@ -190,7 +229,7 @@ class CubeDataset(Dataset):
         self._n_pixel = h5py.File(fname)["index"].shape[0]
 
     def __len__(self):
-        return self._n_pixel
+        return self._n_pixel*len(self._species)
 
     def __getitem__(self, idx):
         idx_specie, idx_pixel = divmod(idx, self.n_pixel)
@@ -353,3 +392,41 @@ class InferenceModel:
         samps = samps.cpu().numpy()
         log_prob = log_prob.cpu().numpy()
         return samps, log_prob, embed
+
+
+class _AddExtraProps:
+    def __init__(self,
+                 slm_factory: SpectralLineModelFactory,
+                 postprocess: Callable,
+                 need_spectra: bool):
+        self._slm_factory = copy(slm_factory)
+        self._slm_factory._sl_db = None # Prevent copying the database from multiprocessing
+        self._postprocess = postprocess
+        self._need_spectra = need_spectra
+
+    def __call__(self, fitting_model, *args):
+        res = self._postprocess(fitting_model, *args)
+        params = fitting_model.sl_model.param_mgr.derive_params(res["x"])[0]
+        # Set column density to log10, ensure that the index is correct
+        params[2] = np.log10(params[2])
+        res["params"] = params
+        peak_mgr = self._slm_factory.create_peak_mgr(fitting_model.obs_info)
+        scores_tp, scores_fp = peak_mgr.compute_score_all(
+            res["T_pred"], use_f_dice=True
+        )
+        scores_tp = np.sort(scores_tp)[::-1]
+        n_max = 4
+        for idx in range(n_max):
+            res[f"t{idx+1}_score"] \
+                = scores_tp[idx] if len(scores_tp) > idx + 1 else 0.
+        res["s_tp_tot"] = np.sum(scores_tp)
+        res["num_tp"] = len(scores_tp)
+        res["s_fp_tot"] = np.sum(scores_fp)
+        res["num_fp"] = len(scores_fp)
+        if not self._need_spectra:
+            del res["T_pred"]
+        return res
+
+    @property
+    def n_draw(self):
+        return self._postprocess.n_draw
