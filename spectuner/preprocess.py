@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def load_preprocess(obs_info):
+def load_preprocess(obs_info, clip=True):
     """Load observed spectra.
 
     1. Ensure the frequency is ascending.
@@ -25,10 +25,10 @@ def load_preprocess(obs_info):
             obs_data.append(np.copy(item["spec"]))
         elif "fname" in item:
             obs_data.append(np.loadtxt(item["fname"]))
-    return [preprocess_spectrum(spec) for spec in obs_data]
+    return [preprocess_spectrum(spec, clip) for spec in obs_data]
 
 
-def preprocess_spectrum(spectrum):
+def preprocess_spectrum(spectrum, clip):
     """Preprocess spectrum
 
     Args:
@@ -37,7 +37,8 @@ def preprocess_spectrum(spectrum):
     """
     if spectrum[0, 0] > spectrum[-1, 0]: # Make freq ascending
         spectrum = spectrum[::-1]
-    spectrum[:, 1] = np.maximum(spectrum[:, 1], 0.)
+    if clip:
+        spectrum[:, 1] = np.maximum(spectrum[:, 1], 0.)
     return spectrum
 
 
