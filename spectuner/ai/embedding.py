@@ -183,7 +183,7 @@ class EmbeddingV3:
         return sl_dict_ret
 
     def compute_scaled_beam(self, beam_info, freq):
-        if isinstance(beam_info, float):
+        if np.isscalar(beam_info):
             beam_size = diameter_to_beam_size(beam_info, freq)
         else:
             beam_size = np.full_like(freq, math.sqrt(beam_info[0]*beam_info[1]))
