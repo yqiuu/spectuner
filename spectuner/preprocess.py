@@ -28,7 +28,7 @@ def load_preprocess(obs_info, clip=True):
     return [preprocess_spectrum(spec, clip) for spec in obs_data]
 
 
-def preprocess_spectrum(spectrum, clip):
+def preprocess_spectrum(spectrum, clip=True):
     """Preprocess spectrum
 
     Args:
