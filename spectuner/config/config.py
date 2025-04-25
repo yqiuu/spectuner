@@ -31,9 +31,6 @@ def create_config(dir="./"):
     for _, fname in iter_config_names():
         shutil.copy(template_dir/fname, target_dir)
 
-    tmp_dir = target_dir/'tmp'
-    tmp_dir.mkdir(exist_ok=True)
-
 
 def load_config(dir):
     dir = Path(dir)
