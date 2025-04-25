@@ -46,6 +46,10 @@ def preprocess_config(config):
         1. Derive and set ``prominence`` in ``config["peak_manager"]``.
         2. Set ``freqs_exclude`` in ``config["peak_manager"]``.
     """
+    for item in config["obs_info"]:
+        if isinstance(item["spec"], str):
+            item["spec"] = np.loadtxt(item["spec"])
+
     if "prominence" not in config["peak_manager"]:
         noises = np.array([item["noise"] for item in config["obs_info"]])
         noise_factor = config["peak_manager"].pop("noise_factor")
