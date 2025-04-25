@@ -1,12 +1,12 @@
 obs_info:
-    - fname: null
+    - spec: null
       beam_info: 30 # (1/3600, 1/3600)
       T_bg: 0.
       need_cmb: True
       noise: 1.
 
     # Use the following for multiple observed segments
-    #- fname: None
+    #- spec: None
     #  beam_info: 30 # (1/3600, 1/3600)
     #  T_bg: 0.
     #  need_cmb: True
