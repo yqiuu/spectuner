@@ -255,6 +255,25 @@ def compute_shift(freq, vel):
     return freq*(1 + vel/c)
 
 
+def assign_values_to_intervals(intervals, values):
+    # Aussme inputs are sorted
+    ret_list = [[] for _ in range(len(intervals))]
+
+    i, j = 0, 0
+    n, m = len(intervals), len(values)
+    while i < n and j < m:
+        left, right = intervals[i]
+        value = values[j]
+        if value < left:
+            j += 1
+        elif left <= value <= right:
+            ret_list[i].append(j)
+            j += 1
+        else:
+            i += 1
+    return ret_list
+
+
 @np.vectorize
 def linear_deacy(x, x_left, x_right, side, height):
     if side == 1:
