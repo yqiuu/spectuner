@@ -7,4 +7,5 @@ from .slm_factory import *
 from .preprocess import *
 from .config import *
 from .spectral_plot import *
+from .cube import *
 from .utils import *
