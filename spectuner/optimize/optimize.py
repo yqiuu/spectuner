@@ -61,7 +61,7 @@ def optimize_all(engine: Union[SpectralLineModelFactory, InferenceModel],
         for specie_list in targets:
             print_fitting(specie_list[0]["species"])
             res_dict = optimize(
-                slm_factory=engine,
+                engine=engine,
                 obs_info=obs_info,
                 specie_list=specie_list,
                 T_base_data=T_base_data,
