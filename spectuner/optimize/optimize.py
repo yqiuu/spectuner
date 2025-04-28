@@ -277,7 +277,7 @@ class SwingOptimizer(Optimizer):
         kwargs = deepcopy(self._kwargs)
         if len(args) > 0:
             kwargs["initial_pos"] = self.derive_initial_pos(
-                args[0], fitting_model.bounds, kwargs["nswarm"]
+                args[0], fitting_model.bounds, self.n_draw
             )
         opt = cls_opt(
             fitting_model,
