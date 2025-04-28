@@ -1,4 +1,5 @@
 from __future__ import annotations
+import multiprocessing as mp
 from typing import Optional
 from dataclasses import dataclass, asdict
 
@@ -10,7 +11,73 @@ from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
 from tqdm import tqdm
 
-from .sl_model import const_factor_mu_sigma
+from .sl_model import (
+    create_spectral_line_db,
+    query_species,
+    const_factor_mu_sigma,
+    SQLSpectralLineDB
+)
+from .optimize import create_optimizer
+from .ai import load_misc_data, predict_cube, InferenceModel
+from .utils import hdf_save_dict
+
+
+def fit_cube(config: dict,
+             fname_cube: str,
+             save_name: str,
+             sl_db: Optional[SQLSpectralLineDB]=None):
+    """Fit the spectra of a cube.
+
+    Args:
+        config: The following config is required:
+
+            - Set sl_model/fname_db to the path of the database.
+            - Set bound_info.
+            - Set species/species for species to be fitted.
+            - Set species/combine_iso and species/combine_state to False.
+            - Set opt_single/ for optimization configuration.
+            - Set inference/ for AI model configuration.
+
+        fname_cube: Path to the cube data.
+        save_name: Path to the output file.
+        sl_db: Input spectroscopic database. If ``None``, load the one specified
+            in sl_model/fname_db.
+    """
+    if sl_db is None:
+        sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
+
+    assert not config["species"]["combine_iso"] \
+        and not config["species"]["combine_state"], \
+        "Set combine_iso and combine_state to False for this function"
+
+    freq_data = load_misc_data(fname_cube)[0]
+    groups, _ = query_species(
+        sl_db=sl_db,
+        freq_data=freq_data,
+        v_range=config["bound_info"]["v_LSR"],
+        **config["species"],
+    )
+    species = [grp[0] for grp in groups]
+
+    max_species = config["species"].get("max_species", 10)
+    assert len(species) < max_species, \
+        f"Number of species must be less than {max_species}"
+
+    inf_model = InferenceModel.from_config(config, sl_db=sl_db)
+    opt = create_optimizer(config["opt_single"])
+    with mp.Pool(processes=config["opt_single"]["n_process"]) as pool:
+        res_dict = predict_cube(
+            inf_model=inf_model,
+            postprocess=opt,
+            fname_cube=fname_cube,
+            species=species,
+            batch_size=config["inference"]["batch_size"],
+            need_spectra=config["cube"]["need_spectra"],
+            pool=pool,
+            device=config["inference"]["device"]
+        )
+    with h5py.File(save_name, "w") as fp:
+        hdf_save_dict(fp, res_dict)
 
 
 @dataclass(frozen=True)
