@@ -8,6 +8,7 @@ from copy import deepcopy
 
 import h5py
 import numpy as np
+from tqdm import tqdm
 from swing import ParticleSwarm, ArtificialBeeColony
 from scipy.optimize import minimize
 
@@ -59,15 +60,19 @@ def optimize_all(engine: Union[SpectralLineModelFactory, InferenceModel],
     if isinstance(engine, SpectralLineModelFactory):
         results = []
         for specie_list in targets:
-            print_fitting(specie_list[0]["species"])
-            res_dict = optimize(
-                engine=engine,
+            fitting_model = engine.create_fitting_model(
                 obs_info=obs_info,
                 specie_list=specie_list,
                 T_base_data=T_base_data,
-                config_opt=config_opt,
             )
-            results.append(res_dict)
+            results.append(
+                pool.apply_async(_optimize_worker, (fitting_model, config_opt))
+            )
+        with tqdm(enumerate(targets), total=len(targets)) as pbar:
+            for i_res, specie_list in pbar:
+                pbar.set_description("Fitting {}".format(
+                    join_specie_names(specie_list[0]["species"])))
+                results[i_res] = results[i_res].get()
         return results
     elif isinstance(engine, InferenceModel):
         specie_names = []
@@ -93,6 +98,12 @@ def optimize_all(engine: Union[SpectralLineModelFactory, InferenceModel],
         return results
     else:
         raise ValueError(f"Unknown engine: {engine}.")
+
+
+def _optimize_worker(fitting_model, config_opt):
+    opt = create_optimizer(config_opt)
+    jit_fitting_model(fitting_model)
+    return opt(fitting_model)
 
 
 def create_pool(n_process, use_mpi):
@@ -146,6 +157,10 @@ def derive_exclude_list(res):
 
 def print_fitting(specie_list):
     print("Fitting: {}.".format(", ".join(specie_list)))
+
+
+def join_specie_names(species):
+    return ", ".join(species)
 
 
 def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
