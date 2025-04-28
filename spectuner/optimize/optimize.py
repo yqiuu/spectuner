@@ -106,14 +106,6 @@ def _optimize_worker(fitting_model, config_opt):
     return opt(fitting_model)
 
 
-def create_pool(n_process, use_mpi):
-    if use_mpi:
-        from mpi4py.futures import MPIPoolExecutor
-        return MPIPoolExecutor(n_process)
-    else:
-        return Pool(n_process)
-
-
 def prepare_base_props(fname, config):
     if fname is not None:
         fname = Path(fname)
