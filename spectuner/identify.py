@@ -11,8 +11,10 @@ import numpy as np
 import pandas as pd
 import torch
 
-from .sl_model import sum_T_single_data, combine_specie_lists
-from .slm_factory import compute_T_single_data, SpectralLineModelFactory
+from .slm_factory import (
+    combine_specie_lists, sum_T_single_data, compute_T_single_data,
+    SpectralLineModelFactory
+)
 from .peaks import compute_peak_norms
 from .utils import (
     load_result_list, load_fitting_result, load_result_combine,

@@ -17,6 +17,40 @@ from .sl_model import (
 from .peaks import PeakManager
 
 
+def combine_specie_lists(specie_lists, params_list):
+    specie_list_ret = []
+    for specie_list in specie_lists:
+        specie_list_ret.extend(specie_list)
+    params_ret = np.concatenate(params_list)
+    return specie_list_ret, params_ret
+
+
+def sum_T_single_data(T_single_dict, T_back=0., key=None):
+    # Get a test dict
+    for sub_dict in T_single_dict.values():
+        for T_single_data in sub_dict.values():
+            break
+        break
+    T_ret_data = [None for _ in T_single_data]
+
+    def sum_sub(target_dict):
+        for T_single_data in target_dict.values():
+            for i_segment, T_single in enumerate(T_single_data):
+                if T_single is None:
+                    continue
+                if T_ret_data[i_segment] is None:
+                    T_ret_data[i_segment] = T_back
+                T_ret_data[i_segment] = T_ret_data[i_segment] + T_single - T_back
+
+    if key is not None:
+        sum_sub(T_single_dict[key])
+        return T_ret_data
+
+    for sub_dict in T_single_dict.values():
+        sum_sub(sub_dict)
+    return T_ret_data
+
+
 def compute_T_single_data(slm_factory: SpectralLineModelFactory,
                           obs_info: list,
                           specie_list: list,

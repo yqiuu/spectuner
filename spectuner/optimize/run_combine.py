@@ -17,11 +17,10 @@ from ..utils import (
     derive_specie_save_name
 )
 from ..preprocess import load_preprocess, get_freq_data
-from ..sl_model import (
-    combine_specie_lists, create_spectral_line_db,
-    SpectralLineModelFactory
+from ..sl_model import create_spectral_line_db
+from ..slm_factory import (
+    jit_fitting_model, combine_specie_lists, SpectralLineModelFactory
 )
-from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
 from ..ai import InferenceModel
 from ..peaks import (
     derive_peak_params, derive_peaks_multi, derive_intersections

@@ -3,8 +3,10 @@ from pathlib import Path
 import h5py
 
 from .utils import load_result_combine, save_fitting_result, load_result_list
-from .sl_model import combine_specie_lists, SpectralLineModelFactory
-from .slm_factory import derive_sub_specie_list_with_params
+from .slm_factory import (
+    combine_specie_lists, derive_sub_specie_list_with_params,
+    SpectralLineModelFactory
+)
 from .identify import identify
 
 
