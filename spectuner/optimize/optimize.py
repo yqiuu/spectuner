@@ -223,10 +223,10 @@ class Optimizer(ABC):
 
 
 class SwingOptimizer(Optimizer):
-    def __init__(self, method, n_cycle_min=100, n_cycle_max=1000, n_cycle_dim=5,
-                 n_stop=15, tol_stop=1.e-5, n_trail=1,
+    def __init__(self, method, n_draw=32, n_cycle_min=100, n_cycle_max=1000,
+                 n_cycle_dim=5, n_stop=15, tol_stop=1.e-5, n_trail=1,
                  save_history=True, save_all=False, **kwargs):
-        super().__init__(n_draw=kwargs["nswarm"])
+        super().__init__(n_draw=n_draw)
         self._method = method
         self._n_cycle_min = n_cycle_min
         self._n_cycle_max = n_cycle_max
@@ -275,6 +275,7 @@ class SwingOptimizer(Optimizer):
         opt = cls_opt(
             fitting_model,
             fitting_model.bounds,
+            nswarm=self.n_draw,
             pool=pool,
             blob=blob,
             **self._kwargs

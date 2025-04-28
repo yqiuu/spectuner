@@ -37,8 +37,9 @@ peak_manager:
   rel_height: 0.25
   freqs_exclude: null
 opt_single:
-  method: "pso"
   n_process: 8
+  method: "pso"
+  n_draw: 32
   n_trail: 1
   n_cycle_min: 100
   n_cycle_max: 1000
@@ -48,11 +49,10 @@ opt_single:
   save_history: True
   save_all: False
   blob: False
-  kwargs_opt:
-    nswarm: 32
 opt_combine:
-  method: "pso"
   n_process: 8
+  method: "pso"
+  n_draw: 32
   n_trail: 1
   n_cycle_min: 0
   n_cycle_max: 1000
@@ -62,8 +62,6 @@ opt_combine:
   save_history: True
   save_all: False
   blob: False
-  kwargs_opt:
-    nswarm: 32
 bound_info:
   theta: [-3, -0.00043]
   T_ex:  [1.0, 1000.0]
