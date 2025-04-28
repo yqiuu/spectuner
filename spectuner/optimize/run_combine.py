@@ -8,7 +8,9 @@ import h5py
 import numpy as np
 from tqdm import tqdm
 
-from .optimize import prepare_base_props, optimize, optimize_all, print_fitting
+from .optimize import (
+    prepare_base_props, optimize, optimize_all, print_fitting, join_specie_names
+)
 from ..config import append_exclude_info
 from ..utils import (
     load_result_list, load_result_combine, save_fitting_result,
@@ -336,10 +338,6 @@ def sort_result_list(pred_data_list, version_mode):
 
 def has_intersections(spans_a, spans_b):
     return len(derive_intersections(spans_a, spans_b)[0]) > 0
-
-
-def join_specie_names(species):
-    return ", ".join(species)
 
 
 @dataclass
