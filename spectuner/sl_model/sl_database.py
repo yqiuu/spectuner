@@ -452,7 +452,7 @@ class SpectralLineDB(ABC):
 
 
 class SQLSpectralLineDB(SpectralLineDB):
-    def __init__(self, fname, cache=False):
+    def __init__(self, fname, cache=False, start_end_pf=(5, 115)):
         self._fname = fname
 
         conn = sqlite3.connect(fname)
@@ -467,8 +467,9 @@ class SQLSpectralLineDB(SpectralLineDB):
         query = "select * from partitionfunctions"
         cursor.execute(query)
         cols = list(map(lambda x: x[0], cursor.description))
-        self._x_T = np.array([float(col[3:].replace("_", ".")) for col in cols[5:-6]])
-
+        self._slice_pf = slice(*start_end_pf)
+        self._x_T = np.array([float(col[3:].replace("_", "."))
+                              for col in cols[self._slice_pf]])
         cursor.close()
         conn.close()
 
@@ -492,7 +493,7 @@ class SQLSpectralLineDB(SpectralLineDB):
 
         query = "select * from partitionfunctions where PF_Name = ?"
         for line in cursor.execute(query, (key,)):
-            tmp = [1. if val is None else val for val in line[5:-6]]
+            tmp = [1. if val is None else val for val in line[self._slice_pf]]
             sl_dict["Q_T"] = np.array(tmp)
         sl_dict["x_T"] = self._x_T
 
