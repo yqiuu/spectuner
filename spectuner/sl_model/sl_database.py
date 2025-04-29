@@ -381,10 +381,8 @@ class SpectralLineDB(ABC):
         self._names = np.asarray(names)[inds]
         self._freqs.flags.writeable = False
         self._names.flags.writeable = False
-        if cache:
-            self._cache = {}
-        else:
-            self._cache = None
+        self._cache = cache
+        self._data = {}
 
     @property
     def freqs(self) -> np.ndarray:
@@ -419,7 +417,7 @@ class SpectralLineDB(ABC):
 
     def query_sl_dict(self, key: str, freq_data: list, v_enlarge: float=0.) -> dict:
         # This function is almost the same as the one in sl_database.py
-        sl_dict = self._load_sl_dict(key)
+        sl_dict = self._load_sl_dict_with_cache(key)
         data_ret = {key: [] for key in self._cols}
         data_ret["segment"] = []
         freqs = sl_dict["freq"]
@@ -445,11 +443,12 @@ class SpectralLineDB(ABC):
         """Load the spectral line data of the input key."""
 
     def _load_sl_dict_with_cache(self, key: str) -> dict:
-        if self._cache is not None and key in self._cache:
-            return self._cache[key]
+        if key in self._data:
+            return self._data[key]
 
         sl_dict = self._load_sl_dict(key)
-        self._cache[key] = sl_dict
+        if self._cache:
+            self._data[key] = sl_dict
         return sl_dict
 
 
