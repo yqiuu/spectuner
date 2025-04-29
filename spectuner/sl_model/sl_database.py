@@ -377,8 +377,10 @@ class SpectralLineDB(ABC):
 
     def __init__(self, freqs: list, names: list, cache: bool=False):
         inds = np.argsort(freqs)
-        self._freqs = tuple(np.asarray(freqs)[inds])
-        self._names = tuple(np.asarray(names)[inds])
+        self._freqs = np.asarray(freqs)[inds]
+        self._names = np.asarray(names)[inds]
+        self._freqs.flags.writeable = False
+        self._names.flags.writeable = False
         if cache:
             self._cache = {}
         else:
