@@ -11,9 +11,8 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 
-import spectuner_ml
-
-from .embedding import create_embeding_model
+from .embedding import create_embeding_model, EmbeddingV3
+from .networks import create_parameter_estimator
 from ..preprocess import preprocess_spectrum
 from ..sl_model import SpectralLineDB
 from ..slm_factory import SpectralLineModelFactory
@@ -66,7 +65,7 @@ def prepare_list_by_number(inf_model: InferenceModel,
                 obs_info, specie_list, [sl_dict]
             )
             batch.append((embed_obs, embed_sl, fitting_model))
-        inputs.append(spectuner_ml.collate_fn_padding(batch))
+        inputs.append(collate_fn_padding(batch))
     return inputs
 
 
@@ -263,7 +262,7 @@ class CubeDataset(Dataset):
 class InferenceModel:
     def __init__(self,
                  model: nn.Module,
-                 embedding_model: spectuner_ml.Embedding,
+                 embedding_model: EmbeddingV3,
                  slm_factory: SpectralLineModelFactory):
         self._model = model
         self._embedding_model = embedding_model
@@ -279,7 +278,7 @@ class InferenceModel:
             map_location="cpu",
             weights_only=True
         )
-        model = spectuner_ml.create_parameter_estimator(
+        model = create_parameter_estimator(
             ckpt["config"], is_sampler=False
         )
         model.load_state_dict(ckpt["model_state"])
@@ -367,7 +366,7 @@ class InferenceModel:
         return self._model
 
     @property
-    def embedding_model(self) -> spectuner_ml.Embedding:
+    def embedding_model(self) -> EmbeddingV3:
         return self._embedding_model
 
     @property
