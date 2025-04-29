@@ -89,7 +89,7 @@ def optimize_all(engine: Union[SpectralLineModelFactory, InferenceModel],
             numbers=numbers,
             postprocess=opt,
             max_diff=config_inf["max_diff"],
-            max_batch_size=config_inf["max_batch_size"],
+            max_batch_size=config_inf["batch_size"],
             device=config_inf["device"],
             pool=pool
         )
