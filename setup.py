@@ -15,6 +15,8 @@ install_requires = [
     "pandas>=2.0",
     "matplotlib>=3.7",
     "swing-opt>=0.1.2",
+    "tqdm>=4.65",
+    "torch>=2.5",
 ]
 
 #
