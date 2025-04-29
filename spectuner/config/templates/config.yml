@@ -46,9 +46,6 @@ opt_single:
   n_cycle_dim: 5
   n_stop: 15
   tol_stop: 1.e-5
-  save_history: True
-  save_all: False
-  blob: False
 opt_combine:
   n_process: 8
   method: "pso"
@@ -59,9 +56,6 @@ opt_combine:
   n_cycle_dim: 5
   n_stop: 15
   tol_stop: 1.e-5
-  save_history: True
-  save_all: False
-  blob: False
 bound_info:
   theta: [-3, -0.00043]
   T_ex:  [1.0, 1000.0]
@@ -75,6 +69,6 @@ identify:
     t3_score: 0.8
 inference:
   ckpt: null
-  device: "cuda:0"
+  device: "cpu"
+  batch_size: 128
   max_diff: 10
-  max_batch_size: 128
