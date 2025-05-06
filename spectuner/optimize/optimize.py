@@ -340,12 +340,16 @@ class SwingOptimizer(Optimizer):
         return res_dict
 
     def derive_initial_pos(self, x0, bounds, n_swarm):
-        assert n_swarm >= 1
+        x0 = np.atleast_2d(x0)
+        n_rand = n_swarm - x0.shape[0]
+        if n_rand == 0:
+            return x0
+        elif n_rand > 0:
+            lb, ub = bounds.T
+            x_rand = lb + (ub - lb)*np.random.rand(n_rand, 1)
+            return np.vstack([x0, x_rand])
 
-        lb, ub = bounds.T
-        initial_pos = lb + (ub - lb)*np.random.rand(n_swarm - 1, 1)
-        initial_pos = np.vstack([x0, initial_pos])
-        return initial_pos
+        raise ValueError("n_rand < 0")
 
 
 class UniformOptimizer(Optimizer):
