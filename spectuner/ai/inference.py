@@ -158,7 +158,7 @@ def predict_cube(inf_model: InferenceModel,
         for key in sub_dict:
             if key != "T_pred":
                 sub_dict[key].append(res[key])
-            if need_spectra:
+            elif need_spectra:
                 for idx, T_pred in enumerate(res["T_pred"]):
                     sub_dict["T_pred"][f"{idx}"].append(T_pred)
 
@@ -166,7 +166,7 @@ def predict_cube(inf_model: InferenceModel,
         for key, val in sub_dict.items():
             if key == "params":
                 sub_dict[key] = np.vstack(val)
-            if key == "T_pred":
+            elif key == "T_pred":
                 for idx, T_data in sub_dict[key].items():
                     sub_dict[key][idx] = np.vstack(T_data)
             else:
@@ -321,7 +321,9 @@ class InferenceModel:
         samps, log_prob, embed = self.draw_samples(
             postprocess.n_draw, embed_obs, embed_sl, mask
         )
-        return postprocess(fitting_model, samps[0], log_prob[0], embed[0])
+        res_dict = postprocess(fitting_model, samps[0], log_prob[0], embed[0])
+        res_dict["T_base"] = T_base_data
+        return res_dict
 
     def call_multi(self, inputs, postprocess,
                    pool=None, device=None, disable_pbar=False):
