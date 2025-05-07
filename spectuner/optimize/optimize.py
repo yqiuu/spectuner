@@ -360,11 +360,11 @@ class UniformOptimizer(Optimizer):
         if len(args) == 0:
             lower, upper = fitting_model.bounds.T
             samps_ = lower \
-                + (upper - lower)*np.random.rand(self._n_compute, len(lower))
+                + (upper - lower)*np.random.rand(self.n_draw, len(lower))
         else:
             samps_ = args[0]
 
-        values = tuple(map(fitting_model, samps_[:self._n_compute]))
+        values = tuple(map(fitting_model, samps_[:self.n_draw]))
         l_tot = np.asarray(values)
         idx = np.argmin(l_tot)
         x0 = samps_[idx]
@@ -373,10 +373,11 @@ class UniformOptimizer(Optimizer):
         return {
             "x":  x0,
             "fun": l_tot_min,
-            "nfev": self._n_compute + 1,
+            "nfev": self.n_draw,
             "specie": fitting_model.sl_model.specie_list,
             "freq": fitting_model.sl_model.freq_data,
             "T_pred": fitting_model.sl_model(x0),
+            "samps": samps_
         }
 
 
