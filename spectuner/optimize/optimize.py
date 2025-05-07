@@ -364,20 +364,21 @@ class UniformOptimizer(Optimizer):
         else:
             samps_ = args[0]
 
-        values = tuple(map(fitting_model, samps_[:self.n_draw]))
-        l_tot = np.asarray(values)
-        idx = np.argmin(l_tot)
+        fun_all = tuple(map(fitting_model, samps_[:self.n_draw]))
+        fun_all = np.asarray(fun_all)
+        idx = np.argmin(fun_all)
         x0 = samps_[idx]
-        l_tot_min = l_tot[idx]
+        fun_min = fun_all[idx]
 
         return {
             "x":  x0,
-            "fun": l_tot_min,
-            "nfev": self.n_draw,
+            "fun": fun_min,
+            "nfev": self.n_draw + 1,
             "specie": fitting_model.sl_model.specie_list,
             "freq": fitting_model.sl_model.freq_data,
             "T_pred": fitting_model.sl_model(x0),
-            "samps": samps_
+            "x_all": samps_,
+            "fun_all": fun_all
         }
 
 
