@@ -285,7 +285,7 @@ class SwingOptimizer(Optimizer):
             nswarm=self.n_draw,
             pool=pool,
             blob=blob,
-            **self._kwargs
+            **kwargs
         )
         n_cycle_min = self._n_cycle_min \
             + (len(fitting_model.bounds) - 5)*self._n_cycle_dim
