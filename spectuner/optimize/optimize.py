@@ -5,12 +5,14 @@ from typing import Optional, Union
 from abc import ABC, abstractmethod
 from pathlib import Path
 from copy import deepcopy
+from collections import defaultdict
 
 import h5py
 import numpy as np
 from tqdm import tqdm
 from swing import ParticleSwarm, ArtificialBeeColony
 from scipy.optimize import minimize
+from scipy.cluster.vq import kmeans2
 
 from ..peaks import create_spans
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
@@ -404,29 +406,13 @@ class UniformOptimizer(Optimizer):
 
 
 class ScipyOptimizer(Optimizer):
-    def __init__(self, method, n_draw=50, jac="2-point"):
+    def __init__(self, method, n_draw=50, jac="2-point", n_cluster=1):
         super().__init__(n_draw)
         self._method = method
         self._jac = jac
+        self._n_cluster = n_cluster
 
     def __call__(self, fitting_model, *args) -> dict:
-        if len(args) == 1:
-            x0 = args[0]
-            l_tot_min = fitting_model(x0)
-            nfev = 1
-        else:
-            if len(args) == 0:
-                lower, upper = fitting_model.bounds.T
-                samps_ = lower \
-                    + (upper - lower)*np.random.rand(self.n_draw, len(lower))
-            else:
-                samps_ = args[0]
-            values = tuple(map(fitting_model, samps_))
-            l_tot = np.asarray(values)
-            x0 = samps_[np.argmin(l_tot)].astype("f8")
-            l_tot_min = np.min(l_tot)
-            nfev = self.n_draw
-
         kwargs = {"method": self._method}
         if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
             lower, upper = fitting_model.bounds.T
@@ -435,28 +421,66 @@ class ScipyOptimizer(Optimizer):
                 jac=self._jac,
                 options={"eps": h*(upper - lower)}
             )
-        res = minimize(
-            fitting_model,
-            x0=x0,
-            bounds=fitting_model.bounds,
-            **kwargs
-        )
 
-        if res.fun < l_tot_min:
-            x_best = res.x
-            fun = res.fun
+        if len(args) == 1:
+            x0 = args[0]
+            res = minimize(
+                fitting_model,
+                x0=x0,
+                bounds=fitting_model.bounds,
+                **kwargs
+            )
+            nfev = res.nfev
         else:
-            x_best = x0
-            fun = l_tot_min
+            if len(args) == 0:
+                lower, upper = fitting_model.bounds.T
+                samps_ = lower \
+                    + (upper - lower)*np.random.rand(self.n_draw, len(lower))
+            else:
+                samps_ = args[0]
+                values = tuple(map(fitting_model, samps_))
+                values = np.asarray(values)
 
-        nfev += res.nfev + 1
+            if self._n_cluster > 1 and len(args) > 1:
+                clusters = _clustering(samps_, values, self._n_cluster)
+                results = []
+                for sub in clusters.values():
+                    x0, _ = min(sub, key=lambda x: x[1])
+                    results.append(minimize(
+                        fitting_model,
+                        x0=x0,
+                        bounds=fitting_model.bounds,
+                        **kwargs
+                    ))
+                res = min(results, key=lambda x: x.fun)
+                nfev = sum(res.nfev for res in results)
+            else:
+                x0 = samps_[np.argmin(values)].astype("f8")
+                res = minimize(
+                    fitting_model,
+                    x0=x0,
+                    bounds=fitting_model.bounds,
+                    **kwargs
+                )
+                nfev = len(values) + res.nfev
 
+        nfev += 1
         return {
-            "x":  x_best,
-            "fun": fun,
+            "x":  res.x,
+            "fun": res.fun,
             "nfev": nfev,
             "specie": fitting_model.sl_model.specie_list,
             "freq": fitting_model.sl_model.freq_data,
-            "T_pred": fitting_model.sl_model(x_best),
-            #"success": success
+            "T_pred": fitting_model.sl_model(res.x),
         }
+
+
+def _clustering(samps, values, n_cluster):
+    mu = np.mean(samps, axis=0)
+    std = np.std(samps, axis=0)
+    samps_scaled = (samps - mu)/std
+    _, labels = kmeans2(samps_scaled, n_cluster, minit="++")
+    clusters = defaultdict(list)
+    for i, x, v in zip(labels, samps, values):
+        clusters[i].append((x, v))
+    return clusters
