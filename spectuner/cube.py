@@ -72,6 +72,7 @@ def fit_cube(config: dict,
             fname_cube=fname_cube,
             species=species,
             batch_size=config["inference"]["batch_size"],
+            num_workers=config["inference"]["num_workers"],
             need_spectra=config["cube"]["need_spectra"],
             pool=pool,
             device=config["inference"]["device"]

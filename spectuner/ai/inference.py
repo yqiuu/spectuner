@@ -110,6 +110,7 @@ def predict_cube(inf_model: InferenceModel,
                  species: str,
                  batch_size: int,
                  postprocess: Callable,
+                 num_workers: int=2,
                  need_spectra: bool=True,
                  pool=None,
                  device=None):
@@ -124,7 +125,7 @@ def predict_cube(inf_model: InferenceModel,
         batch_size=batch_size,
         collate_fn=collate_fn_padding,
         shuffle=False,
-        num_workers=2,
+        num_workers=num_workers,
     )
 
     #

@@ -72,3 +72,4 @@ inference:
   device: "cpu"
   batch_size: 128
   max_diff: 10
+  num_workers: 2
