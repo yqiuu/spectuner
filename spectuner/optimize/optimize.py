@@ -230,11 +230,22 @@ class Optimizer(ABC):
 
 
 class SwingOptimizer(Optimizer):
-    def __init__(self, method, n_draw=32, n_cycle_min=100, n_cycle_max=1000,
-                 n_cycle_dim=5, n_stop=15, tol_stop=1.e-5, n_trail=1,
-                 save_history=True, save_all=False, **kwargs):
+    def __init__(self,
+                 method: str,
+                 n_draw: int=200,
+                 n_swarm: int=32,
+                 n_cycle_min: int=100,
+                 n_cycle_max: int=1000,
+                 n_cycle_dim: int=5,
+                 n_stop: int=15,
+                 tol_stop: float=1.e-5,
+                 n_trail: int=1,
+                 save_history: bool=True,
+                 save_all: bool=False,
+                 **kwargs):
         super().__init__(n_draw=n_draw)
         self._method = method
+        self._n_swarm = n_swarm
         self._n_cycle_min = n_cycle_min
         self._n_cycle_max = n_cycle_max
         self._n_cycle_dim = n_cycle_dim
@@ -275,14 +286,24 @@ class SwingOptimizer(Optimizer):
 
         blob = self._kwargs.get("blob", False)
         kwargs = deepcopy(self._kwargs)
-        if len(args) > 0:
+        nfev = 0
+        if len(args) == 1:
             kwargs["initial_pos"] = self.derive_initial_pos(
-                args[0], fitting_model.bounds, self.n_draw
+                args[0], fitting_model.bounds, self._n_swarm
             )
+        elif len(args) > 1:
+            samps = args[0]
+            values = tuple(map(fitting_model, samps))
+            inds = np.argsort(values)
+            samps = samps[inds[:self._n_swarm]]
+            kwargs["initial_pos"] = self.derive_initial_pos(
+                samps, fitting_model.bounds, self._n_swarm
+            )
+            nfev += samps.shape[0]
         opt = cls_opt(
             fitting_model,
             fitting_model.bounds,
-            nswarm=self.n_draw,
+            nswarm=self._n_swarm,
             pool=pool,
             blob=blob,
             **kwargs
@@ -326,7 +347,7 @@ class SwingOptimizer(Optimizer):
         res_dict = {
             "x":  opt.pos_global_best,
             "fun": opt.cost_global_best,
-            "nfev": opt.memo["ncall"][-1],
+            "nfev": opt.memo["ncall"][-1] + nfev,
             "specie": fitting_model.sl_model.specie_list,
             "freq": fitting_model.sl_model.freq_data,
             "T_pred": T_pred_data,
