@@ -254,7 +254,7 @@ def exclude_isotopes(specie_names, iso_order):
 def count_iso_atoms(name):
     # TODO: This function cannot handle complex formulae, e.g. (C-13-HOH)2
     name = name.split(";")[0]
-    for pattern in re.findall("D\d", name):
+    for pattern in re.findall(r"D\d", name):
         name = name.replace(pattern, pattern[:-1]*int(pattern[-1]))
     return name.count("D") + len(re.findall('-([0-9])([0-9])[-]?', name))
 
@@ -306,7 +306,7 @@ class MolRecord(tuple):
                 HC3N > HCCCN
                 CH3CN > CHHHCN
             """
-            for pattern in re.findall("[A-Z][a-z]?\d", fm):
+            for pattern in re.findall(r"[A-Z][a-z]?\d", fm):
                 fm = fm.replace(pattern, pattern[:-1]*int(pattern[-1]))
             return fm
 
