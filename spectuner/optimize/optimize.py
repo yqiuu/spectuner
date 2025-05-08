@@ -438,8 +438,8 @@ class ScipyOptimizer(Optimizer):
                     + (upper - lower)*np.random.rand(self.n_draw, len(lower))
             else:
                 samps_ = args[0]
-                values = tuple(map(fitting_model, samps_))
-                values = np.asarray(values)
+            values = tuple(map(fitting_model, samps_))
+            values = np.asarray(values)
 
             if self._n_cluster > 1 and len(args) > 1:
                 clusters = _clustering(samps_, values, self._n_cluster)
