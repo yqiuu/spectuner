@@ -1,6 +1,7 @@
 from __future__ import annotations
 import multiprocessing as mp
 from typing import Optional
+from itertools import product
 from dataclasses import dataclass, asdict
 
 import h5py
@@ -17,8 +18,14 @@ from .sl_model import (
     const_factor_mu_sigma,
     SQLSpectralLineDB
 )
-from .optimize import create_optimizer
-from .ai import load_misc_data, predict_cube, InferenceModel
+from .slm_factory import SpectralLineModelFactory
+from .optimize import create_optimizer, Optimizer
+from .ai import (
+    load_misc_data, create_obs_info_from_cube,
+    predict_cube, format_cube_results,
+    InferenceModel
+)
+from .ai.inference import _AddExtraProps
 from .utils import hdf_save_dict
 
 
@@ -63,22 +70,68 @@ def fit_cube(config: dict,
     assert len(species) < max_species, \
         f"Number of species must be less than {max_species}"
 
-    inf_model = InferenceModel.from_config(config, sl_db=sl_db)
+    if config["inference"]["ckpt"] is None:
+        inf_model = None
+        slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
+    else:
+        inf_model = InferenceModel.from_config(config, sl_db=sl_db)
     opt = create_optimizer(config["opt_single"])
     with mp.Pool(processes=config["opt_single"]["n_process"]) as pool:
-        res_dict = predict_cube(
-            inf_model=inf_model,
-            postprocess=opt,
-            fname_cube=fname_cube,
-            species=species,
-            batch_size=config["inference"]["batch_size"],
-            num_workers=config["inference"]["num_workers"],
-            need_spectra=config["cube"]["need_spectra"],
-            pool=pool,
-            device=config["inference"]["device"]
-        )
+        if inf_model is None:
+            res_dict = fit_cube_optimize(
+                fname_cube=fname_cube,
+                slm_factory=slm_factory,
+                opt=opt,
+                species=species,
+                need_spectra=config["cube"]["need_spectra"],
+                pool=pool
+            )
+        else:
+            res_dict = predict_cube(
+                inf_model=inf_model,
+                postprocess=opt,
+                fname_cube=fname_cube,
+                species=species,
+                batch_size=config["inference"]["batch_size"],
+                num_workers=config["inference"]["num_workers"],
+                need_spectra=config["cube"]["need_spectra"],
+                pool=pool,
+                device=config["inference"]["device"]
+            )
     with h5py.File(save_name, "w") as fp:
         hdf_save_dict(fp, res_dict)
+
+
+def fit_cube_optimize(fname_cube: str,
+                      slm_factory: SpectralLineModelFactory,
+                      opt: Optimizer,
+                      species: str,
+                      need_spectra: bool,
+                      pool: mp.Pool):
+    with h5py.File(fname_cube) as fp:
+        n_pixel = fp["index"].shape[0]
+    misc_data = load_misc_data(fname_cube)
+    postprocess = _AddExtraProps(slm_factory, opt, need_spectra=need_spectra)
+    args = fname_cube, misc_data, slm_factory, postprocess
+    results = []
+    with tqdm(total=n_pixel*len(species), desc="Optimizing") as pbar:
+        callback = lambda _: pbar.update()
+        for specie_name, idx_pixel in product(species, range(n_pixel)):
+            results.append(pool.apply_async(
+                _optimize_worker,
+                args=(*args, specie_name, idx_pixel),
+                callback=callback
+            ))
+        results = [res.get() for res in results]
+    return format_cube_results(results)
+
+
+def _optimize_worker(fname_cube, misc_data, slm_factory, postprocess,
+                     specie_name, idx_pixel):
+    obs_info = create_obs_info_from_cube(fname_cube, idx_pixel, misc_data)
+    specie_list = [{"id": 0, "root": specie_name, "species": [specie_name]}]
+    fitting_model = slm_factory.create_fitting_model(obs_info, specie_list)
+    return postprocess(fitting_model)
 
 
 @dataclass(frozen=True)
