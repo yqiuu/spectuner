@@ -1,6 +1,6 @@
 from __future__ import annotations
 import multiprocessing as mp
-from typing import Optional
+from typing import Optional, Callable
 from itertools import product
 from dataclasses import dataclass, asdict
 
@@ -119,7 +119,7 @@ def fit_cube_optimize(fname_cube: str,
         callback = lambda _: pbar.update()
         for specie_name, idx_pixel in product(species, range(n_pixel)):
             results.append(pool.apply_async(
-                _optimize_worker,
+                fit_cube_worker,
                 args=(*args, specie_name, idx_pixel),
                 callback=callback
             ))
@@ -127,8 +127,13 @@ def fit_cube_optimize(fname_cube: str,
     return format_cube_results(results)
 
 
-def _optimize_worker(fname_cube, misc_data, slm_factory, postprocess,
-                     specie_name, idx_pixel):
+def fit_cube_worker(fname_cube: str,
+                    misc_data: list,
+                    slm_factory: SpectralLineModelFactory,
+                    postprocess: Callable,
+                    specie_name: str,
+                    idx_pixel: int):
+    """Basic function that performs fitting of one pixel in a cube."""
     obs_info = create_obs_info_from_cube(fname_cube, idx_pixel, misc_data)
     specie_list = [{"id": 0, "root": specie_name, "species": [specie_name]}]
     fitting_model = slm_factory.create_fitting_model(obs_info, specie_list)
