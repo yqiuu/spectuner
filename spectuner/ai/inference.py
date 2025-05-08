@@ -133,8 +133,10 @@ def predict_cube(inf_model: InferenceModel,
         inf_model.slm_factory, postprocess, need_spectra
     )
     results = inf_model.call_multi(data_loader, postprocess_, pool, device)
+    return format_cube_results(results, need_spectra)
 
-    # Format results
+
+def format_cube_results(results, need_spectra):
     res_dict = {}
     for res in results:
         name = res["specie"][0]["root"]
