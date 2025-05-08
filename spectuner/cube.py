@@ -2,6 +2,7 @@ from __future__ import annotations
 import multiprocessing as mp
 from typing import Optional, Callable
 from itertools import product
+from copy import copy
 from dataclasses import dataclass, asdict
 
 import h5py
@@ -10,6 +11,7 @@ from scipy import signal
 from astropy import units, constants
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
+from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
 from .sl_model import (
@@ -20,12 +22,8 @@ from .sl_model import (
 )
 from .slm_factory import SpectralLineModelFactory
 from .optimize import create_optimizer, Optimizer
-from .ai import (
-    load_misc_data, create_obs_info_from_cube,
-    predict_cube, format_cube_results,
-    InferenceModel
-)
-from .ai.inference import _AddExtraProps
+from .ai import collate_fn_padding, InferenceModel
+from .preprocess import preprocess_spectrum
 from .utils import hdf_save_dict
 
 
@@ -138,6 +136,188 @@ def fit_cube_worker(fname_cube: str,
     specie_list = [{"id": 0, "root": specie_name, "species": [specie_name]}]
     fitting_model = slm_factory.create_fitting_model(obs_info, specie_list)
     return postprocess(fitting_model)
+
+
+def predict_cube(inf_model: InferenceModel,
+                 fname_cube: str,
+                 species: str,
+                 batch_size: int,
+                 postprocess: Callable,
+                 num_workers: int=2,
+                 need_spectra: bool=True,
+                 pool=None,
+                 device=None):
+    # Create data loader
+    dataset = CubeDataset(
+        fname=fname_cube,
+        species=species,
+        inf_model=inf_model,
+    )
+    data_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        collate_fn=collate_fn_padding,
+        shuffle=False,
+        num_workers=num_workers,
+    )
+
+    #
+    postprocess_ = _AddExtraProps(
+        inf_model.slm_factory, postprocess, need_spectra
+    )
+    results = inf_model.call_multi(data_loader, postprocess_, pool, device)
+    return format_cube_results(results)
+
+
+def create_obs_info_from_cube(fname: str, idx_pixel:int , misc_data: list):
+    T_obs_data = []
+    T_bg_data = []
+    with h5py.File(fname) as fp:
+        for i_segment in range(len(fp["cube"])):
+            grp = fp["cube"][str(i_segment)]
+            T_obs_data.append(np.array(grp["T_obs"][idx_pixel]))
+            T_bg_data.append(np.array(grp["T_bg"][idx_pixel]))
+    freq_data, noise_data, beam_data = misc_data
+
+    obs_info = []
+    for i_segment, freq in enumerate(freq_data):
+        spec = np.vstack([freq, T_obs_data[i_segment]]).T
+        spec = preprocess_spectrum(spec)
+        obs_info.append({
+            "spec": spec,
+            "beam_info": beam_data[i_segment],
+            "T_bg": T_bg_data[i_segment],
+            "need_cmb": True,
+            "noise": noise_data[i_segment],
+        })
+    return obs_info
+
+
+def load_misc_data(fname):
+    """
+    Returns:
+        freq_data (list):
+        noise_data (list):
+        beam_data (list):
+    """
+    with h5py.File(fname) as fp:
+        freq_data = []
+        noise_data = []
+        beam_data = []
+        for i_segment in range(len(fp["cube"])):
+            grp = fp["cube"][str(i_segment)]
+            freq_data.append(np.array(grp["freq"]))
+            noise_data.append(np.array(grp["noise"]))
+            beam_data.append(np.array(grp["beam"]))
+    return freq_data, noise_data, beam_data
+
+
+def format_cube_results(results):
+    res_dict = {}
+    for res in results:
+        name = res["specie"][0]["root"]
+        if name not in res_dict:
+            res_dict[name] = {
+                "params": [],
+                "t1_score": [],
+                "t2_score": [],
+                "t3_score": [],
+                "t4_score": [],
+                "s_tp_tot": [],
+                "num_tp": [],
+                "s_fp_tot": [],
+                "num_fp": []
+            }
+            if "T_pred" in res:
+                res_dict[name]["T_pred"] = {
+                    f"{idx}": [] for idx in range(len(res["T_pred"]))
+                }
+
+        sub_dict = res_dict[name]
+        for key in sub_dict:
+            if key != "T_pred":
+                sub_dict[key].append(res[key])
+            elif "T_pred" in res:
+                for idx, T_pred in enumerate(res["T_pred"]):
+                    sub_dict["T_pred"][f"{idx}"].append(T_pred)
+
+    for sub_dict in res_dict.values():
+        for key, val in sub_dict.items():
+            if key == "params":
+                sub_dict[key] = np.vstack(val)
+            elif key == "T_pred":
+                for idx, T_data in sub_dict[key].items():
+                    sub_dict[key][idx] = np.vstack(T_data)
+            else:
+                sub_dict[key] = np.asarray(val)
+    return res_dict
+
+
+class CubeDataset(Dataset):
+    def __init__(self, fname: str, species: str, inf_model: InferenceModel):
+        self._fname = fname
+        self._species = species
+        self._embedding_model = inf_model.embedding_model
+        self._slm_factory = inf_model.slm_factory
+        self._misc_data = load_misc_data(fname)
+        self._n_pixel = h5py.File(fname)["index"].shape[0]
+
+    def __len__(self):
+        return self._n_pixel*len(self._species)
+
+    def __getitem__(self, idx):
+        idx_specie, idx_pixel = divmod(idx, self.n_pixel)
+        obs_info = create_obs_info_from_cube(
+            self._fname, idx_pixel, self._misc_data
+        )
+        embed_obs, embed_sl, sl_dict, specie_list \
+            = self._embedding_model(obs_info, self._species[idx_specie])
+        fitting_model = self._slm_factory.create_fitting_model(
+            obs_info, specie_list, [sl_dict]
+        )
+        return embed_obs, embed_sl, fitting_model
+
+    @property
+    def n_pixel(self):
+        return self._n_pixel
+
+
+class _AddExtraProps:
+    def __init__(self,
+                 slm_factory: SpectralLineModelFactory,
+                 postprocess: Callable,
+                 need_spectra: bool):
+        self._slm_factory = copy(slm_factory)
+        self._slm_factory._sl_db = None # Prevent copying the database from multiprocessing
+        self._postprocess = postprocess
+        self._need_spectra = need_spectra
+
+    def __call__(self, fitting_model, *args):
+        res = self._postprocess(fitting_model, *args)
+        params = fitting_model.sl_model.param_mgr.derive_params(res["x"])[0]
+        # Set column density to log10, ensure that the index is correct
+        params[2] = np.log10(params[2])
+        res["params"] = params
+        peak_mgr = self._slm_factory.create_peak_mgr(fitting_model.obs_info)
+        scores_tp, scores_fp = peak_mgr.compute_score_all(
+            res["T_pred"], use_f_dice=True
+        )
+        scores_tp = np.sort(scores_tp)[::-1]
+        n_max = 4
+        for idx in range(n_max):
+            res[f"t{idx+1}_score"] \
+                = scores_tp[idx] if len(scores_tp) > idx + 1 else 0.
+        res["s_tp_tot"] = np.sum(scores_tp)
+        res["num_tp"] = len(scores_tp)
+        res["s_fp_tot"] = np.sum(scores_fp)
+        res["num_fp"] = len(scores_fp)
+        if not self._need_spectra:
+            del res["T_pred"]
+        return res
+
+    @property
+    def n_draw(self):
+        return self._postprocess.n_draw
 
 
 @dataclass(frozen=True)
