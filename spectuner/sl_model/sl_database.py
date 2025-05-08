@@ -291,7 +291,7 @@ def latex_mol_formula(name):
 
 
 def create_spectral_line_db(fname: str, cache: bool=False):
-    return SQLSpectralLineDB(fname, cache)
+    return SQLSpectralLineDB(fname, cache=cache)
 
 
 class MolRecord(tuple):
@@ -375,24 +375,9 @@ class SpectralLineDB(ABC):
     _cols = "freq", "A_ul", "E_low", "g_u"
     _q_min = 1e-10
 
-    def __init__(self, freqs: list, names: list, cache: bool=False):
-        inds = np.argsort(freqs)
-        self._freqs = np.asarray(freqs)[inds]
-        self._names = np.asarray(names)[inds]
-        self._freqs.flags.writeable = False
-        self._names.flags.writeable = False
+    def __init__(self, cache: bool=False):
         self._cache = cache
         self._data = {}
-
-    @property
-    def freqs(self) -> np.ndarray:
-        """Frequencies of all entries."""
-        return self._freqs
-
-    @property
-    def names(self) -> np.ndarray:
-        """Names of all entries."""
-        return self._names
 
     def query_transitions(self, freq_data: list) -> list:
         """Find all entries in the given frequency ranges.
@@ -405,15 +390,28 @@ class SpectralLineDB(ABC):
         Returns:
             list: A list of tuples (``specie_name``, ``transition_frequecy`` [MHz]).
         """
+        names, freqs = self.load_all_transitions()
+        inds = np.argsort(freqs)
+        names = np.asarray(names)[inds]
+        freqs = np.asarray(freqs)[inds]
+
         data = []
         for freq in freq_data:
             # In some cases, freq is not ordered, so we need to use max and min
             freq_min = np.min(freq)
-            idx_b = np.searchsorted(self.freqs, freq_min)
+            idx_b = np.searchsorted(freqs, freq_min)
             freq_max = np.max(freq)
-            idx_e = np.searchsorted(self.freqs, freq_max)
-            data.extend(list(zip(self.names[idx_b:idx_e], self.freqs[idx_b:idx_e])))
+            idx_e = np.searchsorted(freqs, freq_max)
+            data.extend(list(zip(names[idx_b:idx_e], freqs[idx_b:idx_e])))
         return data
+
+    @abstractmethod
+    def load_all_transitions(self):
+        """Load all transitions.
+
+        Returns:
+            tuple:  (names, freqs).
+        """
 
     def query_sl_dict(self, key: str, freq_data: list, v_enlarge: float=0.) -> dict:
         # This function is almost the same as the one in sl_database.py
@@ -453,10 +451,13 @@ class SpectralLineDB(ABC):
 
 
 class SQLSpectralLineDB(SpectralLineDB):
-    def __init__(self, fname, cache=False, start_end_pf=(5, 115)):
+    def __init__(self, fname, start_end_pf=(5, 115), cache=False):
+        super().__init__(cache)
         self._fname = fname
+        self._start_end_pf = start_end_pf
 
-        conn = sqlite3.connect(fname)
+    def load_all_transitions(self):
+        conn = sqlite3.connect(self._fname)
         cursor = conn.cursor()
 
         query = """select T_Name, T_Frequency from transitions where """\
@@ -468,13 +469,12 @@ class SQLSpectralLineDB(SpectralLineDB):
         query = "select * from partitionfunctions"
         cursor.execute(query)
         cols = list(map(lambda x: x[0], cursor.description))
-        self._slice_pf = slice(*start_end_pf)
+        self._slice_pf = slice(*self._start_end_pf)
         self._x_T = np.array([float(col[3:].replace("_", "."))
                               for col in cols[self._slice_pf]])
         cursor.close()
         conn.close()
-
-        super().__init__(freqs, names, cache)
+        return names, freqs
 
     def _load_sl_dict(self, key: str) -> dict:
         conn = sqlite3.connect(self._fname)
