@@ -133,10 +133,10 @@ def predict_cube(inf_model: InferenceModel,
         inf_model.slm_factory, postprocess, need_spectra
     )
     results = inf_model.call_multi(data_loader, postprocess_, pool, device)
-    return format_cube_results(results, need_spectra)
+    return format_cube_results(results)
 
 
-def format_cube_results(results, need_spectra):
+def format_cube_results(results):
     res_dict = {}
     for res in results:
         name = res["specie"][0]["root"]
@@ -152,7 +152,7 @@ def format_cube_results(results, need_spectra):
                 "s_fp_tot": [],
                 "num_fp": []
             }
-            if need_spectra:
+            if "T_pred" in res:
                 res_dict[name]["T_pred"] = {
                     f"{idx}": [] for idx in range(len(res["T_pred"]))
                 }
@@ -161,7 +161,7 @@ def format_cube_results(results, need_spectra):
         for key in sub_dict:
             if key != "T_pred":
                 sub_dict[key].append(res[key])
-            elif need_spectra:
+            elif "T_pred" in res:
                 for idx, T_pred in enumerate(res["T_pred"]):
                     sub_dict["T_pred"][f"{idx}"].append(T_pred)
 
