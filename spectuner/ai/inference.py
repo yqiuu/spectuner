@@ -185,19 +185,28 @@ def collate_fn_padding(batch):
     return (embed_obs_batch, embed_sl_batch, mask) + others
 
 
-def create_obs_info(freq_data, T_obs_data, T_bg_data, noise_data, beam_data):
-    obs_info = []
-    for i_segment, freq in enumerate(freq_data):
-        spec = np.vstack([freq, T_obs_data[i_segment]]).T
-        spec = preprocess_spectrum(spec)
-        obs_info.append({
-            "spec": spec,
-            "beam_info": beam_data[i_segment],
-            "T_bg": T_bg_data[i_segment],
-            "need_cmb": True,
-            "noise": noise_data[i_segment],
-        })
-    return obs_info
+def create_obs_info_from_cube(fname: str, idx_pixel:int , misc_data: list):
+        T_obs_data = []
+        T_bg_data = []
+        with h5py.File(fname) as fp:
+            for i_segment in range(len(fp["cube"])):
+                grp = fp["cube"][str(i_segment)]
+                T_obs_data.append(np.array(grp["T_obs"][idx_pixel]))
+                T_bg_data.append(np.array(grp["T_bg"][idx_pixel]))
+        freq_data, noise_data, beam_data = misc_data
+
+        obs_info = []
+        for i_segment, freq in enumerate(freq_data):
+            spec = np.vstack([freq, T_obs_data[i_segment]]).T
+            spec = preprocess_spectrum(spec)
+            obs_info.append({
+                "spec": spec,
+                "beam_info": beam_data[i_segment],
+                "T_bg": T_bg_data[i_segment],
+                "need_cmb": True,
+                "noise": noise_data[i_segment],
+            })
+        return obs_info
 
 
 def load_misc_data(fname):
@@ -233,20 +242,8 @@ class CubeDataset(Dataset):
 
     def __getitem__(self, idx):
         idx_specie, idx_pixel = divmod(idx, self.n_pixel)
-        T_obs_data = []
-        T_bg_data = []
-        with h5py.File(self._fname) as fp:
-            for i_segment in range(len(fp["cube"])):
-                grp = fp["cube"][str(i_segment)]
-                T_obs_data.append(np.array(grp["T_obs"][idx_pixel]))
-                T_bg_data.append(np.array(grp["T_bg"][idx_pixel]))
-        freq_data, noise_data, beam_data = self._misc_data
-        obs_info = create_obs_info(
-            freq_data=freq_data,
-            T_obs_data=T_obs_data,
-            T_bg_data=T_bg_data,
-            noise_data=noise_data,
-            beam_data=beam_data,
+        obs_info = create_obs_info_from_cube(
+            self._fname, idx_pixel, self._misc_data
         )
         embed_obs, embed_sl, sl_dict, specie_list \
             = self._embedding_model(obs_info, self._species[idx_specie])
