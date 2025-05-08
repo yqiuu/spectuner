@@ -76,30 +76,31 @@ def fit_cube(config: dict,
     else:
         inf_model = InferenceModel.from_config(config, sl_db=sl_db)
     opt = create_optimizer(config["opt_single"])
-    with mp.Pool(processes=config["opt_single"]["n_process"]) as pool:
-        if inf_model is None:
-            res_dict = fit_cube_optimize(
-                fname_cube=fname_cube,
-                slm_factory=slm_factory,
-                opt=opt,
-                species=species,
-                need_spectra=config["cube"]["need_spectra"],
-                pool=pool
-            )
-        else:
-            res_dict = predict_cube(
-                inf_model=inf_model,
-                postprocess=opt,
-                fname_cube=fname_cube,
-                species=species,
-                batch_size=config["inference"]["batch_size"],
-                num_workers=config["inference"]["num_workers"],
-                need_spectra=config["cube"]["need_spectra"],
-                pool=pool,
-                device=config["inference"]["device"]
-            )
-    with h5py.File(save_name, "w") as fp:
-        hdf_save_dict(fp, res_dict)
+    n_process = config["opt_single"]["n_process"]
+    with mp.Pool(processes=n_process) as pool, h5py.File(save_name, "w") as fp:
+        for specie_name in species:
+            if inf_model is None:
+                res_dict = fit_cube_optimize(
+                    fname_cube=fname_cube,
+                    slm_factory=slm_factory,
+                    opt=opt,
+                    species=[specie_name],
+                    need_spectra=config["cube"]["need_spectra"],
+                    pool=pool
+                )
+            else:
+                res_dict = predict_cube(
+                    inf_model=inf_model,
+                    postprocess=opt,
+                    fname_cube=fname_cube,
+                    species=[specie_name],
+                    batch_size=config["inference"]["batch_size"],
+                    num_workers=config["inference"]["num_workers"],
+                    need_spectra=config["cube"]["need_spectra"],
+                    pool=pool,
+                    device=config["inference"]["device"]
+                )
+            hdf_save_dict(fp, res_dict)
 
 
 def fit_cube_optimize(fname_cube: str,
