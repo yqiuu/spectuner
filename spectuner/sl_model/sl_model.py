@@ -10,6 +10,7 @@ from ..peaks import derive_intersections
 
 __all__ = [
     "compute_spectra_simple_grid",
+    "compute_effective_spectra",
     "create_spectral_line_model_state",
     "const_factor_mu_sigma",
     "SpectralLineModel"
