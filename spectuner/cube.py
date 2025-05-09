@@ -117,9 +117,12 @@ def fit_cube_optimize(fname_cube: str,
     with tqdm(total=n_pixel*len(species), desc="Optimizing") as pbar:
         callback = lambda _: pbar.update()
         for specie_name, idx_pixel in product(species, range(n_pixel)):
+            specie_list = [
+                {"id": 0, "root": specie_name, "species": [specie_name]}
+            ]
             results.append(pool.apply_async(
                 fit_cube_worker,
-                args=(*args, specie_name, idx_pixel),
+                args=(*args, specie_list, idx_pixel),
                 callback=callback
             ))
         results = [res.get() for res in results]
@@ -130,11 +133,10 @@ def fit_cube_worker(fname_cube: str,
                     misc_data: list,
                     slm_factory: SpectralLineModelFactory,
                     postprocess: Callable,
-                    specie_name: str,
+                    specie_list: list,
                     idx_pixel: int):
     """Basic function that performs fitting of one pixel in a cube."""
     obs_info = create_obs_info_from_cube(fname_cube, idx_pixel, misc_data)
-    specie_list = [{"id": 0, "root": specie_name, "species": [specie_name]}]
     fitting_model = slm_factory.create_fitting_model(obs_info, specie_list)
     return postprocess(fitting_model)
 
