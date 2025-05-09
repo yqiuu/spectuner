@@ -454,7 +454,17 @@ class SQLSpectralLineDB(SpectralLineDB):
     def __init__(self, fname, start_end_pf=(5, 115), cache=False):
         super().__init__(cache)
         self._fname = fname
-        self._start_end_pf = start_end_pf
+        # load x_T
+        conn = sqlite3.connect(self._fname)
+        cursor = conn.cursor()
+        query = "select * from partitionfunctions"
+        cursor.execute(query)
+        cols = list(map(lambda x: x[0], cursor.description))
+        self._slice_pf = slice(*start_end_pf)
+        self._x_T = np.array([float(col[3:].replace("_", "."))
+                              for col in cols[self._slice_pf]])
+        cursor.close()
+        conn.close()
 
     def load_all_transitions(self):
         conn = sqlite3.connect(self._fname)
@@ -465,13 +475,6 @@ class SQLSpectralLineDB(SpectralLineDB):
         cursor.execute(query)
         data = cursor.fetchall()
         names, freqs = tuple(zip(*data))
-
-        query = "select * from partitionfunctions"
-        cursor.execute(query)
-        cols = list(map(lambda x: x[0], cursor.description))
-        self._slice_pf = slice(*self._start_end_pf)
-        self._x_T = np.array([float(col[3:].replace("_", "."))
-                              for col in cols[self._slice_pf]])
         cursor.close()
         conn.close()
         return names, freqs
@@ -497,7 +500,6 @@ class SQLSpectralLineDB(SpectralLineDB):
             tmp = [1. if val is None else val for val in line[self._slice_pf]]
             sl_dict["Q_T"] = np.array(tmp)
         sl_dict["x_T"] = self._x_T
-
         cursor.close()
         conn.close()
         return sl_dict
