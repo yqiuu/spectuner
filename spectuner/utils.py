@@ -111,7 +111,7 @@ def hdf_load_dict(fp, load_dict, ignore_list=None):
             elif type_name == "dict":
                 load_dict_sub = {}
                 load_dict[key] = load_dict_sub
-                hdf_load_dict(data, load_dict_sub)
+                hdf_load_dict(data, load_dict_sub, ignore_list)
             else:
                 raise ValueError(f"Unknown type: {type_name}")
 
