@@ -379,6 +379,8 @@ class CubePipeline:
             cond_mask &= ~np.isinf(data_continuum)
         inds_mask = np.where(cond_mask)
 
+        headers_line = []
+        headers_continuum = []
         T_obs_data = []
         T_bg_data = []
         freq_data = []
@@ -387,12 +389,14 @@ class CubePipeline:
         mask_data = []
         for item, header in zip(file_list, header_list):
             hdul = fits.open(item["line"])[0]
+            headers_line.append(hdul.header)
             # (1, C, W, H) > (C, W, H)
             data_line = np.squeeze(hdul.data)
             data_line = np.transpose(data_line, axes=(1, 2, 0)) # (W, H, C)
             data_line = data_line[inds_mask] # (N, C)
 
             hdul = fits.open(item["continuum"])[0]
+            headers_continuum.append(hdul.header)
             data_continuum = np.squeeze(hdul.data) # (W, H)
             data_continuum = data_continuum[inds_mask]
 
@@ -498,7 +502,8 @@ class CubePipeline:
             fp.create_dataset("index", data=inds_mask, dtype="i4")
             grp_cube = fp.create_group("cube")
             self.save_file(
-                grp_cube, T_obs_data, T_bg_data, freq_data, noise_data, beam_data
+                grp_cube, headers_line, headers_continuum,
+                T_obs_data, T_bg_data, freq_data, noise_data, beam_data
             )
 
     def prepare_header_list(self, file_list, header_lookup):
@@ -639,12 +644,20 @@ class CubePipeline:
 
         return T_obs_data_ret, T_bg_data_ret, freq_data_ret, noise_data_ret, beam_data_ret
 
-    def save_file(self, grp, T_obs_data, T_bg_data, freq_data, noise_data, beam_data):
+    def save_file(self, grp, headers_line, headers_continuum,
+                  T_obs_data, T_bg_data, freq_data, noise_data, beam_data):
         i_seg_save = 0
-        for T_obs, T_bg, freqs, noise, beam in zip(
+        for header_l, header_c, T_obs, T_bg, freqs, noise, beam in zip(
+            headers_line, headers_continuum,
             T_obs_data, T_bg_data, freq_data, noise_data, beam_data
         ):
             grp_sub = grp.create_group(str(i_seg_save))
+            grp_header_l = grp_sub.create_group("header/line")
+            for key, val in header_l.items():
+                grp_header_l.attrs[key] = val
+            grp_header_c = grp_sub.create_group("header/continuum")
+            for key, val in header_c.items():
+                grp_header_c.attrs[key] = val
             grp_sub.create_dataset("T_obs", data=T_obs)
             grp_sub.create_dataset("T_bg", data=T_bg, dtype="f4")
             grp_sub.create_dataset("freq", data=freqs, dtype="f4")
