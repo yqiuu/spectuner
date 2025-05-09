@@ -350,9 +350,9 @@ class CubePipeline:
     window_size: int = 31
     rel_height: float = 0.25
     noise_factor_global: float = 4.
-    noise_factor_local: float = 1.
-    f_pla_cut: float = .75
+    noise_factor_local: float = 6.
     number_cut: int = 3
+    f_pla_cut: float = .75
     v_LSR: float = 0.
 
     def run(self,
