@@ -7,10 +7,12 @@ from dataclasses import dataclass, asdict
 
 import h5py
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy import signal
 from astropy import units, constants
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
+from astropy.wcs import WCS
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
@@ -723,3 +725,15 @@ def to_dense_matrix(arr: np.ndarray,
     mat = np.full(shape, np.nan)
     mat[indices[:, 0], indices[:, 1]] = arr
     return mat
+
+
+def ra_dec_plots(header, naxis=2, **kwargs):
+    wcs = WCS(header, naxis=naxis)
+    fig, axes = plt.subplots(**kwargs, subplot_kw={'projection': wcs})
+    for ax in np.ravel(axes):
+        lon = ax.coords[0]
+        lat = ax.coords[1]
+        lon.set_axislabel('RA (J2000)')
+        lat.set_axislabel('DEC (J2000)')
+        lon.set_major_formatter('hh:mm:ss.s')
+    return fig, axes
