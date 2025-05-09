@@ -49,6 +49,21 @@ class ParameterManager:
             params_list.append(params_sub)
             params = params[idx:]
         params_mol = np.vstack(params_list)
+        return self.forward_scaling(params_mol)
+
+    def recover_params(self, params_mol):
+        params_mol = self.reverse_scaling(params_mol)
+        params_ret = []
+        idx_b = 0
+        for item in self.specie_list:
+            idx_e = idx_b + len(item["species"])
+            params_ret.append(self._recover_params(params_mol[idx_b:idx_e]))
+            idx_b = idx_e
+        params_ret = np.concatenate(params_ret)
+        return params_ret
+
+    def forward_scaling(self, params_mol):
+        params_mol = params_mol.copy()
         for idx, is_log in enumerate(self._scales):
             if idx == 0 and self._special is not None:
                 if self._special == "scaled":
@@ -64,6 +79,26 @@ class ParameterManager:
                 continue
             if is_log:
                 params_mol[:, idx] = 10**params_mol[:, idx]
+        return params_mol
+
+    def reverse_scaling(self, params_mol):
+        params_mol = params_mol.copy()
+        for idx, is_log in enumerate(self._scales):
+            if idx == 0 and self._special is not None:
+                if self._special == "scaled":
+                    if is_log:
+                        params_mol[:, 0] = np.log10(params_mol[:, 0]/self._beam_size)
+                    else:
+                        params_mol[:, 0] = params_mol[:, 0]/self._beam_size
+                elif self._special == "eta":
+                    eta = np.square(params_mol[:, 0]/self._beam_size)
+                    eta = eta/(1 + eta)
+                    if is_log:
+                        eta = np.log10(eta)
+                    params_mol[:, 0] = eta
+                continue
+            if is_log:
+                params_mol[:, idx] = np.log10(params_mol[:, idx])
         return params_mol
 
     def derive_bounds(self, bounds_dict):
@@ -114,7 +149,7 @@ class ParameterManager:
     def _derive_params_sub(self, params, n_mol):
         """Decode input parameters into a parameter list.
 
-        For example, [123, AB, CD] > [[12AB3], [12CD3]].
+        For example, [123, AB, CD] > [[12AC3], [12BD3]].
         """
         params_ret = np.zeros([n_mol, self._n_param_per_mol])
         #
@@ -125,6 +160,17 @@ class ParameterManager:
             params_ret[:, idx_p] = params[idx : idx+n_mol]
             idx += n_mol
         return params_ret, idx
+
+    def _recover_params(self, params):
+        """Convert a parameter list to parameters.
+
+        For example, [[12AC3], [12BD3]] > [123, AB, CD].
+        """
+        params_ret = [params[0, self._inds_shared]]
+        for idx_p in self._inds_private:
+            params_ret.append(params[:, idx_p])
+        params_ret = np.concatenate(params_ret)
+        return params_ret
 
     def _derive_n_tot(self):
         n_tot = 0
