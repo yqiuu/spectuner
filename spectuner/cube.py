@@ -74,43 +74,44 @@ def fit_cube(config: dict,
     else:
         inf_model = InferenceModel.from_config(config, sl_db=sl_db)
     opt = create_optimizer(config["opt_single"])
+    postprocess = _AddExtraProps(
+        inf_model.slm_factory, opt,
+        need_spectra=config["cube"]["need_spectra"]
+    )
     n_process = config["opt_single"]["n_process"]
     with mp.Pool(processes=n_process) as pool, h5py.File(save_name, "w") as fp:
         for specie_name in species:
             if inf_model is None:
-                res_dict = fit_cube_optimize(
+                results = fit_cube_optimize(
                     fname_cube=fname_cube,
                     slm_factory=slm_factory,
-                    opt=opt,
+                    postprocess=postprocess,
                     species=[specie_name],
-                    need_spectra=config["cube"]["need_spectra"],
                     pool=pool
                 )
             else:
-                res_dict = predict_cube(
+                results = predict_cube(
                     inf_model=inf_model,
-                    postprocess=opt,
+                    postprocess=postprocess,
                     fname_cube=fname_cube,
                     species=[specie_name],
                     batch_size=config["inference"]["batch_size"],
                     num_workers=config["inference"]["num_workers"],
-                    need_spectra=config["cube"]["need_spectra"],
                     pool=pool,
                     device=config["inference"]["device"]
                 )
+            res_dict = format_cube_results(results)
             hdf_save_dict(fp, res_dict)
 
 
 def fit_cube_optimize(fname_cube: str,
                       slm_factory: SpectralLineModelFactory,
-                      opt: Optimizer,
+                      postprocess: Optimizer,
                       species: str,
-                      need_spectra: bool,
                       pool: mp.Pool):
     with h5py.File(fname_cube) as fp:
         n_pixel = fp["index"].shape[0]
     misc_data = load_misc_data(fname_cube)
-    postprocess = _AddExtraProps(slm_factory, opt, need_spectra=need_spectra)
     args = fname_cube, misc_data, slm_factory, postprocess
     results = []
     with tqdm(total=n_pixel*len(species), desc="Optimizing") as pbar:
@@ -144,7 +145,6 @@ def predict_cube(inf_model: InferenceModel,
                  batch_size: int,
                  postprocess: Callable,
                  num_workers: int=2,
-                 need_spectra: bool=True,
                  pool=None,
                  device=None):
     # Create data loader
@@ -160,13 +160,7 @@ def predict_cube(inf_model: InferenceModel,
         shuffle=False,
         num_workers=num_workers,
     )
-
-    #
-    postprocess_ = _AddExtraProps(
-        inf_model.slm_factory, postprocess, need_spectra
-    )
-    results = inf_model.call_multi(data_loader, postprocess_, pool, device)
-    return format_cube_results(results)
+    return inf_model.call_multi(data_loader, postprocess, pool, device)
 
 
 def create_obs_info_from_cube(fname: str, idx_pixel:int , misc_data: list):
