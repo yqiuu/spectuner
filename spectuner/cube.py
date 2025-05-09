@@ -1,6 +1,6 @@
 from __future__ import annotations
 import multiprocessing as mp
-from typing import Optional, Callable
+from typing import Optional, Callable, Literal
 from itertools import product
 from copy import copy
 from dataclasses import dataclass, asdict
@@ -206,6 +206,26 @@ def load_misc_data(fname):
             noise_data.append(np.array(grp["noise"]))
             beam_data.append(np.array(grp["beam"]))
     return freq_data, noise_data, beam_data
+
+
+def load_cube_header(fname: str,
+                     i_segment: int=0,
+                     target: Literal["continuum", "line"]="continuum"):
+    """Load the header of a cube file.
+
+    Args:
+        fname: Path to the input HDF5 cube file.
+        i_segment: Segment index.
+        target: Specify whether to read the header of the continuum or line
+            file.
+
+    Returns:
+        dict: A dictionary containing all the header attributes.
+    """
+    with h5py.File(fname) as fp:
+        grp = fp[f"cube/{i_segment}/header/{target}"]
+        header = dict(grp.attrs)
+    return header
 
 
 def format_cube_results(results):
