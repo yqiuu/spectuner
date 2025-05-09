@@ -73,10 +73,10 @@ def fit_cube(config: dict,
         slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
     else:
         inf_model = InferenceModel.from_config(config, sl_db=sl_db)
+        slm_factory = inf_model.slm_factory
     opt = create_optimizer(config["opt_single"])
     postprocess = _AddExtraProps(
-        inf_model.slm_factory, opt,
-        need_spectra=config["cube"]["need_spectra"]
+        slm_factory, opt, need_spectra=config["cube"]["need_spectra"]
     )
     n_process = config["opt_single"]["n_process"]
     with mp.Pool(processes=n_process) as pool, h5py.File(save_name, "w") as fp:
@@ -123,7 +123,7 @@ def fit_cube_optimize(fname_cube: str,
                 callback=callback
             ))
         results = [res.get() for res in results]
-    return format_cube_results(results)
+    return results
 
 
 def fit_cube_worker(fname_cube: str,
