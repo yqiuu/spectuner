@@ -371,12 +371,12 @@ class CubePipeline:
             cond_mask = ~np.isnan(mask)
 
         for item in file_list:
-            data_contiuum = np.squeeze(fits.open(item["contiuum"])[0].data) # (W, H)
-            n_row, n_col = data_contiuum.shape
+            data_continuum = np.squeeze(fits.open(item["continuum"])[0].data) # (W, H)
+            n_row, n_col = data_continuum.shape
             if cond_mask is None:
-                cond_mask = np.full(data_contiuum.shape, True)
-            cond_mask &= ~np.isnan(data_contiuum)
-            cond_mask &= ~np.isinf(data_contiuum)
+                cond_mask = np.full(data_continuum.shape, True)
+            cond_mask &= ~np.isnan(data_continuum)
+            cond_mask &= ~np.isinf(data_continuum)
         inds_mask = np.where(cond_mask)
 
         T_obs_data = []
@@ -392,9 +392,9 @@ class CubePipeline:
             data_line = np.transpose(data_line, axes=(1, 2, 0)) # (W, H, C)
             data_line = data_line[inds_mask] # (N, C)
 
-            hdul = fits.open(item["contiuum"])[0]
-            data_contiuum = np.squeeze(hdul.data) # (W, H)
-            data_contiuum = data_contiuum[inds_mask]
+            hdul = fits.open(item["continuum"])[0]
+            data_continuum = np.squeeze(hdul.data) # (W, H)
+            data_continuum = data_continuum[inds_mask]
 
             # Fix nan and inf values
             num_tot = np.prod(data_line.shape)
@@ -406,7 +406,7 @@ class CubePipeline:
             ):
                 cond = np.isnan(spec) | np.isinf(spec)
                 num += np.count_nonzero(cond)
-                data_line[idx, cond] = data_contiuum[idx]
+                data_line[idx, cond] = data_continuum[idx]
             print("Fraction of nan and inf values: {:.1f}% ({}/{})".format(
                 num/num_tot*100., num, num_tot))
 
@@ -433,12 +433,12 @@ class CubePipeline:
             ):
                 cond = spec > factor_out*noise
                 num += np.count_nonzero(cond)
-                data_line[idx, cond] = data_contiuum[idx]
+                data_line[idx, cond] = data_continuum[idx]
             print("Fraction of outliers: {:.1f}% ({}/{})".format(
                 num/num_tot*100., num, num_tot))
 
             # Count number of lines
-            counts = np.zeros(len(data_contiuum), dtype="i8")
+            counts = np.zeros(len(data_continuum), dtype="i8")
             prominence = self.noise_factor_global*noise
             pbar = tqdm(
                 enumerate(data_line),
@@ -454,7 +454,7 @@ class CubePipeline:
                 counts[idx] += len(peaks)
 
             # Convert unit
-            T_bg = to_kelvin(data_contiuum, freq_m, bmaj, bmin)
+            T_bg = to_kelvin(data_continuum, freq_m, bmaj, bmin)
             T_obs = to_kelvin(data_line, freqs, bmaj, bmin)
             noise = to_kelvin(noise, freq_m, bmaj, bmin)
             beam_info = np.array([bmaj, bmin])
@@ -506,7 +506,7 @@ class CubePipeline:
         names = ["freq_start", "dfreq", "n_freq", "BMAJ", "BMIN"]
         for item in file_list:
             header_aux = item.get("header", {})
-            header_cont = dict(fits.open(item["contiuum"])[0].header)
+            header_cont = dict(fits.open(item["continuum"])[0].header)
             header_line = dict(fits.open(item["line"])[0].header)
 
             header = {}
