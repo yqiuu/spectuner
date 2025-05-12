@@ -1,4 +1,5 @@
 from __future__ import annotations
+import warnings
 from typing import Optional, Callable
 from pathlib import Path
 from copy import deepcopy
@@ -112,6 +113,14 @@ def collate_fn_padding(batch):
     return (embed_obs_batch, embed_sl_batch, mask) + others
 
 
+def _create_bound_info(config):
+    param_names = ["theta", "T_ex", "N_tot", "delta_v", "v_LSR"]
+    bound_info = {}
+    for key, values in zip(param_names, config["nn"]["sampler"]["bounds"]):
+        bound_info[key] = values
+    return bound_info
+
+
 class InferenceModel:
     def __init__(self,
                  model: nn.Module,
@@ -145,8 +154,10 @@ class InferenceModel:
         embedding_model = create_embeding_model(
             ckpt["config"]["embedding"], sl_db=sl_db
         )
-        config = deepcopy(config)
+        warnings.warn("When the AI model is employed, the parameterization "
+                      "and bound information in the config is overwritten.")
         config["sl_model"]["params"] = ckpt["config"]["sl_model"]["params"]
+        config["bound_info"] = _create_bound_info(ckpt["config"])
         slm_factory = SpectralLineModelFactory(config, sl_db=embedding_model.sl_db)
         return cls(model, embedding_model, slm_factory)
 
