@@ -8,6 +8,7 @@ import numpy as np
 
 __all__ = [
     "create_config",
+    "load_preprocess_config",
     "load_config",
     "preprocess_config",
     "append_exclude_info"
@@ -32,12 +33,17 @@ def create_config(dir="./"):
         shutil.copy(template_dir/fname, target_dir)
 
 
+def load_preprocess_config(dirname):
+    config = load_config(dirname)
+    preprocess_config(config)
+    return config
+
+
 def load_config(dir):
     dir = Path(dir)
     config = yaml.safe_load(open(dir/"config.yml"))
     for key, fname in iter_config_names():
         config[key] = yaml.safe_load(open(dir/fname))
-    preprocess_config(config)
     return config
 
 

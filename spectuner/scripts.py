@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 from argparse import ArgumentParser
 
-from .config import create_config, load_config
+from .config import create_config, load_preprocess_config
 from .optimize import run_single, run_combine
 from .identify import identify
 from .modify import modify
@@ -41,7 +41,7 @@ def exec_fit():
     )
     args = parser.parse_args()
 
-    config = load_config(args.config)
+    config = load_preprocess_config(args.config)
     # Set fname_base
     if args.fbase != "":
         config["fname_base"] = args.fbase
@@ -71,7 +71,7 @@ def exec_modify():
     )
     args = parser.parse_args()
 
-    config = load_config(args.config)
+    config = load_preprocess_config(args.config)
     modify(config, args.target)
 
 
@@ -93,7 +93,7 @@ def exec_identify():
     )
     args = parser.parse_args()
 
-    config = load_config(args.config)
+    config = load_preprocess_config(args.config)
     identify(config, args.target, args.mode)
 
 
