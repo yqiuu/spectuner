@@ -49,12 +49,13 @@ def load_config(dir):
 
 def preprocess_config(config):
     """This function does the following (in-place):
-        1. Derive and set ``prominence`` in ``config["peak_manager"]``.
-        2. Set ``freqs_exclude`` in ``config["peak_manager"]``.
+        1. Load ``spec`` in ``obs_info`` if applicable.
+        2. Derive and set ``prominence`` in ``config["peak_manager"]``.
+        3. Load ``freqs_exclude`` in ``peak_manager`` if applicable.
     """
     if config["obs_info"] is not None:
         for item in config["obs_info"]:
-            if isinstance(item["spec"], str):
+            if not isinstance(item["spec"], np.ndarray):
                 item["spec"] = np.loadtxt(item["spec"])
 
     if "prominence" not in config["peak_manager"] \
@@ -63,9 +64,7 @@ def preprocess_config(config):
         noise_factor = config["peak_manager"].pop("noise_factor")
         config["peak_manager"]["prominence"] = noise_factor*noises
 
-    if config["peak_manager"]["freqs_exclude"] is None:
-        config["peak_manager"]["freqs_exclude"] = np.zeros(0)
-    else:
+    if not isinstance(config["peak_manager"]["prominence"], np.ndarray):
         config["peak_manager"]["freqs_exclude"] \
             = np.loadtxt(config["peak_manager"]["freqs_exclude"])
 
