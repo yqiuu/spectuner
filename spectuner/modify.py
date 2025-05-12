@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import h5py
+import numpy as np
 
 from .utils import load_result_combine, save_fitting_result, load_result_list
 from .slm_factory import (
@@ -13,7 +14,7 @@ from .identify import identify
 __all__ = ["modify"]
 
 
-def modify(config, result_dir):
+def modify(config, result_dir, sl_db=None):
     """Modify a combined result.
 
     Args:
@@ -38,8 +39,10 @@ def modify(config, result_dir):
         species = [name for name in species if name not in exclude_name_set]
         names_in.extend(species)
 
+    slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
+    obs_info = config["obs_info"]
     specie_list_new, params_new = derive_sub_specie_list_with_params(
-        specie_list, names_in, data_combine["params_best"], config
+        slm_factory, obs_info, specie_list, names_in, data_combine["x"]
     )
 
     include_id_list = config_modify["include_id_list"]
@@ -52,23 +55,25 @@ def modify(config, result_dir):
                 data_list.append(pred_data)
         for data in data_list:
             specie_list = data["specie"]
-            params = data["params_best"]
+            params = data["x"]
             names_in = set(specie_list[0]["species"]) - exclude_name_set
-            specie_list, params \
-                = derive_sub_specie_list_with_params(specie_list, names_in, params, config)
+            specie_list, params = derive_sub_specie_list_with_params(
+                slm_factory, obs_info, specie_list, names_in, params
+            )
             specie_lists.append(specie_list)
             params_list.append(params)
         specie_list_new, params_new \
             = combine_specie_lists(specie_lists, params_list)
 
-    slm_factory = SpectralLineModelFactory.from_config(freq_data, config)
-    sl_model = slm_factory.create(specie_list_new)
+    sl_model = slm_factory.create_sl_model(obs_info, specie_list_new)
     T_pred_data = sl_model(params_new)
     save_dict = {
         "specie": specie_list_new,
         "freq": freq_data,
         "T_pred": T_pred_data,
-        "params_best": params_new
+        "x": params_new,
+        "fun": np.nan,
+        "nfev": 0,
     }
     save_name = result_dir/Path("combine_modified.h5")
     with h5py.File(save_name, "w") as fp:
