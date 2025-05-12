@@ -82,14 +82,14 @@ def query_species(sl_db: SpectralLineDB,
 
     mol_tire = MolTrie()
     for entry in counter.keys():
-        mol_tire.insert(MolRecord(entry, rename_dict))
+        mol_tire.insert(MolRecord(entry, rename_dict_))
 
     if species is None:
         records_include = mol_tire.search(())
     else:
         records_include = []
         for entry in species:
-            record = MolRecord(entry, rename_dict)
+            record = MolRecord(entry, rename_dict_)
             if collect_iso:
                 prefix = list(record)
                 prefix[1] = "?"
@@ -98,7 +98,7 @@ def query_species(sl_db: SpectralLineDB,
             records_include.extend(mol_tire.search(prefix))
     records_exclude = []
     for entry in exclude_list:
-        records_exclude.extend(mol_tire.search(MolRecord(entry, rename_dict)))
+        records_exclude.extend(mol_tire.search(MolRecord(entry, rename_dict_)))
 
     records = set(records_include) - set(records_exclude)
 
