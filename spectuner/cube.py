@@ -30,6 +30,10 @@ from .preprocess import preprocess_spectrum
 from .utils import hdf_save_dict
 
 
+PARAM_NAMES = ("theta", "T_ex", "N_tot", "delta_v", "v_offset")
+PARAM_UNITS = ("arcsec", "K", "cm-2", "km/s", "km/s")
+
+
 def fit_cube(config: dict,
              fname_cube: str,
              save_name: str,
@@ -82,7 +86,7 @@ def fit_cube(config: dict,
         slm_factory, opt, need_spectra=config["cube"]["need_spectra"]
     )
     n_process = config["opt_single"]["n_process"]
-    with mp.Pool(processes=n_process) as pool, h5py.File(save_name, "w") as fp:
+    with mp.Pool(processes=n_process) as pool:
         for specie_name in species:
             if inf_model is None:
                 results = fit_cube_optimize(
@@ -104,7 +108,12 @@ def fit_cube(config: dict,
                     device=config["inference"]["device"]
                 )
             res_dict = format_cube_results(results)
-            hdf_save_dict(fp, res_dict)
+    with h5py.File(save_name, "w") as fp:
+        for name, unit in zip(PARAM_NAMES, PARAM_UNITS):
+            fp.attrs[f"unit/{name}"] = unit
+        fp.attrs[f"unit/intensity"] = "K"
+        fp.attrs[f"unit/frequency"] = "MHz"
+        hdf_save_dict(fp, res_dict)
 
 
 def fit_cube_optimize(fname_cube: str,
@@ -260,6 +269,7 @@ def format_cube_results(results):
                 for idx, T_pred in enumerate(res["T_pred"]):
                     sub_dict["T_pred"][f"{idx}"].append(T_pred)
 
+    # Convert to numpy arrays
     for sub_dict in res_dict.values():
         for key, val in sub_dict.items():
             if key == "params":
@@ -269,6 +279,13 @@ def format_cube_results(results):
                     sub_dict[key][idx] = np.vstack(T_data)
             else:
                 sub_dict[key] = np.asarray(val)
+
+    # Expand fitting parameters
+    for sub_dict in res_dict.values():
+        params = sub_dict.pop("params").T
+        for key, arr in zip(PARAM_NAMES, params):
+            sub_dict[key] = arr
+
     return res_dict
 
 
@@ -301,7 +318,7 @@ class CubeDataset(Dataset):
         return self._n_pixel
 
 
-class _AddExtraProps:
+class  _AddExtraProps:
     def __init__(self,
                  slm_factory: SpectralLineModelFactory,
                  postprocess: Callable,
@@ -314,8 +331,6 @@ class _AddExtraProps:
     def __call__(self, fitting_model, *args):
         res = self._postprocess(fitting_model, *args)
         params = fitting_model.sl_model.param_mgr.derive_params(res["x"])[0]
-        # Set column density to log10, ensure that the index is correct
-        params[2] = np.log10(params[2])
         res["params"] = params
         peak_mgr = self._slm_factory.create_peak_mgr(fitting_model.obs_info)
         scores_tp, scores_fp = peak_mgr.compute_score_all(
@@ -703,48 +718,101 @@ def to_kelvin(J_obs, freqs, bmaj, bmin):
     return factor/(freqs*freqs*bmaj*bmin)*J_obs
 
 
-def cube_hdf_to_fits(fname_cube, result_files=None, save_dir="./"):
-    save_dir = Path(save_dir)
-    save_dir.mkdir(parents=True, exist_ok=True)
+class CubeConverter:
+    """Convert HDF cube to FITS files.
 
-    freq_data = load_misc_data(fname_cube)[0]
-    with h5py.File(fname_cube, "r") as fp:
-        indices = np.array(fp["index"])
-        shape = fp.attrs["n_row"], fp.attrs["n_col"]
+    Args:
+        fname: Path to the HDF file that saves the observed data.
+    """
+    def __init__(self, fname: str, save_dir: str="./"):
+        save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
 
-    for i_segment in range(len(freq_data)):
-        freqs = freq_data[i_segment]
+        self._fname = fname
+        self._save_dir = save_dir
+        self._freq_data = load_misc_data(self._fname)[0]
+        with h5py.File(self._fname, "r") as fp:
+            self._indices = np.array(fp["index"])
+            self._shape = fp.attrs["n_row"], fp.attrs["n_col"]
 
-        header_line = load_cube_header(fname_cube, i_segment, "line")
-        header_line = fits.Header(header_line)
-        header_line["BUNIT"] = "K"
-        header_line["CRVAL3"] = freqs[0]
-        header_line["CDELT3"] = freqs[1] - freqs[0]
-        header_line["CUNIT3"] = "MHz"
+    def save_obs_data(self, overwrite=False):
+        for i_segment in range(len(self._freq_data)):
+            # Save T_obs
+            with h5py.File(self._fname) as fp:
+                T_obs = np.array(fp[f"cube/{i_segment}/T_obs"])
+            T_obs = to_dense_matrix(T_obs, self._indices, self._shape)
+            T_obs = np.transpose(T_obs, axes=(2, 0, 1))
+            T_obs = T_obs.astype("f4")
+            header_line = self._derive_header_line(i_segment)
+            hdu = fits.PrimaryHDU(T_obs, header=header_line)
+            save_name = self._save_dir/f"{i_segment}_obs_line.fits"
+            hdu.writeto(save_name, overwrite=overwrite)
 
-        with h5py.File(fname_cube) as fp:
-            T_obs = np.array(fp[f"cube/{i_segment}/T_obs"])
-        T_obs = to_dense_matrix(T_obs, indices, shape)
-        T_obs = np.transpose(T_obs, axes=(2, 0, 1))
-        T_obs = T_obs.astpye("f4")
-        hdu = fits.PrimaryHDU(T_obs, header=header_line)
-        hdu.writeto(save_dir/f"{i_segment}_T_obs.fits", overwrite=True)
+            # Save T_bg
+            header_conti = self._derive_header_scalar(i_segment)
+            with h5py.File(self._fname) as fp:
+                T_bg = np.array(fp[f"cube/{i_segment}/T_bg"])
+                header_conti["BUNIT"] = "K"
+            hdu = fits.PrimaryHDU(T_bg, header=header_conti)
+            save_name = self._save_dir/f"{i_segment}_obs_continuum.fits"
+            hdu.writeto(save_name, overwrite=overwrite)
 
-        if result_files is None:
-            continue
+    def save_pred_data(self, fname, overwrite=False):
+        with h5py.File(fname) as fp:
+            unit_dict = {}
+            for key, val in fp.attrs.items():
+                if key.startswith("unit/"):
+                    unit_dict[key[5:]] = val
+            for name, grp in fp.items():
+                self._save_pred_data_sub(name, grp, unit_dict, overwrite)
 
-        for fname in result_files:
-            with h5py.File(fname) as fp:
-                for key, grp in fp.items():
-                    if "T_pred" not in grp:
-                        continue
+    def _save_pred_data_sub(self, name, grp, unit_dict, overwrite):
+        save_dir = self._save_dir/name
+        save_dir.mkdir(parents=True, exist_ok=True)
 
-                    T_pred = np.array(grp[f"T_pred/{i_segment}"])
-                    T_pred = to_dense_matrix(T_pred, indices, shape)
-                    T_pred = np.transpose(T_pred, axes=(2, 0, 1))
+        header = self._derive_header_scalar(i_segment=0)
+        for key, data in grp.items():
+            if key == "T_pred":
+                continue
 
-                    hdu = fits.PrimaryHDU(T_pred, header=header_line)
-                    hdu.writeto(save_dir/f"{key}_{i_segment}_T_pred.fits", overwrite=True)
+            data = np.array(data)
+            data = to_dense_matrix(data, self._indices, self._shape)
+            if key in unit_dict:
+                header["BUNIT"] = unit_dict[key]
+            else:
+                header["BUNIT"] = "none"
+            hdu = fits.PrimaryHDU(data, header=header)
+            save_name = save_dir/f"{key}.fits"
+            hdu.writeto(save_name, overwrite=overwrite)
+
+        if "T_pred" not in grp:
+            return
+
+        for i_segment in range(len(self._freq_data)):
+            T_pred = np.array(grp[f"T_pred/{i_segment}"])
+            T_pred = to_dense_matrix(T_pred, self._indices, self._shape)
+            T_pred = np.transpose(T_pred, axes=(2, 0, 1))
+
+            header_line = self._derive_header_line(i_segment)
+            hdu = fits.PrimaryHDU(T_pred, header=header_line)
+            save_name = save_dir/f"{i_segment}_line.fits"
+            hdu.writeto(save_name, overwrite=overwrite)
+
+    def _derive_header_line(self, i_segment):
+        freqs = self._freq_data[i_segment]
+        header = load_cube_header(self._fname, i_segment, "line")
+        header = fits.Header(header)
+        header["BUNIT"] = "K"
+        header["CUNIT3"] = "MHz"
+        header["CRVAL3"] = freqs[0]
+        header["CDELT3"] = freqs[1] - freqs[0]
+        return header
+
+    def _derive_header_scalar(self, i_segment):
+        header = load_cube_header(self._fname, i_segment, "continuum")
+        header = fits.Header(header)
+        return header
+
 
 def to_dense_matrix(arr: np.ndarray,
                     indices: np.ndarray,
@@ -766,7 +834,10 @@ def to_dense_matrix(arr: np.ndarray,
     if len(arr.shape) > 1:
         shape = (*shape, *arr.shape[1:])
 
-    mat = np.full(shape, np.nan, dtype=arr.dtype)
+    if np.issubdtype(arr.dtype, np.floating):
+        mat = np.full(shape, np.nan, dtype=arr.dtype)
+    else:
+        mat = np.full(shape, 0, dtype=arr.dtype)
     mat[indices[:, 0], indices[:, 1]] = arr
     return mat
 
