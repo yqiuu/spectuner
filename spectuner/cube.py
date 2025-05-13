@@ -3,6 +3,7 @@ import multiprocessing as mp
 from typing import Optional, Callable, Literal
 from itertools import product
 from copy import copy
+from pathlib import Path
 from dataclasses import dataclass, asdict
 
 import h5py
@@ -701,6 +702,49 @@ def to_kelvin(J_obs, freqs, bmaj, bmin):
     factor = factor.to(units.Kelvin*units.MHz**2/units.Jy*units.degree**2).value
     return factor/(freqs*freqs*bmaj*bmin)*J_obs
 
+
+def cube_hdf_to_fits(fname_cube, result_files=None, save_dir="./"):
+    save_dir = Path(save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    freq_data = load_misc_data(fname_cube)[0]
+    with h5py.File(fname_cube, "r") as fp:
+        indices = np.array(fp["index"])
+        shape = fp.attrs["n_row"], fp.attrs["n_col"]
+
+    for i_segment in range(len(freq_data)):
+        freqs = freq_data[i_segment]
+
+        header_line = load_cube_header(fname_cube, i_segment, "line")
+        header_line = fits.Header(header_line)
+        header_line["BUNIT"] = "K"
+        header_line["CRVAL3"] = freqs[0]
+        header_line["CDELT3"] = freqs[1] - freqs[0]
+        header_line["CUNIT3"] = "MHz"
+
+        with h5py.File(fname_cube) as fp:
+            T_obs = np.array(fp[f"cube/{i_segment}/T_obs"])
+        T_obs = to_dense_matrix(T_obs, indices, shape)
+        T_obs = np.transpose(T_obs, axes=(2, 0, 1))
+        T_obs = T_obs.astpye("f4")
+        hdu = fits.PrimaryHDU(T_obs, header=header_line)
+        hdu.writeto(save_dir/f"{i_segment}_T_obs.fits", overwrite=True)
+
+        if result_files is None:
+            continue
+
+        for fname in result_files:
+            with h5py.File(fname) as fp:
+                for key, grp in fp.items():
+                    if "T_pred" not in grp:
+                        continue
+
+                    T_pred = np.array(grp[f"T_pred/{i_segment}"])
+                    T_pred = to_dense_matrix(T_pred, indices, shape)
+                    T_pred = np.transpose(T_pred, axes=(2, 0, 1))
+
+                    hdu = fits.PrimaryHDU(T_pred, header=header_line)
+                    hdu.writeto(save_dir/f"{key}_{i_segment}_T_pred.fits", overwrite=True)
 
 def to_dense_matrix(arr: np.ndarray,
                     indices: np.ndarray,
