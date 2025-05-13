@@ -766,7 +766,7 @@ def to_dense_matrix(arr: np.ndarray,
     if len(arr.shape) > 1:
         shape = (*shape, *arr.shape[1:])
 
-    mat = np.full(shape, np.nan)
+    mat = np.full(shape, np.nan, dtype=arr.dtype)
     mat[indices[:, 0], indices[:, 1]] = arr
     return mat
 
