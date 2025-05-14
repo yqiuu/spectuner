@@ -392,8 +392,8 @@ class SpectralLineDB(ABC):
         """
         names, freqs = self.load_all_transitions()
         inds = np.argsort(freqs)
-        names = np.asarray(names)[inds]
-        freqs = np.asarray(freqs)[inds]
+        names = names[inds]
+        freqs = freqs[inds]
 
         data = []
         for freq in freq_data:
@@ -467,6 +467,11 @@ class SQLSpectralLineDB(SpectralLineDB):
         conn.close()
 
     def load_all_transitions(self):
+        try:
+            return self._transitions
+        except AttributeError:
+            pass
+
         conn = sqlite3.connect(self._fname)
         cursor = conn.cursor()
 
@@ -477,6 +482,12 @@ class SQLSpectralLineDB(SpectralLineDB):
         names, freqs = tuple(zip(*data))
         cursor.close()
         conn.close()
+
+        names = np.asarray(names)
+        freqs = np.asarray(freqs)
+        if self._cache:
+            self._transitions = names, freqs
+
         return names, freqs
 
     def _load_sl_dict(self, key: str) -> dict:
