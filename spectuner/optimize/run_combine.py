@@ -77,8 +77,8 @@ def run_combine(config, result_dir, need_identify=True, sl_db=None):
             for save_name, res in save_dict.items():
                 save_fitting_result(fp.create_group(save_name), res)
 
-    if need_identify:
-        identify(config, result_dir, "combine")
+        if need_identify:
+            identify(config, result_dir, "combine")
 
 
 def combine_greedy(pack_list, pack_base, config, sl_db=None):
