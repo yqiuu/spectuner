@@ -1,4 +1,3 @@
-import multiprocessing as mp
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,7 +13,7 @@ from .optimize import (
 from ..config import append_exclude_info
 from ..utils import (
     load_result_list, load_result_combine, save_fitting_result,
-    derive_specie_save_name
+    derive_specie_save_name, create_process_pool
 )
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import create_spectral_line_db
@@ -214,7 +213,7 @@ def combine_greedy(pack_list, pack_base, config, sl_db=None):
     else:
         trans_counts = None
 
-    with mp.Pool(config["opt_single"]["n_process"]) as pool:
+    with create_process_pool(config["n_process"]) as pool:
         results = optimize_all(
             engine=engine,
             obs_info=obs_info,

@@ -1,4 +1,3 @@
-import multiprocessing as mp
 from pathlib import Path
 
 import h5py
@@ -12,7 +11,9 @@ from ..slm_factory import SpectralLineModelFactory
 from ..ai import InferenceModel
 from ..peaks import PeakManager
 from ..identify import identify
-from ..utils import save_fitting_result, derive_specie_save_name
+from ..utils import (
+    save_fitting_result, derive_specie_save_name, create_process_pool
+)
 
 
 __all__ = ["run_single", "create_specie_list"]
@@ -39,7 +40,7 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
         sl_db, base_props["id_offset"],
         base_props["spans_include"], config
     )
-    with mp.Pool(config["opt_single"]["n_process"]) as pool:
+    with create_process_pool(config["n_process"]) as pool:
         if config["inference"]["ckpt"] is None:
             engine = slm_factory
         else:

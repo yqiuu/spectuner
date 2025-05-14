@@ -1,4 +1,5 @@
 import json
+import multiprocessing as mp
 
 import h5py
 import numpy as np
@@ -125,3 +126,17 @@ def is_exclusive(fname):
     return name.startswith("identify") \
         or name.startswith("combine") \
         or name.startswith("tmp")
+
+
+def create_process_pool(n_process, *args, **kwargs):
+    if n_process > 1:
+        return mp.Pool(n_process, *args, **kwargs)
+    return DummyPool()
+
+
+class DummyPool:
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        pass

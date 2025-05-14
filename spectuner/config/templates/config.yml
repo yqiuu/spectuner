@@ -36,8 +36,8 @@ peak_manager:
   noise_factor: null
   rel_height: 0.25
   freqs_exclude: null
+n_process: 8
 opt_single:
-  n_process: 8
   method: "pso"
   n_draw: 32
   n_trail: 1
@@ -47,7 +47,6 @@ opt_single:
   n_stop: 15
   tol_stop: 1.e-5
 opt_combine:
-  n_process: 8
   method: "pso"
   n_draw: 32
   n_trail: 1
