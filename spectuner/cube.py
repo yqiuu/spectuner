@@ -353,6 +353,7 @@ class  _AddExtraProps:
         res["num_tp"] = len(scores_tp)
         res["s_fp_tot"] = np.sum(scores_fp)
         res["num_fp"] = len(scores_fp)
+        del res["freq"]
         if not self._need_spectra:
             del res["T_pred"]
         return res
