@@ -406,14 +406,20 @@ class UniformOptimizer(Optimizer):
 
 
 class ScipyOptimizer(Optimizer):
-    def __init__(self, method, n_draw=50, jac="2-point", n_cluster=1):
+    def __init__(self,
+                 method: str,
+                 n_draw: int=50,
+                 jac: str="2-point",
+                 n_cluster: int=1,
+                 maxiter: int=2000):
         super().__init__(n_draw)
         self._method = method
         self._jac = jac
         self._n_cluster = n_cluster
+        self._maxiter = maxiter
 
     def __call__(self, fitting_model, *args) -> dict:
-        kwargs = {"method": self._method}
+        kwargs = {"method": self._method, "options": {"maxiter": self._maxiter}}
         if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
             lower, upper = fitting_model.bounds.T
             h = 1.e-5
