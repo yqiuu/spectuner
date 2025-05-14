@@ -61,20 +61,27 @@ def optimize_all(engine: Union[SpectralLineModelFactory, InferenceModel],
     # Optimize without inference model
     if isinstance(engine, SpectralLineModelFactory):
         results = []
-        for specie_list in targets:
-            fitting_model = engine.create_fitting_model(
-                obs_info=obs_info,
-                specie_list=specie_list,
-                T_base_data=T_base_data,
-            )
-            results.append(
-                pool.apply_async(_optimize_worker, (fitting_model, config_opt))
-            )
-        with tqdm(enumerate(targets), total=len(targets)) as pbar:
-            for i_res, specie_list in pbar:
-                pbar.set_description("Fitting {}".format(
-                    join_specie_names(specie_list[0]["species"])))
-                results[i_res] = results[i_res].get()
+        with tqdm(total=len(targets), desc="Fitting") as pbar:
+            callback = lambda _: pbar.update()
+            for specie_list in targets:
+                fitting_model = engine.create_fitting_model(
+                    obs_info=obs_info,
+                    specie_list=specie_list,
+                    T_base_data=T_base_data,
+                )
+                if pool is None:
+                    res = _optimize_worker(fitting_model, config_opt)
+                    pbar.update()
+                else:
+                    res = pool.apply_async(
+                        _optimize_worker,
+                        args=(fitting_model, config_opt),
+                        callback=callback
+                    )
+                results.append(res)
+
+            if pool is not None:
+                results = [res.get() for res in results]
         return results
     elif isinstance(engine, InferenceModel):
         specie_names = []
