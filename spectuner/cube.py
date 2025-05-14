@@ -240,6 +240,15 @@ def load_cube_header(fname: str,
     return header
 
 
+def load_cube_units(fname: str):
+    units = {}
+    with h5py.File(fname) as fp:
+        for key, val in fp.attrs.items():
+            if key.startswith("unit/"):
+                units[key[5:]] = val
+    return units
+
+
 def format_cube_results(results):
     res_dict = {}
     for res in results:
@@ -534,6 +543,8 @@ class CubePipeline:
             fp.attrs["n_row"] = n_row
             fp.attrs["n_col"] = n_col
             fp.attrs["max_count"] = max(counts)
+            fp.attrs[f"unit/intensity"] = "K"
+            fp.attrs[f"unit/frequency"] = "MHz"
             for key, val in asdict(self).items():
                 fp.attrs[key] = val
             fp.create_dataset("count", data=counts, dtype="i4")
@@ -736,6 +747,7 @@ class CubeConverter:
             self._shape = fp.attrs["n_row"], fp.attrs["n_col"]
 
     def save_obs_data(self, overwrite=False):
+        units = load_cube_units(self._fname)
         for i_segment in range(len(self._freq_data)):
             # Save T_obs
             with h5py.File(self._fname) as fp:
@@ -744,6 +756,8 @@ class CubeConverter:
             T_obs = np.transpose(T_obs, axes=(2, 0, 1))
             T_obs = T_obs.astype("f4")
             header_line = self._derive_header_line(i_segment)
+            header_line["BUNIT"] = units["intensity"]
+            header_line["CUNIT3"] = units["frequency"]
             hdu = fits.PrimaryHDU(T_obs, header=header_line)
             save_name = self._save_dir/f"{i_segment}_obs_line.fits"
             hdu.writeto(save_name, overwrite=overwrite)
@@ -752,21 +766,18 @@ class CubeConverter:
             header_conti = self._derive_header_scalar(i_segment)
             with h5py.File(self._fname) as fp:
                 T_bg = np.array(fp[f"cube/{i_segment}/T_bg"])
-                header_conti["BUNIT"] = "K"
+                header_conti["BUNIT"] = units["intensity"]
             hdu = fits.PrimaryHDU(T_bg, header=header_conti)
             save_name = self._save_dir/f"{i_segment}_obs_continuum.fits"
             hdu.writeto(save_name, overwrite=overwrite)
 
     def save_pred_data(self, fname, overwrite=False):
+        units = load_cube_units(fname)
         with h5py.File(fname) as fp:
-            unit_dict = {}
-            for key, val in fp.attrs.items():
-                if key.startswith("unit/"):
-                    unit_dict[key[5:]] = val
             for name, grp in fp.items():
-                self._save_pred_data_sub(name, grp, unit_dict, overwrite)
+                self._save_pred_data_sub(name, grp, units, overwrite)
 
-    def _save_pred_data_sub(self, name, grp, unit_dict, overwrite):
+    def _save_pred_data_sub(self, name, grp, units, overwrite):
         save_dir = self._save_dir/name
         save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -777,8 +788,8 @@ class CubeConverter:
 
             data = np.array(data)
             data = to_dense_matrix(data, self._indices, self._shape)
-            if key in unit_dict:
-                header["BUNIT"] = unit_dict[key]
+            if key in units:
+                header["BUNIT"] = units[key]
             else:
                 header["BUNIT"] = "none"
             hdu = fits.PrimaryHDU(data, header=header)
@@ -794,6 +805,8 @@ class CubeConverter:
             T_pred = np.transpose(T_pred, axes=(2, 0, 1))
 
             header_line = self._derive_header_line(i_segment)
+            header_line["BUNIT"] = units["intensity"]
+            header_line["CUNIT3"] = units["frequency"]
             hdu = fits.PrimaryHDU(T_pred, header=header_line)
             save_name = save_dir/f"{i_segment}_line.fits"
             hdu.writeto(save_name, overwrite=overwrite)
@@ -802,8 +815,6 @@ class CubeConverter:
         freqs = self._freq_data[i_segment]
         header = load_cube_header(self._fname, i_segment, "line")
         header = fits.Header(header)
-        header["BUNIT"] = "K"
-        header["CUNIT3"] = "MHz"
         header["CRVAL3"] = freqs[0]
         header["CDELT3"] = freqs[1] - freqs[0]
         return header
