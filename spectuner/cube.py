@@ -85,8 +85,7 @@ def fit_cube(config: dict,
     postprocess = _AddExtraProps(
         slm_factory, opt, need_spectra=config["cube"]["need_spectra"]
     )
-    n_process = config["opt_single"]["n_process"]
-    with mp.Pool(processes=n_process) as pool:
+    with mp.Pool(config["n_process"]) as pool:
         for specie_name in species:
             if inf_model is None:
                 results = fit_cube_optimize(
