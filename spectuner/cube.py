@@ -816,7 +816,7 @@ class HDFCube2FITS:
         header = load_cube_header(self._fname, i_segment, "line")
         header = fits.Header(header)
         header["CRVAL3"] = freqs[0]
-        header["CDELT3"] = freqs[1] - freqs[0]
+        header["CDELT3"] = (freqs[-1] - freqs[0])/(len(freqs) - 1)
         return header
 
     def _derive_header_scalar(self, i_segment):
