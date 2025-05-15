@@ -766,7 +766,9 @@ class HDFCube2FITS:
             header_conti = self._derive_header_scalar(i_segment)
             with h5py.File(self._fname) as fp:
                 T_bg = np.array(fp[f"cube/{i_segment}/T_bg"])
-                header_conti["BUNIT"] = units["intensity"]
+            T_bg = to_dense_matrix(T_bg, self._indices, self._shape)
+            T_bg = T_bg.astype("f4")
+            header_conti["BUNIT"] = units["intensity"]
             hdu = fits.PrimaryHDU(T_bg, header=header_conti)
             save_name = self._save_dir/f"{i_segment}_obs_continuum.fits"
             hdu.writeto(save_name, overwrite=overwrite)
