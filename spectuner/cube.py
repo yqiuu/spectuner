@@ -729,7 +729,7 @@ def to_kelvin(J_obs, freqs, bmaj, bmin):
     return factor/(freqs*freqs*bmaj*bmin)*J_obs
 
 
-class CubeConverter:
+class HDFCube2FITS:
     """Convert HDF cube to FITS files.
 
     Args:
