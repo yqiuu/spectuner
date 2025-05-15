@@ -31,7 +31,10 @@ setup(
     install_requires=install_requires,
     packages=find_packages(),
     package_data={
-        'spectuner': ['config/templates/*.yml'],
+        'spectuner': [
+            'config/templates/*.yml',
+            'ai/normalizations_v1.yml',
+        ],
     },
     entry_points={
         'console_scripts': [
