@@ -241,7 +241,6 @@ class Optimizer(ABC):
 class SwingOptimizer(Optimizer):
     def __init__(self,
                  method: str,
-                 n_draw: int=200,
                  n_swarm: int=32,
                  n_cycle_min: int=100,
                  n_cycle_max: int=1000,
@@ -252,9 +251,8 @@ class SwingOptimizer(Optimizer):
                  save_history: bool=True,
                  save_all: bool=False,
                  **kwargs):
-        super().__init__(n_draw=n_draw)
+        super().__init__(n_draw=n_swarm)
         self._method = method
-        self._n_swarm = n_swarm
         self._n_cycle_min = n_cycle_min
         self._n_cycle_max = n_cycle_max
         self._n_cycle_dim = n_cycle_dim
@@ -298,21 +296,14 @@ class SwingOptimizer(Optimizer):
         nfev = 0
         if len(args) == 1:
             kwargs["initial_pos"] = self.derive_initial_pos(
-                args[0], fitting_model.bounds, self._n_swarm
+                args[0], fitting_model.bounds, self.n_draw
             )
         elif len(args) > 1:
-            samps = args[0]
-            values = tuple(map(fitting_model, samps))
-            inds = np.argsort(values)
-            samps = samps[inds[:self._n_swarm]]
-            kwargs["initial_pos"] = self.derive_initial_pos(
-                samps, fitting_model.bounds, self._n_swarm
-            )
-            nfev += samps.shape[0]
+            kwargs["initial_pos"] = args[0]
         opt = cls_opt(
             fitting_model,
             fitting_model.bounds,
-            nswarm=self._n_swarm,
+            nswarm=self.n_draw,
             pool=pool,
             blob=blob,
             **kwargs
