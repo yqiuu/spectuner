@@ -149,7 +149,7 @@ class InferenceModel:
         ckpt["config"]["embedding"].update(
             fname=config["sl_model"]["fname_db"],
             norms_sl=Path(__file__).parent/"normalizations_v1.yml",
-            max_length=100000
+            max_length=config["inference"].get("max_length", 4096)
         )
         embedding_model = create_embeding_model(
             ckpt["config"]["embedding"], sl_db=sl_db
