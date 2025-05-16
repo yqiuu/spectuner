@@ -204,17 +204,17 @@ def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
 def create_optimizer(config_opt: dict) -> Optimizer:
     method = config_opt["method"]
     kwargs = config_opt.get("kwargs_opt", {})
-    if method in ("pso", "abc"):
+    if method == "uniform":
+        cls_opt = UniformOptimizer
+    elif method in ("pso", "abc"):
         cls_opt = SwingOptimizer
     else:
         cls_opt = ScipyOptimizer
     sig = inspect.signature(cls_opt)
-    default_keys = tuple(k for k, v in sig.parameters.items()
-                         if v.default is not inspect.Parameter.empty)
-    for key in default_keys:
-        if key in config_opt:
-            kwargs[key] = config_opt[key]
-    return cls_opt(method, **kwargs)
+    for key, val in config_opt.items():
+        if key in sig.parameters:
+            kwargs[key] = val
+    return cls_opt(**kwargs)
 
 
 class Optimizer(ABC):
