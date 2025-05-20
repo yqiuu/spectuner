@@ -1,35 +1,7 @@
 species:
   - CO
-  - CN
-  - CS
   - H2CO
-  - H2CCO
-  - H2S
-  - H2CS
-  - HCOOH
-  - HCO+
-  - OCS
-  - HCN
-  - HCCCN
-  - HCCCCCN
-  - HNC
-  - HNCO
-  - CCH
-  - c-C3H2
-  - c-C2H4O
   - CH3OH
-  - CH3CHO
-  - CH3OCHO
-  - CH3OCH3
-  - CH3CN
-  - C2H3CN
-  - C2H5CN
-  - C2H5OH
-  - CH3COCH3
-  - HC(O)NH2
-  - NH3
-  - SO
-  - SO2
 elements: null
 combine_iso: False
 combine_state: False
