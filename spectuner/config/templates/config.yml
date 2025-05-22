@@ -17,7 +17,7 @@ sl_model:
   eps_grid: 1.e-3
   params:
     theta:
-      is_shared: False
+      is_shared: True
       is_log: True
       special: eta
     T_ex:
@@ -27,10 +27,10 @@ sl_model:
       is_shared: False
       is_log: True
     delta_v:
-      is_shared: False
+      is_shared: True
       is_log: True
     v_LSR:
-      is_shared: False
+      is_shared: True
       is_log: False
 peak_manager:
   noise_factor: 4.
@@ -46,7 +46,7 @@ opt_combine:
   n_swarm: 32
   n_trail: 1
 bound_info:
-  theta: [-3, -0.00043]
+  theta: [0.7, 2.3]
   T_ex:  [1.0, 1000.0]
   N_tot: [12.0, 22.0]
   delta_v: [-0.5, 1.5]
