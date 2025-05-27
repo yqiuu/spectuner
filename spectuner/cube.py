@@ -85,62 +85,84 @@ def fit_cube(config: dict,
     need_spectra = config["cube"]["need_spectra"]
     postprocess = _AddExtraProps(slm_factory, opt, need_spectra=need_spectra)
     n_pixel = h5py.File(fname_cube)["index"].shape[0]
-    with mp.Pool(config["n_process"]) as pool, h5py.File(save_name, "w") as fp:
-        for name, unit in zip(PARAM_NAMES, PARAM_UNITS):
-            fp.attrs[f"unit/{name}"] = unit
-        fp.attrs[f"unit/intensity"] = "K"
-        fp.attrs[f"unit/frequency"] = "MHz"
 
+    parent_conn, child_conn = mp.Pipe()
+    saver = mp.Process(
+        target=_cube_results_saver, args=(child_conn, save_name)
+    )
+    saver.start()
+
+    with mp.Pool(config["n_process"]) as pool:
         for specie_name in species:
+            parent_conn.send(
+                ("reserve", (specie_name, n_pixel, need_spectra, freq_data))
+            )
             if inf_model is None:
-                results = fit_cube_optimize(
+                fit_cube_optimize(
                     fname_cube=fname_cube,
                     slm_factory=slm_factory,
                     postprocess=postprocess,
                     species=[specie_name],
+                    conn=parent_conn,
                     pool=pool
                 )
-                res_dict = format_cube_results(results)
-                hdf_save_dict(fp, res_dict)
             else:
-                grp = _save_empty_results(
-                    fp ,specie_name, n_pixel, need_spectra, freq_data
-                )
-                results = predict_cube(
+                predict_cube(
                     inf_model=inf_model,
                     postprocess=postprocess,
                     fname_cube=fname_cube,
                     species=[specie_name],
                     batch_size=config["inference"]["batch_size"],
                     num_workers=config["inference"]["num_workers"],
-                    fp=grp,
+                    conn=parent_conn,
                     pool=pool,
                     device=config["inference"]["device"]
                 )
+
+    parent_conn.send(("finish", None))
+    saver.join()
+    parent_conn.close()
 
 
 def fit_cube_optimize(fname_cube: str,
                       slm_factory: SpectralLineModelFactory,
                       postprocess: Optimizer,
                       species: str,
+                      conn,
                       pool: mp.Pool):
+    #
+    def save_results(idx_start, res_list):
+        tmp = [res.get() for res in res_list]
+        if conn is not None:
+            conn.send(("save", (idx_start, tmp)))
+            idx_start += batch_size
+        else:
+            results.extend(tmp)
+
+    batch_size = 10
     with h5py.File(fname_cube) as fp:
         n_pixel = fp["index"].shape[0]
     misc_data = load_misc_data(fname_cube)
     args = fname_cube, misc_data, slm_factory, postprocess
     results = []
+    wait_list = []
+    idx_start = 0
     with tqdm(total=n_pixel*len(species), desc="Optimizing") as pbar:
         callback = lambda _: pbar.update()
         for specie_name, idx_pixel in product(species, range(n_pixel)):
             specie_list = [
                 {"id": 0, "root": specie_name, "species": [specie_name]}
             ]
-            results.append(pool.apply_async(
+            wait_list.append(pool.apply_async(
                 fit_cube_worker,
                 args=(*args, specie_list, idx_pixel),
                 callback=callback
             ))
-        results = [res.get() for res in results]
+            if len(wait_list) == batch_size:
+                save_results(idx_start, wait_list)
+                idx_start += len(wait_list)
+                wait_list = []
+        save_results(idx_start, wait_list)
     return results
 
 
@@ -162,7 +184,7 @@ def predict_cube(inf_model: InferenceModel,
                  species: str,
                  batch_size: int,
                  num_workers: int=2,
-                 fp=None,
+                 conn=None,
                  pool=None,
                  device=None):
     # Create data loader
@@ -178,7 +200,7 @@ def predict_cube(inf_model: InferenceModel,
         shuffle=False,
         num_workers=num_workers,
     )
-    return inf_model.call_multi(data_loader, postprocess, fp, pool, device)
+    return inf_model.call_multi(data_loader, postprocess, conn, pool, device)
 
 
 def create_obs_info_from_cube(fname: str, idx_pixel:int , misc_data: list):
@@ -302,6 +324,26 @@ def format_cube_results(results):
     return res_dict
 
 
+def _cube_results_saver(conn, save_name):
+    with h5py.File(save_name, "w") as fp:
+        for name, unit in zip(PARAM_NAMES, PARAM_UNITS):
+            fp.attrs[f"unit/{name}"] = unit
+        fp.attrs[f"unit/intensity"] = "K"
+        fp.attrs[f"unit/frequency"] = "MHz"
+
+        while True:
+            task, data = conn.recv()
+            if task == "finish":
+                break
+            elif task == "reserve":
+                grp = _save_empty_results(fp, *data)
+            elif task == "save":
+                # Save results to grp.
+                _save_fitting_results(grp, *data)
+            else:
+                raise ValueError(f"Unknown task: {task}")
+
+
 def _save_empty_results(fp, specie_name, n_pixel, need_spectra, freq_data):
     grp = fp.create_group(specie_name)
     grp.attrs["type"] = "dict"
@@ -323,6 +365,19 @@ def _save_empty_results(fp, specie_name, n_pixel, need_spectra, freq_data):
                 f"{i_segment}", shape=(n_pixel, len(freqs)), dtype="f4"
             )
     return grp
+
+
+def _save_fitting_results(fp, idx_start, results):
+    idx = idx_start
+    for res in results:
+        for key in fp.keys():
+            val = res[key]
+            if key == "T_pred":
+                for i_segment, T_pred in enumerate(val):
+                    fp[f"T_pred/{i_segment}"][idx] = T_pred
+            else:
+                fp[key][idx] = val
+        idx += 1
 
 
 class CubeDataset(Dataset):
@@ -390,17 +445,6 @@ class  _AddExtraProps:
     def n_draw(self):
         return self._postprocess.n_draw
 
-    def _save_to_file(self, fp, idx_start, results):
-        idx = idx_start
-        for res in results:
-            for key in fp.keys():
-                val = res[key]
-                if key == "T_pred":
-                    for i_segment, T_pred in enumerate(val):
-                        fp[f"T_pred/{i_segment}"][idx] = T_pred
-                else:
-                    fp[key][idx] = val
-            idx += 1
 
 
 @dataclass(frozen=True)

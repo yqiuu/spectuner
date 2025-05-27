@@ -190,7 +190,7 @@ class InferenceModel:
         return res_dict
 
     def call_multi(self, inputs, postprocess,
-                   fp=None, pool=None, device=None, disable_pbar=False):
+                   conn=None, pool=None, device=None, disable_pbar=False):
         #
         def update_pbar(pbar, batch_size):
             pbar.set_description(
@@ -207,10 +207,10 @@ class InferenceModel:
                     if pool is not None:
                         res = res.get()
 
-                    if fp is None:
+                    if conn is None:
                         results.extend(res)
                     else:
-                        postprocess._save_to_file(fp, idx_start, res)
+                        conn.send(("save", (idx_start, res)))
                         idx_start += len(res)
                     update_pbar(pbar, len(embed_obs))
 
