@@ -190,17 +190,30 @@ class InferenceModel:
         return res_dict
 
     def call_multi(self, inputs, postprocess,
-                   pool=None, device=None, disable_pbar=False):
+                   fp=None, pool=None, device=None, disable_pbar=False):
+        #
+        def update_pbar(pbar, batch_size):
+            pbar.set_description(
+                "Predicting (batch_size={})".format(batch_size)
+            )
+            pbar.update()
+
+        res = None
         results = []
-        wait_list = []
-        total = len(inputs)
-        if pool is not None:
-            total *= 2
-        with tqdm(total=total, disable=disable_pbar) as pbar:
+        idx_start = 0
+        with tqdm(total=len(inputs), disable=disable_pbar) as pbar:
             for embed_obs, embed_sl, mask, *args in inputs:
-                pbar.set_description(
-                    "Predicting (batch_size={})".format(len(embed_obs))
-                )
+                if res is not None:
+                    if pool is not None:
+                        res = res.get()
+
+                    if fp is None:
+                        results.extend(res)
+                    else:
+                        postprocess._save_to_file(fp, idx_start, res)
+                        idx_start += len(res)
+                    update_pbar(pbar, len(embed_obs))
+
                 embed_obs = embed_obs.to(device)
                 embed_sl = embed_sl.to(device)
                 mask = mask.to(device)
@@ -208,23 +221,16 @@ class InferenceModel:
                     postprocess.n_draw, embed_obs, embed_sl, mask
                 )
                 if pool is None:
-                    results.extend(map(
+                    res = map(
                         lambda x: postprocess(*x),
-                        zip(*args, samps, log_prob, embed))
+                        zip(*args, samps, log_prob, embed)
                     )
                 else:
-                    wait_list.append(pool.starmap_async(
+                    res = pool.starmap_async(
                         postprocess,
                         zip(*args, samps, log_prob, embed)
-                    ))
-                pbar.update()
-
-            if pool is not None:
-                pbar.set_description("Optimizing")
-                for res in wait_list:
-                    results.extend(res.get())
-                    pbar.update()
-
+                    )
+            update_pbar(pbar, len(embed_obs))
         return results
 
     @property

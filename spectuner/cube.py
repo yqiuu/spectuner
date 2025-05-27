@@ -82,10 +82,15 @@ def fit_cube(config: dict,
         inf_model = InferenceModel.from_config(config, sl_db=sl_db)
         slm_factory = inf_model.slm_factory
     opt = create_optimizer(config["opt_single"])
-    postprocess = _AddExtraProps(
-        slm_factory, opt, need_spectra=config["cube"]["need_spectra"]
-    )
-    with mp.Pool(config["n_process"]) as pool:
+    need_spectra = config["cube"]["need_spectra"]
+    postprocess = _AddExtraProps(slm_factory, opt, need_spectra=need_spectra)
+    n_pixel = h5py.File(fname_cube)["index"].shape[0]
+    with mp.Pool(config["n_process"]) as pool, h5py.File(save_name, "w") as fp:
+        for name, unit in zip(PARAM_NAMES, PARAM_UNITS):
+            fp.attrs[f"unit/{name}"] = unit
+        fp.attrs[f"unit/intensity"] = "K"
+        fp.attrs[f"unit/frequency"] = "MHz"
+
         for specie_name in species:
             if inf_model is None:
                 results = fit_cube_optimize(
@@ -95,7 +100,12 @@ def fit_cube(config: dict,
                     species=[specie_name],
                     pool=pool
                 )
+                res_dict = format_cube_results(results)
+                hdf_save_dict(fp, res_dict)
             else:
+                grp = _save_empty_results(
+                    fp ,specie_name, n_pixel, need_spectra, freq_data
+                )
                 results = predict_cube(
                     inf_model=inf_model,
                     postprocess=postprocess,
@@ -103,16 +113,10 @@ def fit_cube(config: dict,
                     species=[specie_name],
                     batch_size=config["inference"]["batch_size"],
                     num_workers=config["inference"]["num_workers"],
+                    fp=grp,
                     pool=pool,
                     device=config["inference"]["device"]
                 )
-            res_dict = format_cube_results(results)
-    with h5py.File(save_name, "w") as fp:
-        for name, unit in zip(PARAM_NAMES, PARAM_UNITS):
-            fp.attrs[f"unit/{name}"] = unit
-        fp.attrs[f"unit/intensity"] = "K"
-        fp.attrs[f"unit/frequency"] = "MHz"
-        hdf_save_dict(fp, res_dict)
 
 
 def fit_cube_optimize(fname_cube: str,
@@ -153,11 +157,12 @@ def fit_cube_worker(fname_cube: str,
 
 
 def predict_cube(inf_model: InferenceModel,
+                 postprocess: Callable,
                  fname_cube: str,
                  species: str,
                  batch_size: int,
-                 postprocess: Callable,
                  num_workers: int=2,
+                 fp=None,
                  pool=None,
                  device=None):
     # Create data loader
@@ -173,7 +178,7 @@ def predict_cube(inf_model: InferenceModel,
         shuffle=False,
         num_workers=num_workers,
     )
-    return inf_model.call_multi(data_loader, postprocess, pool, device)
+    return inf_model.call_multi(data_loader, postprocess, fp, pool, device)
 
 
 def create_obs_info_from_cube(fname: str, idx_pixel:int , misc_data: list):
@@ -297,6 +302,29 @@ def format_cube_results(results):
     return res_dict
 
 
+def _save_empty_results(fp, specie_name, n_pixel, need_spectra, freq_data):
+    grp = fp.create_group(specie_name)
+    grp.attrs["type"] = "dict"
+    grp.create_dataset("params", shape=(n_pixel, 5), dtype="f4")
+    keys= (
+        "t1_score", "t2_score", "t3_score", "t4_score",
+        "s_tp_tot", "s_fp_tot"
+    )
+    for key in keys:
+        grp.create_dataset(key, shape=(n_pixel,), dtype="f4")
+    keys = ("num_tp", "num_fp")
+    for key in keys:
+        grp.create_dataset(key, shape=(n_pixel,), dtype="i4")
+    if need_spectra:
+        grp_sub = grp.create_group("T_pred")
+        grp_sub.attrs["type"] = "list"
+        for i_segment, freqs in enumerate(freq_data):
+            grp_sub.create_dataset(
+                f"{i_segment}", shape=(n_pixel, len(freqs)), dtype="f4"
+            )
+    return grp
+
+
 class CubeDataset(Dataset):
     def __init__(self, fname: str, species: str, inf_model: InferenceModel):
         self._fname = fname
@@ -361,6 +389,18 @@ class  _AddExtraProps:
     @property
     def n_draw(self):
         return self._postprocess.n_draw
+
+    def _save_to_file(self, fp, idx_start, results):
+        idx = idx_start
+        for res in results:
+            for key in fp.keys():
+                val = res[key]
+                if key == "T_pred":
+                    for i_segment, T_pred in enumerate(val):
+                        fp[f"T_pred/{i_segment}"][idx] = T_pred
+                else:
+                    fp[key][idx] = val
+            idx += 1
 
 
 @dataclass(frozen=True)
