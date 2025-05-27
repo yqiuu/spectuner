@@ -135,11 +135,10 @@ def fit_cube_optimize(fname_cube: str,
         tmp = [res.get() for res in res_list]
         if conn is not None:
             conn.send(("save", (idx_start, tmp)))
-            idx_start += batch_size
         else:
             results.extend(tmp)
 
-    batch_size = 10
+    n_wait = 10
     with h5py.File(fname_cube) as fp:
         n_pixel = fp["index"].shape[0]
     misc_data = load_misc_data(fname_cube)
@@ -158,7 +157,7 @@ def fit_cube_optimize(fname_cube: str,
                 args=(*args, specie_list, idx_pixel),
                 callback=callback
             ))
-            if len(wait_list) == batch_size:
+            if len(wait_list) == n_wait:
                 save_results(idx_start, wait_list)
                 idx_start += len(wait_list)
                 wait_list = []
