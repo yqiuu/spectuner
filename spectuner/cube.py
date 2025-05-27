@@ -347,7 +347,8 @@ def _cube_results_saver(conn, save_name):
 def _save_empty_results(fp, specie_name, n_pixel, need_spectra, freq_data):
     grp = fp.create_group(specie_name)
     grp.attrs["type"] = "dict"
-    grp.create_dataset("params", shape=(n_pixel, 5), dtype="f4")
+    for key in PARAM_NAMES:
+        grp.create_dataset(key, shape=(n_pixel,), dtype="f4")
     keys= (
         "t1_score", "t2_score", "t3_score", "t4_score",
         "s_tp_tot", "s_fp_tot"
@@ -370,6 +371,9 @@ def _save_empty_results(fp, specie_name, n_pixel, need_spectra, freq_data):
 def _save_fitting_results(fp, idx_start, results):
     idx = idx_start
     for res in results:
+        params = res.pop("params").T
+        for key, arr in zip(PARAM_NAMES, params):
+            res[key] = arr
         for key in fp.keys():
             val = res[key]
             if key == "T_pred":
