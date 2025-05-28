@@ -497,7 +497,6 @@ class CubePipeline:
         header_list = self.prepare_header_list(file_list, header_lookup)
         self.validate_freq_order(header_list)
 
-        counts = None
         if fname_mask is None:
             cond_mask = None
         else:
@@ -513,6 +512,7 @@ class CubePipeline:
             cond_mask &= ~np.isinf(data_continuum)
         inds_mask = np.where(cond_mask)
 
+        counts = np.zeros(len(inds_mask[0]), dtype="i8")
         headers_line = []
         headers_continuum = []
         T_obs_data = []
@@ -576,7 +576,6 @@ class CubePipeline:
                 num/num_tot*100., num, num_tot))
 
             # Count number of lines
-            counts = np.zeros(len(data_continuum), dtype="i8")
             prominence = self.noise_factor_global*noise
             pbar = tqdm(
                 enumerate(data_line),
@@ -586,8 +585,8 @@ class CubePipeline:
             for idx, spec in pbar:
                 peaks = signal.find_peaks(
                     np.maximum(spec, 0.), # Neglect absoprtion
+                    height=prominence,
                     prominence=prominence,
-                    rel_height=self.rel_height
                 )[0]
                 counts[idx] += len(peaks)
 
