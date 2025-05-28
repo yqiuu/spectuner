@@ -435,6 +435,8 @@ class ScipyOptimizer(Optimizer):
                 **kwargs
             )
             nfev = res.nfev
+            x_best = res.x
+            fun_best = res.fun
         else:
             if len(args) == 0:
                 lower, upper = fitting_model.bounds.T
@@ -468,14 +470,23 @@ class ScipyOptimizer(Optimizer):
                 )
                 nfev = len(values) + res.nfev
 
+            idx = np.argmin(values)
+            if res.fun < values[idx]:
+                x_best = res.x
+                fun_best = res.fun
+            else:
+                x_best = samps_[idx]
+                fun_best = values[idx]
+
+        # Count the one to get the final T_pred
         nfev += 1
         return {
-            "x":  res.x,
-            "fun": res.fun,
+            "x":  x_best,
+            "fun": fun_best,
             "nfev": nfev,
             "specie": fitting_model.sl_model.specie_list,
             "freq": fitting_model.sl_model.freq_data,
-            "T_pred": fitting_model.sl_model(res.x),
+            "T_pred": fitting_model.sl_model(x_best),
         }
 
 
