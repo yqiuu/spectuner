@@ -14,13 +14,13 @@ from swing import ParticleSwarm, ArtificialBeeColony
 from scipy.optimize import minimize
 from scipy.cluster.vq import kmeans2
 
+from .. import ai
 from ..peaks import create_spans
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
-from ..ai import predict_single_pixel, InferenceModel
 from ..identify import IdentResult
 
 
-def optimize(engine: Union[SpectralLineModelFactory, InferenceModel],
+def optimize(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
              obs_info: list,
              specie_list: list,
              config_opt: dict,
@@ -38,7 +38,7 @@ def optimize(engine: Union[SpectralLineModelFactory, InferenceModel],
         if x0 is None:
             return opt(fitting_model)
         return opt(fitting_model, x0)
-    elif isinstance(engine, InferenceModel) is not None:
+    elif isinstance(engine, ai.InferenceModel) is not None:
         return engine.call_single(
             obs_info=obs_info,
             specie_name=specie_list[0]["root"],
@@ -50,7 +50,7 @@ def optimize(engine: Union[SpectralLineModelFactory, InferenceModel],
         raise ValueError(f"Unknown engine: {engine}.")
 
 
-def optimize_all(engine: Union[SpectralLineModelFactory, InferenceModel],
+def optimize_all(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
                  obs_info: list,
                  targets: list,
                  config_opt: dict,
@@ -83,7 +83,7 @@ def optimize_all(engine: Union[SpectralLineModelFactory, InferenceModel],
             if pool is not None:
                 results = [res.get() for res in results]
         return results
-    elif isinstance(engine, InferenceModel):
+    elif isinstance(engine, ai.InferenceModel):
         specie_names = []
         numbers = []
         for specie_list in targets:
@@ -91,7 +91,7 @@ def optimize_all(engine: Union[SpectralLineModelFactory, InferenceModel],
             specie_names.append(name)
             numbers.append(trans_counts[name])
         opt = create_optimizer(config_opt)
-        results = predict_single_pixel(
+        results = ai.predict_single_pixel(
             inf_model=engine,
             obs_info=obs_info,
             entries=specie_names,

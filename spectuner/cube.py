@@ -14,9 +14,9 @@ from astropy import units, constants
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
 from astropy.wcs import WCS
-from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
+from . import ai
 from .sl_model import (
     create_spectral_line_db,
     query_species,
@@ -25,9 +25,7 @@ from .sl_model import (
 )
 from .slm_factory import SpectralLineModelFactory
 from .optimize import create_optimizer, Optimizer
-from .ai import collate_fn_padding, InferenceModel
 from .preprocess import preprocess_spectrum
-from .utils import hdf_save_dict
 
 
 PARAM_NAMES = ("theta", "T_ex", "N_tot", "delta_v", "v_offset")
@@ -79,7 +77,7 @@ def fit_cube(config: dict,
         inf_model = None
         slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
     else:
-        inf_model = InferenceModel.from_config(config, sl_db=sl_db)
+        inf_model = ai.InferenceModel.from_config(config, sl_db=sl_db)
         slm_factory = inf_model.slm_factory
     opt = create_optimizer(config["opt_single"])
     need_spectra = config["cube"]["need_spectra"]
@@ -107,7 +105,7 @@ def fit_cube(config: dict,
                     pool=pool
                 )
             else:
-                predict_cube(
+                ai.predict_cube(
                     inf_model=inf_model,
                     postprocess=postprocess,
                     fname_cube=fname_cube,
@@ -175,31 +173,6 @@ def fit_cube_worker(fname_cube: str,
     obs_info = create_obs_info_from_cube(fname_cube, idx_pixel, misc_data)
     fitting_model = slm_factory.create_fitting_model(obs_info, specie_list)
     return postprocess(fitting_model)
-
-
-def predict_cube(inf_model: InferenceModel,
-                 postprocess: Callable,
-                 fname_cube: str,
-                 species: str,
-                 batch_size: int,
-                 num_workers: int=2,
-                 conn=None,
-                 pool=None,
-                 device=None):
-    # Create data loader
-    dataset = CubeDataset(
-        fname=fname_cube,
-        species=species,
-        inf_model=inf_model,
-    )
-    data_loader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        collate_fn=collate_fn_padding,
-        shuffle=False,
-        num_workers=num_workers,
-    )
-    return inf_model.call_multi(data_loader, postprocess, conn, pool, device)
 
 
 def create_obs_info_from_cube(fname: str, idx_pixel:int , misc_data: list):
@@ -381,35 +354,6 @@ def _save_fitting_results(fp, idx_start, results):
             else:
                 fp[key][idx] = val
         idx += 1
-
-
-class CubeDataset(Dataset):
-    def __init__(self, fname: str, species: str, inf_model: InferenceModel):
-        self._fname = fname
-        self._species = species
-        self._embedding_model = inf_model.embedding_model
-        self._slm_factory = inf_model.slm_factory
-        self._misc_data = load_misc_data(fname)
-        self._n_pixel = h5py.File(fname)["index"].shape[0]
-
-    def __len__(self):
-        return self._n_pixel*len(self._species)
-
-    def __getitem__(self, idx):
-        idx_specie, idx_pixel = divmod(idx, self.n_pixel)
-        obs_info = create_obs_info_from_cube(
-            self._fname, idx_pixel, self._misc_data
-        )
-        embed_obs, embed_sl, sl_dict, specie_list \
-            = self._embedding_model(obs_info, self._species[idx_specie])
-        fitting_model = self._slm_factory.create_fitting_model(
-            obs_info, specie_list, [sl_dict]
-        )
-        return embed_obs, embed_sl, fitting_model
-
-    @property
-    def n_pixel(self):
-        return self._n_pixel
 
 
 class  _AddExtraProps:

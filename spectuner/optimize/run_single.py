@@ -4,11 +4,11 @@ import h5py
 import numpy as np
 
 from .optimize import prepare_base_props, optimize_all
+from .. import ai
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import query_species, select_master_name, create_spectral_line_db
 from ..slm_factory import SpectralLineModelFactory
-from ..ai import InferenceModel
 from ..peaks import PeakManager
 from ..identify import identify
 from ..utils import (
@@ -44,7 +44,7 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
         if config["inference"]["ckpt"] is None:
             engine = slm_factory
         else:
-            engine = InferenceModel.from_config(config, sl_db=sl_db)
+            engine = ai.InferenceModel.from_config(config, sl_db=sl_db)
         results = optimize_all(
             engine=engine,
             obs_info=config["obs_info"],

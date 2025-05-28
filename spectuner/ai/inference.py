@@ -4,14 +4,17 @@ from typing import Optional, Callable
 from pathlib import Path
 from copy import deepcopy
 
+import h5py
 import numpy as np
 import torch
 from tqdm import tqdm
 from torch import nn
 from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import Dataset, DataLoader
 
 from .embedding import create_embeding_model, EmbeddingV3
 from .networks import create_parameter_estimator
+from .. import cube
 from ..sl_model import SpectralLineDB
 from ..slm_factory import SpectralLineModelFactory
 
@@ -101,6 +104,31 @@ def split_list_by_number(lst1, lst2, max_diff, max_batch_size):
         start = end
 
     return result
+
+
+def predict_cube(inf_model: InferenceModel,
+                 postprocess: Callable,
+                 fname_cube: str,
+                 species: str,
+                 batch_size: int,
+                 num_workers: int=2,
+                 conn=None,
+                 pool=None,
+                 device=None):
+    # Create data loader
+    dataset = CubeDataset(
+        fname=fname_cube,
+        species=species,
+        inf_model=inf_model,
+    )
+    data_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        collate_fn=collate_fn_padding,
+        shuffle=False,
+        num_workers=num_workers,
+    )
+    return inf_model.call_multi(data_loader, postprocess, conn, pool, device)
 
 
 def collate_fn_padding(batch):
@@ -266,3 +294,32 @@ class InferenceModel:
         samps = samps.cpu().numpy()
         log_prob = log_prob.cpu().numpy()
         return samps, log_prob, embed
+
+
+class CubeDataset(Dataset):
+    def __init__(self, fname: str, species: str, inf_model: InferenceModel):
+        self._fname = fname
+        self._species = species
+        self._embedding_model = inf_model.embedding_model
+        self._slm_factory = inf_model.slm_factory
+        self._misc_data = cube.load_misc_data(fname)
+        self._n_pixel = h5py.File(fname)["index"].shape[0]
+
+    def __len__(self):
+        return self._n_pixel*len(self._species)
+
+    def __getitem__(self, idx):
+        idx_specie, idx_pixel = divmod(idx, self.n_pixel)
+        obs_info = cube.create_obs_info_from_cube(
+            self._fname, idx_pixel, self._misc_data
+        )
+        embed_obs, embed_sl, sl_dict, specie_list \
+            = self._embedding_model(obs_info, self._species[idx_specie])
+        fitting_model = self._slm_factory.create_fitting_model(
+            obs_info, specie_list, [sl_dict]
+        )
+        return embed_obs, embed_sl, fitting_model
+
+    @property
+    def n_pixel(self):
+        return self._n_pixel
