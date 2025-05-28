@@ -42,7 +42,13 @@ def predict_single_pixel(inf_model: InferenceModel,
         max_diff=max_diff,
         max_batch_size=max_batch_size
     )
-    results = inf_model.call_multi(inputs, postprocess, pool, device, disable_pbar)
+    results = inf_model.call_multi(
+        inputs=inputs,
+        postprocess=postprocess,
+        pool=pool,
+        device=device,
+        disable_pbar=disable_pbar
+    )
     results = [results[lookup_re[idx]] for idx in range(len(results))]
     return results
 
