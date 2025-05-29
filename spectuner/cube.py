@@ -19,7 +19,6 @@ from tqdm import tqdm
 from . import ai
 from .sl_model import (
     create_spectral_line_db,
-    query_species,
     const_factor_mu_sigma,
     SQLSpectralLineDB
 )
@@ -56,23 +55,13 @@ def fit_cube(config: dict,
     if sl_db is None:
         sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
 
-    assert not config["species"]["combine_iso"] \
-        and not config["species"]["combine_state"], \
-        "Set combine_iso and combine_state to False for this function"
+    species = config["cube"]["species"]
 
+    # Load cube properties
+    n_pixel = h5py.File(fname_cube)["index"].shape[0]
     freq_data = load_misc_data(fname_cube)[0]
-    groups, _ = query_species(
-        sl_db=sl_db,
-        freq_data=freq_data,
-        v_range=config["bound_info"]["v_LSR"],
-        **config["species"],
-    )
-    species = [grp[0] for grp in groups]
 
-    max_species = config["species"].get("max_species", 10)
-    assert len(species) < max_species, \
-        f"Number of species must be less than {max_species}"
-
+    #
     if config["inference"]["ckpt"] is None:
         inf_model = None
         slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
@@ -82,8 +71,6 @@ def fit_cube(config: dict,
     opt = create_optimizer(config["opt_single"])
     need_spectra = config["cube"]["need_spectra"]
     postprocess = _AddExtraProps(slm_factory, opt, need_spectra=need_spectra)
-    n_pixel = h5py.File(fname_cube)["index"].shape[0]
-
     parent_conn, child_conn = mp.Pipe()
     saver = mp.Process(
         target=_cube_results_saver, args=(child_conn, save_name)
