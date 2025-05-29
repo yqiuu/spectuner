@@ -53,9 +53,10 @@ def compute_spectra_simple_grid(slm_state, params):
     return spec_list
 
 
-def compute_effective_spectra(slm_state, params):
+def compute_effective_spectra(slm_state, params, need_individual):
     freq_list = slm_state["freq_list"]
     spec_list = None
+    sub_data = []
     for params_i, sl_dict in zip(params, slm_state["sl_data"]):
         params_i = params_i[None, ...]
         args = prepare_properties(slm_state, [sl_dict], params_i)
@@ -74,16 +75,25 @@ def compute_effective_spectra(slm_state, params):
             T_cmb=slm_state["T_cmb"]
         )
         if len(freq_list_fine) == 0:
+            if need_individual:
+                sub_data.append([np.zeros_like(freq) for freq in freq_list])
             continue
 
         spec_list_sub = prepare_effective_spectra(
             freq_list, freq_list_fine, spec_list_fine
         )
-        if spec_list is None:
-            spec_list = spec_list_sub
+        if need_individual:
+            sub_data.append(spec_list_sub)
         else:
-            for i_segment, spec in enumerate(spec_list_sub):
-                spec_list[i_segment] += spec
+            if spec_list is None:
+                spec_list = spec_list_sub
+            else:
+                for i_segment, spec in enumerate(spec_list_sub):
+                    spec_list[i_segment] += spec
+
+    if need_individual:
+        return sub_data
+
     if spec_list is None:
         spec_list = [np.zeros_like(freq) for freq in freq_list]
     return spec_list
@@ -443,7 +453,9 @@ class SpectralLineModel:
 
     def __call__(self, params):
         return compute_effective_spectra(
-            self._slm_state, self._param_mgr.derive_params(params)
+            self._slm_state,
+            self._param_mgr.derive_params(params),
+            need_individual=False,
         )
 
     @property
@@ -457,6 +469,20 @@ class SpectralLineModel:
     @property
     def param_mgr(self):
         return self._param_mgr
+
+    def compute_individual_spectra(self, params):
+        sub_data = compute_effective_spectra(
+            self._slm_state,
+            self._param_mgr.derive_params(params),
+            need_individual=True,
+        )
+        ret_dict = {}
+        idx = 0
+        for item in self.specie_list:
+            for name in item["species"]:
+                ret_dict[name] = sub_data[idx]
+                idx += 1
+        return ret_dict
 
     def compute_tau_max(self, params):
         tau_max = []

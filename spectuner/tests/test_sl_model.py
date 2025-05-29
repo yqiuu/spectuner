@@ -11,7 +11,7 @@ def test_sl_model():
     sl_data_list, freq_list, obs_info, params_list = create_sl_model()
     for params, spec_list_test in zip(params_list, data):
         slm_state = spectuner.create_spectral_line_model_state(sl_data_list, freq_list, obs_info)
-        spec_list = spectuner.compute_effective_spectra(slm_state, params)
+        spec_list = spectuner.compute_effective_spectra(slm_state, params, need_individual=False)
         for spec, spec_test in zip(spec_list, spec_list_test):
             testing.assert_allclose(spec_test, spec, rtol=1e-3)
 
@@ -21,7 +21,7 @@ def create_test_data():
     sl_data_list, freq_list, obs_info, params_list = create_sl_model()
     for params in params_list:
         slm_state = spectuner.create_spectral_line_model_state(sl_data_list, freq_list, obs_info)
-        data.append(spectuner.compute_effective_spectra(slm_state, params))
+        data.append(spectuner.compute_effective_spectra(slm_state, params, need_individual=False))
     pickle.dump(data, open(get_fname(), "wb"))
 
 
