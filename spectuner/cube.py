@@ -78,20 +78,24 @@ def fit_cube(config: dict,
     saver.start()
 
     with mp.Pool(config["n_process"]) as pool:
-        for specie_name in species:
-            parent_conn.send(
-                ("reserve", (specie_name, n_pixel, need_spectra, freq_data))
-            )
-            if inf_model is None:
-                fit_cube_optimize(
-                    fname_cube=fname_cube,
-                    slm_factory=slm_factory,
-                    postprocess=postprocess,
-                    species=[specie_name],
-                    conn=parent_conn,
-                    pool=pool
+        if inf_model is None:
+            for name in ("total", *species):
+                parent_conn.send(
+                    ("reserve", (name, n_pixel, need_spectra, freq_data))
                 )
-            else:
+            fit_cube_optimize(
+                fname_cube=fname_cube,
+                slm_factory=slm_factory,
+                postprocess=postprocess,
+                species=species,
+                conn=parent_conn,
+                pool=pool
+            )
+        else:
+            for specie_name in species:
+                parent_conn.send(
+                    ("reserve", (specie_name, n_pixel, need_spectra, freq_data))
+                )
                 ai.predict_cube(
                     inf_model=inf_model,
                     postprocess=postprocess,
@@ -127,19 +131,21 @@ def fit_cube_optimize(fname_cube: str,
     with h5py.File(fname_cube) as fp:
         n_pixel = fp["index"].shape[0]
     misc_data = load_misc_data(fname_cube)
-    args = fname_cube, misc_data, slm_factory, postprocess
+
+    specie_list = []
+    for id_, name in enumerate(species):
+        specie_list.append({"id": id_, "root": name, "species": [name]})
+    args = fname_cube, misc_data, slm_factory, postprocess, specie_list
+
     results = []
     wait_list = []
     idx_start = 0
-    with tqdm(total=n_pixel*len(species), desc="Optimizing") as pbar:
+    with tqdm(total=n_pixel, desc="Optimizing") as pbar:
         callback = lambda _: pbar.update()
-        for specie_name, idx_pixel in product(species, range(n_pixel)):
-            specie_list = [
-                {"id": 0, "root": specie_name, "species": [specie_name]}
-            ]
+        for idx_pixel in range(n_pixel):
             wait_list.append(pool.apply_async(
                 fit_cube_worker,
-                args=(*args, specie_list, idx_pixel),
+                args=(*args, idx_pixel),
                 callback=callback
             ))
             if len(wait_list) == n_wait:
@@ -295,10 +301,9 @@ def _cube_results_saver(conn, save_name):
             if task == "finish":
                 break
             elif task == "reserve":
-                grp = _save_empty_results(fp, *data)
+                _save_empty_results(fp, *data)
             elif task == "save":
-                # Save results to grp.
-                _save_fitting_results(grp, *data)
+                _save_fitting_results(fp, *data)
             else:
                 raise ValueError(f"Unknown task: {task}")
 
@@ -306,17 +311,21 @@ def _cube_results_saver(conn, save_name):
 def _save_empty_results(fp, specie_name, n_pixel, need_spectra, freq_data):
     grp = fp.create_group(specie_name)
     grp.attrs["type"] = "dict"
-    for key in PARAM_NAMES:
-        grp.create_dataset(key, shape=(n_pixel,), dtype="f4")
-    keys= (
-        "t1_score", "t2_score", "t3_score", "t4_score",
-        "s_tp_tot", "s_fp_tot"
-    )
-    for key in keys:
-        grp.create_dataset(key, shape=(n_pixel,), dtype="f4")
-    keys = ("num_tp", "num_fp")
-    for key in keys:
-        grp.create_dataset(key, shape=(n_pixel,), dtype="i4")
+
+    if specie_name != "total":
+        for key in PARAM_NAMES:
+            grp.create_dataset(key, shape=(n_pixel,), dtype="f4")
+
+    #keys= (
+    #    "t1_score", "t2_score", "t3_score", "t4_score",
+    #    "s_tp_tot", "s_fp_tot"
+    #)
+    #for key in keys:
+    #    grp.create_dataset(key, shape=(n_pixel,), dtype="f4")
+    #keys = ("num_tp", "num_fp")
+    #for key in keys:
+    #    grp.create_dataset(key, shape=(n_pixel,), dtype="i4")
+
     if need_spectra:
         grp_sub = grp.create_group("T_pred")
         grp_sub.attrs["type"] = "list"
@@ -329,17 +338,25 @@ def _save_empty_results(fp, specie_name, n_pixel, need_spectra, freq_data):
 
 def _save_fitting_results(fp, idx_start, results):
     idx = idx_start
-    for res in results:
-        params = res.pop("params").T
-        for key, arr in zip(PARAM_NAMES, params):
-            res[key] = arr
-        for key in fp.keys():
-            val = res[key]
-            if key == "T_pred":
-                for i_segment, T_pred in enumerate(val):
-                    fp[f"T_pred/{i_segment}"][idx] = T_pred
-            else:
-                fp[key][idx] = val
+    for res_dict in results:
+        for name, res in res_dict.items():
+            # Expand parameters
+            if "params" in res:
+                params = res.pop("params").T
+                for key, arr in zip(PARAM_NAMES, params):
+                    res[key] = arr
+
+            grp = fp[name]
+            for key in grp.keys():
+                if key not in res:
+                    continue
+
+                val = res[key]
+                if key == "T_pred":
+                    for i_segment, T_pred in enumerate(val):
+                        grp[f"T_pred/{i_segment}"][idx] = T_pred
+                else:
+                    grp[key][idx] = val
         idx += 1
 
 
@@ -354,26 +371,38 @@ class  _AddExtraProps:
         self._need_spectra = need_spectra
 
     def __call__(self, fitting_model, *args):
+        ret_dict = {}
         res = self._postprocess(fitting_model, *args)
-        params = fitting_model.sl_model.param_mgr.derive_params(res["x"])[0]
-        res["params"] = params
-        peak_mgr = self._slm_factory.create_peak_mgr(fitting_model.obs_info)
-        scores_tp, scores_fp = peak_mgr.compute_score_all(
-            res["T_pred"], use_f_dice=True
-        )
-        scores_tp = np.sort(scores_tp)[::-1]
-        n_max = 4
-        for idx in range(n_max):
-            res[f"t{idx+1}_score"] \
-                = scores_tp[idx] if len(scores_tp) > idx + 1 else 0.
-        res["s_tp_tot"] = np.sum(scores_tp)
-        res["num_tp"] = len(scores_tp)
-        res["s_fp_tot"] = np.sum(scores_fp)
-        res["num_fp"] = len(scores_fp)
-        del res["freq"]
-        if not self._need_spectra:
-            del res["T_pred"]
-        return res
+        specie_list = res["specie"]
+        params = fitting_model.sl_model.param_mgr.derive_params(res["x"])
+        if self._need_spectra:
+            T_single_dict = fitting_model.sl_model.compute_individual_spectra(res["x"])
+        #
+        if self._need_spectra and len(specie_list) > 0:
+            ret_dict["total"] = {"T_pred": res["T_pred"]}
+
+        for item, params_sub in zip(specie_list, params, strict=True):
+            res_sub = {}
+            res_sub["params"] = params_sub
+            if self._need_spectra:
+                res_sub["T_pred"] = T_single_dict[item["root"]]
+            ret_dict[item["root"]] = res_sub
+
+            #peak_mgr = self._slm_factory.create_peak_mgr(fitting_model.obs_info)
+            #scores_tp, scores_fp = peak_mgr.compute_score_all(
+            #    res["T_pred"], use_f_dice=True
+            #)
+            #scores_tp = np.sort(scores_tp)[::-1]
+            #n_max = 4
+            #for idx in range(n_max):
+            #    res[f"t{idx+1}_score"] \
+            #        = scores_tp[idx] if len(scores_tp) > idx + 1 else 0.
+            #res["s_tp_tot"] = np.sum(scores_tp)
+            #res["num_tp"] = len(scores_tp)
+            #res["s_fp_tot"] = np.sum(scores_fp)
+            #res["num_fp"] = len(scores_fp)
+
+        return ret_dict
 
     @property
     def n_draw(self):
