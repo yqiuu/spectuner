@@ -16,7 +16,6 @@ install_requires = [
     "matplotlib>=3.7",
     "swing-opt>=0.1.2",
     "tqdm>=4.65",
-    "torch>=2.5",
 ]
 
 #
