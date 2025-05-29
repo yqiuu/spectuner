@@ -40,11 +40,11 @@ n_process: 8
 opt_single:
   method: "pso"
   n_swarm: 32
-  n_trail: 1
+  n_trial: 1
 opt_combine:
   method: "pso"
   n_swarm: 32
-  n_trail: 1
+  n_trial: 1
 bound_info:
   theta: [0.7, 2.3]
   T_ex:  [1.0, 1000.0]

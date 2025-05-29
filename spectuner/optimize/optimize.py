@@ -247,7 +247,7 @@ class SwingOptimizer(Optimizer):
                  n_cycle_dim: int=5,
                  n_stop: int=15,
                  tol_stop: float=1.e-5,
-                 n_trail: int=1,
+                 n_trial: int=1,
                  save_history: bool=True,
                  save_all: bool=False,
                  **kwargs):
@@ -258,14 +258,14 @@ class SwingOptimizer(Optimizer):
         self._n_cycle_dim = n_cycle_dim
         self._n_stop = n_stop
         self._tol_stop = tol_stop
-        self._n_trail = n_trail
+        self._n_trial = n_trial
         self._save_history = save_history
         self._save_all = save_all
         self._kwargs = kwargs
 
     def __call__(self, fitting_model, *args, pool=None) -> dict:
         res_list = []
-        for _ in range(self._n_trail):
+        for _ in range(self._n_trial):
             res_list.append(self._run_sub(fitting_model, *args, pool=pool))
         res_dict = deepcopy(min(res_list, key=lambda x: x["fun"]))
         if len(res_list) > 1:

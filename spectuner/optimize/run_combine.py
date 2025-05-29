@@ -265,7 +265,7 @@ def derive_first_pack(pack_list, idn, config):
 
 
 def optimize_with_base(pack, slm_factory, obs_info, T_base_data,
-                       config, need_init, need_trail):
+                       config, need_init, need_trial):
     print_fitting(pack.specie_list[0]["species"])
     config_opt = deepcopy(config["opt"])
     fitting_model = slm_factory.create_fitting_model(
@@ -280,8 +280,8 @@ def optimize_with_base(pack, slm_factory, obs_info, T_base_data,
             config_opt["kwargs_opt"]["nswarm"],
         )
         config_opt["kwargs_opt"]["initial_pos"] = initial_pos
-    if not need_trail:
-        config_opt["n_trail"] = 1
+    if not need_trial:
+        config_opt["n_trial"] = 1
 
     res_dict = optimize(fitting_model, config_opt, pool=None)
     return res_dict
