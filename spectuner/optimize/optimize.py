@@ -221,8 +221,15 @@ class Optimizer(ABC):
     def __init__(self, n_draw=1):
         self._n_draw = n_draw
 
-    @abstractmethod
     def __call__(self, fitting_model, *args) -> dict:
+        res = self._optimize(fitting_model, *args)
+        res["specie"] = fitting_model.sl_model.specie_list
+        res["freq"] = fitting_model.sl_model.freq_data
+        res["T_pred"] = fitting_model.sl_model(res["x"])
+        return res
+
+    @abstractmethod
+    def _optimize(self, fitting_model, *args) -> dict:
         """
         This method may have the following input signatures:
 
@@ -231,7 +238,6 @@ class Optimizer(ABC):
           - ``len(args) > 1``: Possible initial guess ``(n_draw, D)``
             is provided.
         """
-        raise NotImplementedError
 
     @property
     def n_draw(self):
@@ -263,14 +269,12 @@ class SwingOptimizer(Optimizer):
         self._save_all = save_all
         self._kwargs = kwargs
 
-    def __call__(self, fitting_model, *args, pool=None) -> dict:
+    def _optimize(self, fitting_model, *args, pool=None) -> dict:
         res_list = []
         for _ in range(self._n_trial):
-            res_list.append(self._run_sub(fitting_model, *args, pool=pool))
+            res_list.append(self._optimize_sub(fitting_model, *args, pool=pool))
         res_dict = deepcopy(min(res_list, key=lambda x: x["fun"]))
         if len(res_list) > 1:
-            for res in res_list:
-                del res["specie"]
             res_dict["trial"] = {f"{idx}": res for idx, res in enumerate(res_list)}
         if self._save_all:
             cost_all = np.concatenate([res["cost_all"] for res in res_list])
@@ -283,7 +287,7 @@ class SwingOptimizer(Optimizer):
             res_dict["blob"] = blob
         return res_dict
 
-    def _run_sub(self, fitting_model, *args, pool=None) -> dict:
+    def _optimize_sub(self, fitting_model, *args, pool=None) -> dict:
         if self._method == "pso":
             cls_opt = ParticleSwarm
         elif self._method == "abc":
@@ -377,7 +381,7 @@ class UniformOptimizer(Optimizer):
     def __init__(self, n_draw=50):
         super().__init__(n_draw)
 
-    def __call__(self, fitting_model, *args) -> dict:
+    def _optimize(self, fitting_model, *args) -> dict:
         if len(args) == 0:
             lower, upper = fitting_model.bounds.T
             samps_ = lower \
@@ -394,10 +398,7 @@ class UniformOptimizer(Optimizer):
         return {
             "x":  x0,
             "fun": fun_min,
-            "nfev": self.n_draw + 1,
-            "specie": fitting_model.sl_model.specie_list,
-            "freq": fitting_model.sl_model.freq_data,
-            "T_pred": fitting_model.sl_model(x0),
+            "nfev": self.n_draw,
             "x_all": samps_,
             "fun_all": fun_all
         }
@@ -416,7 +417,7 @@ class ScipyOptimizer(Optimizer):
         self._n_cluster = n_cluster
         self._maxiter = maxiter
 
-    def __call__(self, fitting_model, *args) -> dict:
+    def _optimize(self, fitting_model, *args) -> dict:
         kwargs = {"method": self._method, "options": {"maxiter": self._maxiter}}
         if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
             lower, upper = fitting_model.bounds.T
@@ -478,15 +479,10 @@ class ScipyOptimizer(Optimizer):
                 x_best = samps_[idx]
                 fun_best = values[idx]
 
-        # Count the one to get the final T_pred
-        nfev += 1
         return {
             "x":  x_best,
             "fun": fun_best,
             "nfev": nfev,
-            "specie": fitting_model.sl_model.specie_list,
-            "freq": fitting_model.sl_model.freq_data,
-            "T_pred": fitting_model.sl_model(x_best),
         }
 
 
