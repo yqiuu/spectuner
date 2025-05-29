@@ -648,7 +648,8 @@ class CubePipeline:
         )[-1]
 
     def filter_pixel(self, T_obs_data, noise_data, counts):
-        cond = counts >= self.number_cut
+        number_cut = self.number_cut*len(T_obs_data)
+        cond = counts >= number_cut
         inds = np.where(cond)[0]
         counts_sub = np.zeros(len(cond), dtype="i4")
         for T_obs_cube, noise in tqdm(
@@ -672,7 +673,7 @@ class CubePipeline:
                 )
                 counts_sub[idx] += len(peaks)
             cond &= f_pla >= self.f_pla_cut
-        cond &= counts_sub >= self.number_cut
+        cond &= counts_sub >= number_cut
         return cond
 
     def remove_plateau(self, target, atol, window_size):
