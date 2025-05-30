@@ -127,6 +127,8 @@ def predict_cube(inf_model: InferenceModel,
         species=species,
         inf_model=inf_model,
     )
+    # Ensure that one batch contains all species
+    batch_size *= len(species)
     data_loader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -134,7 +136,14 @@ def predict_cube(inf_model: InferenceModel,
         shuffle=False,
         num_workers=num_workers,
     )
-    return inf_model.call_multi(data_loader, postprocess, conn, pool, device)
+    return inf_model.call_multi(
+        inputs=data_loader,
+        postprocess=postprocess,
+        n_specie=len(species),
+        conn=conn,
+        pool=pool,
+        device=device,
+    )
 
 
 def collate_fn_padding(batch):
@@ -223,8 +232,14 @@ class InferenceModel:
         res_dict["T_base"] = T_base_data
         return res_dict
 
-    def call_multi(self, inputs, postprocess,
-                   conn=None, pool=None, device=None, disable_pbar=False):
+    def call_multi(self,
+                   inputs: list,
+                   postprocess: Callable,
+                   n_specie: int=1,
+                   conn=None,
+                   pool=None,
+                   device: str=None,
+                   disable_pbar: bool=False):
         def save_results(res):
             nonlocal idx_start
             if pool is not None:
@@ -254,6 +269,24 @@ class InferenceModel:
                 samps, log_prob, embed = self.draw_samples(
                     postprocess.n_draw, embed_obs, embed_sl, mask
                 )
+
+                if n_specie > 1:
+                    # Reshape samps (B, N, D)
+                    #   -> (B//n_specie, n_specie, N, D)
+                    #   -> (B//n_specie, N, n_specie, D)
+                    #   -> (B//n_specie, N, n_specie*D)
+                    n_param = samps.shape[-1]
+                    samps = samps.reshape(-1, n_specie, *samps.shape[1:])
+                    samps = np.swapaxes(samps, 1, 2)
+                    samps = samps.reshape(*samps.shape[:2], n_specie*n_param)
+                    # Reshape log_prob (B, N) -> (B//n_specie, n_specie, N)
+                    log_prob = log_prob.reshape(n_specie, -1)
+                    log_prob = np.swapaxes(log_prob, 0, 1)
+                    # Reshape embed (B, D) -> (B//n_specie, n_specie, D)
+                    embed = embed.reshape(n_specie, -1)
+                    embed = np.swapaxes(embed, 0, 1)
+                    args = [x[::n_specie] for x in args]
+
                 if pool is None:
                     wait_list.append(map(
                         lambda x: postprocess(*x),
@@ -303,7 +336,7 @@ class InferenceModel:
 
 
 class CubeDataset(Dataset):
-    def __init__(self, fname: str, species: str, inf_model: InferenceModel):
+    def __init__(self, fname: str, species: list, inf_model: InferenceModel):
         self._fname = fname
         self._species = species
         self._embedding_model = inf_model.embedding_model
@@ -315,14 +348,24 @@ class CubeDataset(Dataset):
         return self._n_pixel*len(self._species)
 
     def __getitem__(self, idx):
-        idx_specie, idx_pixel = divmod(idx, self.n_pixel)
+        idx_pixel, idx_specie = divmod(idx, len(self._species))
         obs_info = cube.create_obs_info_from_cube(
             self._fname, idx_pixel, self._misc_data
         )
         embed_obs, embed_sl, sl_dict, specie_list \
             = self._embedding_model(obs_info, self._species[idx_specie])
+
+        if len(self._species) == 1:
+            fitting_model = self._slm_factory.create_fitting_model(
+                obs_info, specie_list, [sl_dict]
+            )
+            return embed_obs, embed_sl, fitting_model
+
+        specie_list = []
+        for id_, name in enumerate(self._species):
+            specie_list.append({"id": id_, "root": name, "species": [name]})
         fitting_model = self._slm_factory.create_fitting_model(
-            obs_info, specie_list, [sl_dict]
+            obs_info, specie_list
         )
         return embed_obs, embed_sl, fitting_model
 

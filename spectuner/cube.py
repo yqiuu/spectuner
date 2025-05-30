@@ -76,13 +76,17 @@ def fit_cube(config: dict,
         target=_cube_results_saver, args=(child_conn, save_name)
     )
     saver.start()
+    for name in species:
+        parent_conn.send(
+            ("reserve", (name, n_pixel, need_spectra, freq_data))
+        )
+    if len(species) > 1:
+        parent_conn.send(
+            ("reserve", ("total", n_pixel, need_spectra, freq_data))
+        )
 
     with mp.Pool(config["n_process"]) as pool:
         if inf_model is None:
-            for name in ("total", *species):
-                parent_conn.send(
-                    ("reserve", (name, n_pixel, need_spectra, freq_data))
-                )
             fit_cube_optimize(
                 fname_cube=fname_cube,
                 slm_factory=slm_factory,
@@ -92,21 +96,17 @@ def fit_cube(config: dict,
                 pool=pool
             )
         else:
-            for specie_name in species:
-                parent_conn.send(
-                    ("reserve", (specie_name, n_pixel, need_spectra, freq_data))
-                )
-                ai.predict_cube(
-                    inf_model=inf_model,
-                    postprocess=postprocess,
-                    fname_cube=fname_cube,
-                    species=[specie_name],
-                    batch_size=config["inference"]["batch_size"],
-                    num_workers=config["inference"]["num_workers"],
-                    conn=parent_conn,
-                    pool=pool,
-                    device=config["inference"]["device"]
-                )
+            ai.predict_cube(
+                inf_model=inf_model,
+                postprocess=postprocess,
+                fname_cube=fname_cube,
+                species=species,
+                batch_size=config["inference"]["batch_size"],
+                num_workers=config["inference"]["num_workers"],
+                conn=parent_conn,
+                pool=pool,
+                device=config["inference"]["device"]
+            )
 
     parent_conn.send(("finish", None))
     saver.join()
@@ -378,7 +378,7 @@ class  _AddExtraProps:
         if self._need_spectra:
             T_single_dict = fitting_model.sl_model.compute_individual_spectra(res["x"])
         #
-        if self._need_spectra and len(specie_list) > 0:
+        if self._need_spectra and len(specie_list) > 1:
             ret_dict["total"] = {"T_pred": res["T_pred"]}
 
         for item, params_sub in zip(specie_list, params, strict=True):
