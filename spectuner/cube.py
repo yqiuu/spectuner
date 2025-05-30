@@ -1,7 +1,7 @@
 from __future__ import annotations
 import multiprocessing as mp
 from typing import Optional, Callable, Literal
-from itertools import product
+from functools import partial
 from copy import copy
 from pathlib import Path
 from dataclasses import dataclass, asdict
@@ -120,14 +120,15 @@ def fit_cube_optimize(fname_cube: str,
                       conn,
                       pool: mp.Pool):
     #
-    def save_results(idx_start, res_list):
-        tmp = [res.get() for res in res_list]
-        if conn is not None:
-            conn.send(("save", (idx_start, tmp)))
+    def save_results(res):
+        nonlocal idx_start
+        res = res.get()
+        if conn is None:
+            results.extend(res)
         else:
-            results.extend(tmp)
+            conn.send(("save", (idx_start, res)))
+            idx_start += len(res)
 
-    n_wait = 10
     with h5py.File(fname_cube) as fp:
         n_pixel = fp["index"].shape[0]
     misc_data = load_misc_data(fname_cube)
@@ -135,24 +136,29 @@ def fit_cube_optimize(fname_cube: str,
     specie_list = []
     for id_, name in enumerate(species):
         specie_list.append({"id": id_, "root": name, "species": [name]})
-    args = fname_cube, misc_data, slm_factory, postprocess, specie_list
+    target = partial(
+        fit_cube_worker,
+        fname_cube, misc_data, slm_factory, postprocess, specie_list
+    )
 
+    batch_size = 32
+    batch = [list(range(idx, min(idx + batch_size, n_pixel)))
+             for idx in range(0, n_pixel, batch_size)]
+    n_wait = 3
     results = []
     wait_list = []
     idx_start = 0
-    with tqdm(total=n_pixel, desc="Optimizing") as pbar:
-        callback = lambda _: pbar.update()
-        for idx_pixel in range(n_pixel):
-            wait_list.append(pool.apply_async(
-                fit_cube_worker,
-                args=(*args, idx_pixel),
-                callback=callback
-            ))
+    with tqdm(total=len(batch), desc="Optimizing") as pbar:
+        for inds in batch:
+            wait_list.append(pool.map_async(target, inds))
             if len(wait_list) == n_wait:
-                save_results(idx_start, wait_list)
-                idx_start += len(wait_list)
-                wait_list = []
-        save_results(idx_start, wait_list)
+                res = wait_list.pop(0)
+                save_results(res)
+                pbar.update()
+        while len(wait_list) > 0:
+            res = wait_list.pop(0)
+            save_results(res)
+            pbar.update()
     return results
 
 
