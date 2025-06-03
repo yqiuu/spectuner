@@ -128,7 +128,9 @@ def predict_cube(inf_model: InferenceModel,
         inf_model=inf_model,
     )
     # Ensure that one batch contains all species
-    batch_size *= len(species)
+    n_specie = len(species)
+    batch_size = max(n_specie, batch_size)
+    batch_size = batch_size//n_specie*n_specie
     data_loader = DataLoader(
         dataset,
         batch_size=batch_size,
