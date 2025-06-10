@@ -200,14 +200,9 @@ class InferenceModel:
             ckpt["config"]["embedding"], sl_db=sl_db
         )
         warnings.warn("When the AI model is employed, the parameterization "
-                      "and bound information in the config is overwritten,"
-                      "and the noise factor is rescaled to 4.")
+                      "and bound information in the config is overwritten.")
         config["sl_model"]["params"] = ckpt["config"]["sl_model"]["params"]
         config["bound_info"] = _create_bound_info(ckpt["config"])
-        # Rescale the noise factor to 4.
-        ratio = config["peak_manager"]["noise_factor"]/4.
-        for item in config["obs_info"]:
-            item["noise"] *= ratio
         slm_factory = SpectralLineModelFactory(config, sl_db=embedding_model.sl_db)
         return cls(model, embedding_model, slm_factory)
 
