@@ -15,6 +15,7 @@ from .sl_model import (
     ParameterManager,
 )
 from .peaks import PeakManager
+from .utils import pick_default_kwargs
 
 
 def combine_specie_lists(specie_lists, params_list):
@@ -178,12 +179,14 @@ class SpectralLineModelFactory:
                         self._sl_db.query_sl_dict(specie, freq_data))
         else:
             sl_dict_list_ = sl_dict_list
+        kwargs = pick_default_kwargs(
+            create_spectral_line_model_state, self._config["sl_model"]
+        )
         slm_state = create_spectral_line_model_state(
             sl_data_list=sl_dict_list_,
             freq_list=freq_data,
             obs_info=obs_info,
-            trunc=self._config["sl_model"]["trunc"],
-            eps_grid=self._config["sl_model"]["eps_grid"],
+            **kwargs,
         )
         param_mgr = self.create_parameter_mgr(specie_list, obs_info)
         return SpectralLineModel(slm_state, param_mgr)
