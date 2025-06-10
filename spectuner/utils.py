@@ -1,5 +1,6 @@
 import json
 import multiprocessing as mp
+import inspect
 
 import h5py
 import numpy as np
@@ -126,6 +127,16 @@ def is_exclusive(fname):
     return name.startswith("identify") \
         or name.startswith("combine") \
         or name.startswith("tmp")
+
+
+def pick_default_kwargs(func, kwargs):
+    """Collect all default kwargs of the target function from the input dict."""
+    kwargs_ret = {}
+    sig = inspect.signature(func)
+    for key, val in kwargs.items():
+        if key in sig.parameters:
+            kwargs_ret[key] = val
+    return kwargs_ret
 
 
 def create_process_pool(n_process, *args, **kwargs):

@@ -1,5 +1,4 @@
 from __future__ import annotations
-import inspect
 import multiprocessing as mp
 from typing import Optional, Union
 from abc import ABC, abstractmethod
@@ -18,6 +17,7 @@ from .. import ai
 from ..peaks import create_spans
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
 from ..identify import IdentResult
+from ..utils import pick_default_kwargs
 
 
 def optimize(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
@@ -210,10 +210,8 @@ def create_optimizer(config_opt: dict) -> Optimizer:
         cls_opt = SwingOptimizer
     else:
         cls_opt = ScipyOptimizer
-    sig = inspect.signature(cls_opt)
-    for key, val in config_opt.items():
-        if key in sig.parameters:
-            kwargs[key] = val
+
+    kwargs.update(pick_default_kwargs(cls_opt, config_opt))
     return cls_opt(**kwargs)
 
 
