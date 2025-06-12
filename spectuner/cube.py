@@ -457,9 +457,39 @@ class CubePipeline:
 
     def run(self,
             file_list: list,
-            header_lookup: dict,
             save_name: str,
-            fname_mask=None):
+            fname_mask=None,
+            header_lookup: Optional[dict]=None):
+        """Run the pipeline.
+
+        Args:
+            file_list: A list of dictionaries to specify the files of each
+                spectral window, e.g.
+                [
+                    {
+                        "contiuum": PATH_TO_CONTIUUM_FILE_1,
+                        "line": PATH_TO_LINE_FILE_1,
+                    },
+                    {
+                        "contiuum": PATH_TO_CONTIUUM_FILE_2,
+                        "line": PATH_TO_LINE_FILE_2,
+                    },
+                ]
+            save_name: Saving name of the output HDF file.
+            fname_mask: Path to a mask file. The file should have a 2D array.
+                The masked pixels should be set to NaN.
+            header_lookup: A dictionary to specify the aliases of some header
+                attributes. Below is the default header lookup:
+                {
+                    "freq_start": "CRVAL3",
+                    "dfreq": "CDELT3",
+                    "n_freq": "NAXIS3",
+                    "i_freq": "CRPIX3",
+                    "BMAJ": "BMAJ",
+                    "BMIN": "BMIN",
+                }
+                Change any attributes if necessary.
+        """
         header_list = self.prepare_header_list(file_list, header_lookup)
         self.validate_freq_order(header_list)
 
@@ -608,26 +638,33 @@ class CubePipeline:
             )
 
     def prepare_header_list(self, file_list, header_lookup):
+        header_lookup_ = {
+            "freq_start": "CRVAL3",
+            "dfreq": "CDELT3",
+            "n_freq": "NAXIS3",
+            "i_freq": "CRPIX3",
+            "BMAJ": "BMAJ",
+            "BMIN": "BMIN",
+        }
+        if header_lookup is not None:
+            header_lookup_.update(header_lookup)
+
         header_list = []
-        names = ["freq_start", "dfreq", "n_freq", "BMAJ", "BMIN"]
         for item in file_list:
             header_aux = item.get("header", {})
             header_cont = dict(fits.open(item["continuum"])[0].header)
             header_line = dict(fits.open(item["line"])[0].header)
 
             header = {}
-            for key in names:
-                if key in header_lookup:
-                    alias = header_lookup[key]
-                else:
-                    alias = key
-
+            for key, alias in header_lookup_.items():
                 if key in header_aux:
                     header[key] = header_aux[key]
                 elif alias in header_line:
                     header[key] = header_line[alias]
                 elif alias in header_cont:
                     header[key] = header_cont[alias]
+                elif alias == "i_freq":
+                    header[key] = 1
                 else:
                     raise ValueError("Cannot find {} in header.".format(key))
 
@@ -642,16 +679,16 @@ class CubePipeline:
         assert np.all(np.diff(freqs) > 0), msg
 
     def load_freqs(self, header):
-        """Load frequency data from a FITS file.
+        """Load frequency data from a FITS header.
 
         Args:
-            data (object): FITS file.
+            header (object): FITS header.
 
         Returns:
             np.ndarray: Frequency data (MHz).
         """
-        freq_start = header["freq_start"]
         dfreq = header["dfreq"]
+        freq_start = header["freq_start"] + (1 - header["i_freq"])*dfreq
         num = header["n_freq"]
         freq_end = freq_start + (num - 1)*dfreq
         freqs = np.linspace(freq_start, freq_end, num)
