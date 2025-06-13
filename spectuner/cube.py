@@ -76,6 +76,9 @@ def fit_cube(config: dict,
         target=_cube_results_saver, args=(child_conn, save_name)
     )
     saver.start()
+    parent_conn.send(
+        ("reserve", ("score", n_pixel, need_spectra, freq_data))
+    )
     for name in species:
         parent_conn.send(
             ("reserve", (name, n_pixel, need_spectra, freq_data))
@@ -314,11 +317,16 @@ def _cube_results_saver(conn, save_name):
                 raise ValueError(f"Unknown task: {task}")
 
 
-def _save_empty_results(fp, specie_name, n_pixel, need_spectra, freq_data):
-    grp = fp.create_group(specie_name)
+def _save_empty_results(fp, group_name, n_pixel, need_spectra, freq_data):
+    grp = fp.create_group(group_name)
     grp.attrs["type"] = "dict"
 
-    if specie_name != "total":
+    if group_name == "score":
+        grp.create_dataset("fun", shape=(n_pixel,), dtype="f4")
+        grp.create_dataset("nfev", shape=(n_pixel,), dtype="i4")
+        return grp
+
+    if group_name != "total":
         for key in PARAM_NAMES:
             grp.create_dataset(key, shape=(n_pixel,), dtype="f4")
 
@@ -381,32 +389,36 @@ class  _AddExtraProps:
         res = self._postprocess(fitting_model, *args)
         specie_list = res["specie"]
         params = fitting_model.sl_model.param_mgr.derive_params(res["x"])
+        # Compute individual spectra
         if self._need_spectra:
             T_single_dict = fitting_model.sl_model.compute_individual_spectra(res["x"])
-        #
+
+        # Save total spectra if there are multiple species
         if self._need_spectra and len(specie_list) > 1:
             ret_dict["total"] = {"T_pred": res["T_pred"]}
-
+        # Save parameters and individual spectra
         for item, params_sub in zip(specie_list, params, strict=True):
             res_sub = {}
             res_sub["params"] = params_sub
             if self._need_spectra:
                 res_sub["T_pred"] = T_single_dict[item["root"]]
             ret_dict[item["root"]] = res_sub
+        # Save fitting loss and number of function evaluations
+        ret_dict["score"] = {"fun": res["fun"], "nfev": res["nfev"]}
 
-            #peak_mgr = self._slm_factory.create_peak_mgr(fitting_model.obs_info)
-            #scores_tp, scores_fp = peak_mgr.compute_score_all(
-            #    res["T_pred"], use_f_dice=True
-            #)
-            #scores_tp = np.sort(scores_tp)[::-1]
-            #n_max = 4
-            #for idx in range(n_max):
-            #    res[f"t{idx+1}_score"] \
-            #        = scores_tp[idx] if len(scores_tp) > idx + 1 else 0.
-            #res["s_tp_tot"] = np.sum(scores_tp)
-            #res["num_tp"] = len(scores_tp)
-            #res["s_fp_tot"] = np.sum(scores_fp)
-            #res["num_fp"] = len(scores_fp)
+        #peak_mgr = self._slm_factory.create_peak_mgr(fitting_model.obs_info)
+        #scores_tp, scores_fp = peak_mgr.compute_score_all(
+        #    res["T_pred"], use_f_dice=True
+        #)
+        #scores_tp = np.sort(scores_tp)[::-1]
+        #n_max = 4
+        #for idx in range(n_max):
+        #    res[f"t{idx+1}_score"] \
+        #        = scores_tp[idx] if len(scores_tp) > idx + 1 else 0.
+        #res["s_tp_tot"] = np.sum(scores_tp)
+        #res["num_tp"] = len(scores_tp)
+        #res["s_fp_tot"] = np.sum(scores_fp)
+        #res["num_fp"] = len(scores_fp)
 
         return ret_dict
 
