@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Callable
+from typing import Optional, Callable, Literal
 from dataclasses import dataclass
 from copy import deepcopy
 from collections import defaultdict
@@ -211,13 +211,20 @@ class SpectralLineModelFactory:
     def create_fitting_model(self,
                              obs_info: list,
                              specie_list: list,
+                             loss_fn: Literal["pm", "chi2"]="pm",
                              sl_dict_list: Optional[list]=None,
                              T_base_data: Optional[list]=None) -> FittingModel:
         sl_model = self.create_sl_model(obs_info, specie_list, sl_dict_list)
         # TODO: allow to have different loss functions
-        peak_mgr = self.create_peak_mgr(obs_info, T_base_data)
+        if loss_fn == "pm":
+            loss_fn = self.create_peak_mgr(obs_info, T_base_data)
+        elif loss_fn == "chi2":
+            obs_data = load_preprocess(obs_info)
+            loss_fn = ChiSquare(obs_data, T_base_data)
+        else:
+            raise ValueError(f"Unknown fitting loss {loss_fn}.")
         bounds = sl_model.param_mgr.derive_bounds(self._config["bound_info"])
-        return FittingModel(obs_info, sl_model, peak_mgr, bounds)
+        return FittingModel(obs_info, sl_model, loss_fn, bounds)
 
 
 @dataclass(frozen=True)
@@ -240,9 +247,14 @@ class FittingModel:
         return value
 
 
-class MSE:
-    def __init__(self, obs_data):
-        self.T_obs_data = get_T_data(obs_data)
+class ChiSquare:
+    def __init__(self, obs_data, T_base_data=None):
+        T_obs_data = get_T_data(obs_data)
+        if T_base_data is None:
+            self.T_obs_data = T_obs_data
+        else:
+            self.T_obs_data = [T_obs - T_base for T_obs, T_base
+                               in zip(T_obs_data, T_base_data)]
 
     def __call__(self, T_pred_data):
         loss = 0.

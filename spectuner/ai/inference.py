@@ -114,6 +114,7 @@ def split_list_by_number(lst1, lst2, max_diff, max_batch_size):
 
 def predict_cube(inf_model: InferenceModel,
                  postprocess: Callable,
+                 loss_fn: str,
                  fname_cube: str,
                  species: str,
                  batch_size: int,
@@ -126,6 +127,7 @@ def predict_cube(inf_model: InferenceModel,
         fname=fname_cube,
         species=species,
         inf_model=inf_model,
+        loss_fn=loss_fn,
     )
     # Ensure that one batch contains all species
     n_specie = len(species)
@@ -338,9 +340,14 @@ class InferenceModel:
 
 
 class CubeDataset(Dataset):
-    def __init__(self, fname: str, species: list, inf_model: InferenceModel):
+    def __init__(self,
+                 fname: str,
+                 species: list,
+                 inf_model: InferenceModel,
+                 loss_fn: str):
         self._fname = fname
         self._species = species
+        self._loss_fn = loss_fn
         self._embedding_model = inf_model.embedding_model
         self._slm_factory = inf_model.slm_factory
         self._misc_data = cube.load_misc_data(fname)
@@ -359,7 +366,8 @@ class CubeDataset(Dataset):
 
         if len(self._species) == 1:
             fitting_model = self._slm_factory.create_fitting_model(
-                obs_info, specie_list, [sl_dict]
+                obs_info, specie_list, self._loss_fn,
+                sl_dict_list=[sl_dict]
             )
             return embed_obs, embed_sl, fitting_model
 
@@ -367,7 +375,7 @@ class CubeDataset(Dataset):
         for id_, name in enumerate(self._species):
             specie_list.append({"id": id_, "root": name, "species": [name]})
         fitting_model = self._slm_factory.create_fitting_model(
-            obs_info, specie_list
+            obs_info, specie_list, self._loss_fn
         )
         return embed_obs, embed_sl, fitting_model
 

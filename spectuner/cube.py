@@ -90,12 +90,14 @@ def fit_cube(config: dict,
             ("reserve", ("total", n_pixel, need_spectra, freq_data))
         )
 
+    loss_fn = config["cube"].get("loss_fn", "pm")
     with mp.Pool(config["n_process"]) as pool:
         if inf_model is None:
             fit_cube_optimize(
                 fname_cube=fname_cube,
                 slm_factory=slm_factory,
                 postprocess=postprocess,
+                loss_fn=loss_fn,
                 species=species,
                 conn=parent_conn,
                 pool=pool
@@ -104,6 +106,7 @@ def fit_cube(config: dict,
             ai.predict_cube(
                 inf_model=inf_model,
                 postprocess=postprocess,
+                loss_fn=loss_fn,
                 fname_cube=fname_cube,
                 species=species,
                 batch_size=config["inference"]["batch_size"],
@@ -121,6 +124,7 @@ def fit_cube(config: dict,
 def fit_cube_optimize(fname_cube: str,
                       slm_factory: SpectralLineModelFactory,
                       postprocess: Optimizer,
+                      loss_fn: str,
                       species: str,
                       conn,
                       pool: mp.Pool):
@@ -143,7 +147,8 @@ def fit_cube_optimize(fname_cube: str,
         specie_list.append({"id": id_, "root": name, "species": [name]})
     target = partial(
         fit_cube_worker,
-        fname_cube, misc_data, slm_factory, postprocess, specie_list
+        fname_cube, misc_data, slm_factory,
+        postprocess, loss_fn, specie_list,
     )
 
     batch_size = 32
@@ -171,11 +176,14 @@ def fit_cube_worker(fname_cube: str,
                     misc_data: list,
                     slm_factory: SpectralLineModelFactory,
                     postprocess: Callable,
+                    loss_fn: str,
                     specie_list: list,
                     idx_pixel: int):
     """Basic function that performs fitting of one pixel in a cube."""
     obs_info = create_obs_info_from_cube(fname_cube, idx_pixel, misc_data)
-    fitting_model = slm_factory.create_fitting_model(obs_info, specie_list)
+    fitting_model = slm_factory.create_fitting_model(
+        obs_info, specie_list, loss_fn
+    )
     return postprocess(fitting_model)
 
 
