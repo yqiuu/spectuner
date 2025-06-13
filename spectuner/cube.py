@@ -843,12 +843,13 @@ class HDFCube2FITS:
     Args:
         fname: Path to the HDF file that saves the observed data.
     """
-    def __init__(self, fname: str, save_dir: str="./"):
+    def __init__(self, fname: str, save_dir: str="./", add_T_bg=False):
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
 
         self._fname = fname
         self._save_dir = save_dir
+        self._add_T_bg = add_T_bg
         self._freq_data = load_misc_data(self._fname)[0]
         with h5py.File(self._fname, "r") as fp:
             self._indices = np.array(fp["index"])
@@ -857,19 +858,6 @@ class HDFCube2FITS:
     def save_obs_data(self, overwrite=False):
         units = load_cube_units(self._fname)
         for i_segment in range(len(self._freq_data)):
-            # Save T_obs
-            with h5py.File(self._fname) as fp:
-                T_obs = np.array(fp[f"cube/{i_segment}/T_obs"])
-            T_obs = to_dense_matrix(T_obs, self._indices, self._shape)
-            T_obs = np.transpose(T_obs, axes=(2, 0, 1))
-            T_obs = T_obs.astype("f4")
-            header_line = self._derive_header_line(i_segment)
-            header_line["BUNIT"] = units["intensity"]
-            header_line["CUNIT3"] = units["frequency"]
-            hdu = fits.PrimaryHDU(T_obs, header=header_line)
-            save_name = self._save_dir/f"{i_segment}_obs_line.fits"
-            hdu.writeto(save_name, overwrite=overwrite)
-
             # Save T_bg
             header_conti = self._derive_header_scalar(i_segment)
             with h5py.File(self._fname) as fp:
@@ -879,6 +867,21 @@ class HDFCube2FITS:
             header_conti["BUNIT"] = units["intensity"]
             hdu = fits.PrimaryHDU(T_bg, header=header_conti)
             save_name = self._save_dir/f"{i_segment}_obs_continuum.fits"
+            hdu.writeto(save_name, overwrite=overwrite)
+
+            # Save T_obs
+            with h5py.File(self._fname) as fp:
+                T_obs = np.array(fp[f"cube/{i_segment}/T_obs"])
+            T_obs = to_dense_matrix(T_obs, self._indices, self._shape)
+            T_obs = np.transpose(T_obs, axes=(2, 0, 1))
+            if self._add_T_bg:
+                T_obs += T_bg
+            T_obs = T_obs.astype("f4")
+            header_line = self._derive_header_line(i_segment)
+            header_line["BUNIT"] = units["intensity"]
+            header_line["CUNIT3"] = units["frequency"]
+            hdu = fits.PrimaryHDU(T_obs, header=header_line)
+            save_name = self._save_dir/f"{i_segment}_obs_line.fits"
             hdu.writeto(save_name, overwrite=overwrite)
 
     def save_pred_data(self, fname, overwrite=False):
@@ -913,7 +916,11 @@ class HDFCube2FITS:
             T_pred = np.array(grp[f"T_pred/{i_segment}"])
             T_pred = to_dense_matrix(T_pred, self._indices, self._shape)
             T_pred = np.transpose(T_pred, axes=(2, 0, 1))
-
+            if self._add_T_bg:
+                with h5py.File(self._fname) as fp:
+                    T_bg = np.array(fp[f"cube/{i_segment}/T_bg"])
+                T_bg = to_dense_matrix(T_bg, self._indices, self._shape)
+                T_pred += T_bg
             header_line = self._derive_header_line(i_segment)
             header_line["BUNIT"] = units["intensity"]
             header_line["CUNIT3"] = units["frequency"]
