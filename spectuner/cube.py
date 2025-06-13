@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import multiprocessing as mp
 from typing import Optional, Callable, Literal
 from functools import partial
@@ -71,14 +72,15 @@ def fit_cube(config: dict,
     opt = create_optimizer(config["opt_single"])
     need_spectra = config["cube"]["need_spectra"]
     postprocess = _AddExtraProps(slm_factory, opt, need_spectra=need_spectra)
+
+    # Initialize saver
     parent_conn, child_conn = mp.Pipe()
     saver = mp.Process(
         target=_cube_results_saver, args=(child_conn, save_name)
     )
     saver.start()
-    parent_conn.send(
-        ("reserve", ("score", n_pixel, need_spectra, freq_data))
-    )
+    parent_conn.send(("save_config", (config,)))
+    parent_conn.send(("reserve", ("score", n_pixel, False, None)))
     for name in species:
         parent_conn.send(
             ("reserve", (name, n_pixel, need_spectra, freq_data))
@@ -313,6 +315,10 @@ def _cube_results_saver(conn, save_name):
                 _save_empty_results(fp, *data)
             elif task == "save":
                 _save_fitting_results(fp, *data)
+            elif task == "save_config":
+                config = data[0].copy()
+                config["obs_info"] = None
+                fp.attrs["config"] = json.dumps(config)
             else:
                 raise ValueError(f"Unknown task: {task}")
 
