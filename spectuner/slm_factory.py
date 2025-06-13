@@ -259,6 +259,6 @@ class ChiSquare:
     def __call__(self, T_pred_data):
         loss = 0.
         for T_obs, T_pred in zip(self.T_obs_data, T_pred_data):
-            loss += np.mean(np.square(T_obs - T_pred))
-        loss /= len(T_pred_data)
+            loss += np.sum(np.square(T_obs - T_pred))
+        loss *= .5
         return loss
