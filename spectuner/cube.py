@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 import multiprocessing as mp
-from typing import Optional, Callable, Literal
+from typing import Optional, Callable, Literal, Union
 from functools import partial
 from copy import copy
 from pathlib import Path
@@ -93,12 +93,17 @@ def fit_cube(config: dict,
     loss_fn = config["cube"].get("loss_fn", "pm")
     with mp.Pool(config["n_process"]) as pool:
         if inf_model is None:
+            if "x0" in config["cube"]:
+                x0 = np.asarray(config["cube"]["x0"], dtype=np.floating)
+            else:
+                x0 = None
             fit_cube_optimize(
                 fname_cube=fname_cube,
                 slm_factory=slm_factory,
                 postprocess=postprocess,
                 loss_fn=loss_fn,
                 species=species,
+                x0=x0,
                 conn=parent_conn,
                 pool=pool
             )
@@ -126,6 +131,7 @@ def fit_cube_optimize(fname_cube: str,
                       postprocess: Optimizer,
                       loss_fn: str,
                       species: str,
+                      x0: Union[np.ndarray, None],
                       conn,
                       pool: mp.Pool):
     #
@@ -145,10 +151,11 @@ def fit_cube_optimize(fname_cube: str,
     specie_list = []
     for id_, name in enumerate(species):
         specie_list.append({"id": id_, "root": name, "species": [name]})
+
     target = partial(
         fit_cube_worker,
         fname_cube, misc_data, slm_factory,
-        postprocess, loss_fn, specie_list,
+        postprocess, loss_fn, specie_list, x0,
     )
 
     batch_size = 32
@@ -178,13 +185,16 @@ def fit_cube_worker(fname_cube: str,
                     postprocess: Callable,
                     loss_fn: str,
                     specie_list: list,
+                    x0: Union[np.ndarray, None],
                     idx_pixel: int):
     """Basic function that performs fitting of one pixel in a cube."""
     obs_info = create_obs_info_from_cube(fname_cube, idx_pixel, misc_data)
     fitting_model = slm_factory.create_fitting_model(
         obs_info, specie_list, loss_fn
     )
-    return postprocess(fitting_model)
+    if x0 is None:
+        return postprocess(fitting_model)
+    return postprocess(fitting_model, x0)
 
 
 def create_obs_info_from_cube(fname: str, idx_pixel:int , misc_data: list):
