@@ -451,7 +451,7 @@ class SpectralLineDB(ABC):
 
 
 class SQLSpectralLineDB(SpectralLineDB):
-    def __init__(self, fname, start_end_pf=(5, 115), cache=False):
+    def __init__(self, fname, cache=False):
         super().__init__(cache)
         self._fname = fname
         # load x_T
@@ -460,7 +460,9 @@ class SQLSpectralLineDB(SpectralLineDB):
         query = "select * from partitionfunctions"
         cursor.execute(query)
         cols = list(map(lambda x: x[0], cursor.description))
-        self._slice_pf = slice(*start_end_pf)
+        idx_b = cols.index("PF_1_072")
+        idx_e = cols.index("PF_1000_000") + 1
+        self._slice_pf = slice(idx_b, idx_e)
         self._x_T = np.array([float(col[3:].replace("_", "."))
                               for col in cols[self._slice_pf]])
         cursor.close()
