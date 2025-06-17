@@ -211,7 +211,7 @@ class SpectralLineModelFactory:
     def create_fitting_model(self,
                              obs_info: list,
                              specie_list: list,
-                             loss_fn: Literal["pm", "chi2"]="pm",
+                             loss_fn: Literal["pm", "chi2", "chi2_ls"]="pm",
                              sl_dict_list: Optional[list]=None,
                              T_base_data: Optional[list]=None) -> FittingModel:
         sl_model = self.create_sl_model(obs_info, specie_list, sl_dict_list)
@@ -220,7 +220,10 @@ class SpectralLineModelFactory:
             loss_fn = self.create_peak_mgr(obs_info, T_base_data)
         elif loss_fn == "chi2":
             obs_data = load_preprocess(obs_info)
-            loss_fn = ChiSquare(obs_data, T_base_data)
+            loss_fn = ChiSquare(obs_data, T_base_data, use_ls=False)
+        elif loss_fn == "chi2_ls":
+            obs_data = load_preprocess(obs_info)
+            loss_fn = ChiSquare(obs_data, T_base_data, use_ls=True)
         else:
             raise ValueError(f"Unknown fitting loss {loss_fn}.")
         bounds = sl_model.param_mgr.derive_bounds(self._config["bound_info"])
@@ -248,17 +251,31 @@ class FittingModel:
 
 
 class ChiSquare:
-    def __init__(self, obs_data, T_base_data=None):
+    """Chi-square fitting loss funciton.
+
+    Args:
+        obs_data (list): List of observation data.
+        T_base_data (list): List of background intensity.
+        use_ls (bool): This must be ``true`` if the optimizer is implmented in
+            ``scipy.optimize.least_squares``.
+    """
+    def __init__(self,
+                 obs_data: list,
+                 T_base_data: Optional[list]=None,
+                 use_ls: bool=False):
         T_obs_data = get_T_data(obs_data)
         if T_base_data is None:
             self.T_obs_data = T_obs_data
         else:
             self.T_obs_data = [T_obs - T_base for T_obs, T_base
                                in zip(T_obs_data, T_base_data)]
+        self._use_ls = use_ls
 
     def __call__(self, T_pred_data):
-        loss = 0.
+        delta = []
         for T_obs, T_pred in zip(self.T_obs_data, T_pred_data):
-            loss += np.sum(np.square(T_obs - T_pred))
-        loss *= .5
-        return loss
+            delta.append(T_obs - T_pred)
+        delta = np.concatenate(delta)
+        if self._use_ls:
+            return delta
+        return .5*np.sum(np.square(delta))

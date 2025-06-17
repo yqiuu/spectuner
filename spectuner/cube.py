@@ -91,6 +91,8 @@ def fit_cube(config: dict,
         )
 
     loss_fn = config["cube"].get("loss_fn", "pm")
+    if loss_fn == "chi2" and config["opt_single"]["method"] in ("trf", "dogbox", "lm"):
+        loss_fn = "chi2_ls"
     with mp.Pool(config["n_process"]) as pool:
         if inf_model is None:
             if "x0" in config["cube"]:

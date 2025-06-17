@@ -10,7 +10,7 @@ import h5py
 import numpy as np
 from tqdm import tqdm
 from swing import ParticleSwarm, ArtificialBeeColony
-from scipy.optimize import minimize
+from scipy.optimize import minimize, least_squares
 from scipy.cluster.vq import kmeans2
 
 from .. import ai
@@ -208,6 +208,8 @@ def create_optimizer(config_opt: dict) -> Optimizer:
         cls_opt = UniformOptimizer
     elif method in ("pso", "abc"):
         cls_opt = SwingOptimizer
+    elif method in ("trf", "dogbox", "lm"):
+        cls_opt = LeastSquares
     else:
         cls_opt = ScipyOptimizer
 
@@ -493,3 +495,67 @@ def _clustering(samps, values, n_cluster):
     for i, x, v in zip(labels, samps, values):
         clusters[i].append((x, v))
     return clusters
+
+
+class LeastSquares(Optimizer):
+    def __init__(self,
+                 method: str,
+                 n_draw: int=50,
+                 jac: str="2-point",
+                 maxiter: int=2000):
+        super().__init__(n_draw)
+        self._method = method
+        self._jac = jac
+        self._maxiter = maxiter
+
+    def _optimize(self, fitting_model, *args) -> dict:
+        lower, upper = fitting_model.bounds.T
+        kwargs = {
+            "method": self._method,
+            "jac": self._jac,
+            "bounds": (lower, upper),
+            "x_scale": "jac",
+            "max_nfev": self._maxiter,
+        }
+
+        if len(args) == 1:
+            x0 = args[0]
+            res = least_squares(
+                fitting_model,
+                x0=x0,
+                **kwargs
+            )
+            nfev = res.nfev
+            x_best = res.x
+            fun_best = res.cost
+        else:
+            if len(args) == 0:
+                lower, upper = fitting_model.bounds.T
+                samps_ = lower \
+                    + (upper - lower)*np.random.rand(self.n_draw, len(lower))
+            else:
+                samps_ = args[0]
+            values = np.asarray(tuple(map(fitting_model, samps_)))
+            values = .5*np.sum(np.square(values), axis=1)
+
+            idx_min = np.argmin(values)
+            x0 = samps_[idx_min].astype("f8")
+            res = least_squares(
+                fitting_model,
+                x0=x0,
+                **kwargs
+            )
+            nfev = len(values) + res.nfev
+
+            if res.cost < values[idx_min]:
+                x_best = res.x
+                fun_best = res.cost
+            else:
+                x_best = samps_[idx_min]
+                fun_best = values[idx_min]
+
+        return {
+            "x":  x_best,
+            "fun": fun_best,
+            "nfev": nfev,
+        }
