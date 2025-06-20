@@ -408,7 +408,7 @@ class ScipyOptimizer(Optimizer):
     def __init__(self,
                  method: str,
                  n_draw: int=50,
-                 jac: str="2-point",
+                 jac: str="3-point",
                  n_cluster: int=1,
                  maxiter: int=2000):
         super().__init__(n_draw)
@@ -421,11 +421,7 @@ class ScipyOptimizer(Optimizer):
         kwargs = {"method": self._method, "options": {"maxiter": self._maxiter}}
         if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
             lower, upper = fitting_model.bounds.T
-            h = 1.e-5
-            kwargs.update(
-                jac=self._jac,
-                options={"eps": h*(upper - lower)}
-            )
+            kwargs.update(jac=self._jac)
 
         if len(args) == 1:
             x0 = args[0]
@@ -501,7 +497,7 @@ class LeastSquares(Optimizer):
     def __init__(self,
                  method: str,
                  n_draw: int=50,
-                 jac: str="2-point",
+                 jac: str="3-point",
                  maxiter: int=2000):
         super().__init__(n_draw)
         self._method = method
