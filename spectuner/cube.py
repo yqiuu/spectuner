@@ -505,14 +505,16 @@ class CubePipeline:
                 spectral window, e.g.
                 [
                     {
-                        "contiuum": PATH_TO_CONTIUUM_FILE_1,
+                        "continuum": PATH_TO_CONTIUUM_FILE_1,
                         "line": PATH_TO_LINE_FILE_1,
                     },
                     {
-                        "contiuum": PATH_TO_CONTIUUM_FILE_2,
+                        "continuum": PATH_TO_CONTIUUM_FILE_2,
                         "line": PATH_TO_LINE_FILE_2,
                     },
                 ]
+                The ``continumm`` key is optional. If not specified, the
+                continuum will be set to zero.
             save_name: Saving name of the output HDF file.
             fname_mask: Path to a mask file. The file should have a 2D array.
                 The masked pixels should be set to NaN.
@@ -538,15 +540,17 @@ class CubePipeline:
             cond_mask = ~np.isnan(mask)
 
         for item in file_list:
+            if "continuum" not in item:
+                continue
             data_continuum = np.squeeze(fits.open(item["continuum"])[0].data) # (W, H)
             n_row, n_col = data_continuum.shape
             if cond_mask is None:
                 cond_mask = np.full(data_continuum.shape, True)
             cond_mask &= ~np.isnan(data_continuum)
             cond_mask &= ~np.isinf(data_continuum)
-        inds_mask = np.where(cond_mask)
+            inds_mask = np.where(cond_mask)
 
-        counts = np.zeros(len(inds_mask[0]), dtype="i8")
+        counts = None
         headers_line = []
         headers_continuum = []
         T_obs_data = []
@@ -561,12 +565,20 @@ class CubePipeline:
             # (1, C, W, H) > (C, W, H)
             data_line = np.squeeze(hdul.data)
             data_line = np.transpose(data_line, axes=(1, 2, 0)) # (W, H, C)
+            if cond_mask is None:
+                inds_mask = np.where(np.full(data_line.shape[:2], True))
+                n_row, n_col = data_line.shape[:2]
+            if counts is None:
+                counts = np.zeros(len(inds_mask[0]), dtype="i8")
             data_line = data_line[inds_mask] # (N, C)
 
-            hdul = fits.open(item["continuum"])[0]
-            headers_continuum.append(hdul.header)
-            data_continuum = np.squeeze(hdul.data) # (W, H)
-            data_continuum = data_continuum[inds_mask]
+            if "continuum" in item:
+                hdul = fits.open(item["continuum"])[0]
+                headers_continuum.append(hdul.header)
+                data_continuum = np.squeeze(hdul.data) # (W, H)
+                data_continuum = data_continuum[inds_mask]
+            else:
+                data_continuum = np.zeros(len(inds_mask[0]))
 
             # Fix nan and inf values
             num_tot = np.prod(data_line.shape)
@@ -690,7 +702,10 @@ class CubePipeline:
         header_list = []
         for item in file_list:
             header_aux = item.get("header", {})
-            header_cont = dict(fits.open(item["continuum"])[0].header)
+            if "continuum" in "item":
+                header_cont = dict(fits.open(item["continuum"])[0].header)
+            else:
+                header_cont = {}
             header_line = dict(fits.open(item["line"])[0].header)
 
             header = {}
