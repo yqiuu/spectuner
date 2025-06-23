@@ -69,7 +69,7 @@ def prepare_list_by_number(inf_model: InferenceModel,
             embed_obs, embed_sl, sl_dict, specie_list \
                 = inf_model.embedding_model(obs_info, name)
             fitting_model = inf_model.slm_factory.create_fitting_model(
-                obs_info, specie_list, [sl_dict]
+                obs_info, specie_list, sl_dict_list=[sl_dict]
             )
             batch.append((embed_obs, embed_sl, fitting_model))
         inputs.append(collate_fn_padding(batch))
