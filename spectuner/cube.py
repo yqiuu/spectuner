@@ -23,6 +23,7 @@ from .sl_model import (
     const_factor_mu_sigma,
     SQLSpectralLineDB
 )
+from .peaks import check_overlap
 from .slm_factory import SpectralLineModelFactory
 from .optimize import create_optimizer, Optimizer
 from .preprocess import preprocess_spectrum
@@ -558,10 +559,12 @@ class CubePipeline:
         freq_data = []
         noise_data = []
         beam_data = []
+        window_data = []
         mask_data = []
+        shift_factor = 1. + const_factor_mu_sigma()[0]*self.v_LSR
         for item, header in zip(file_list, header_list):
             hdul = fits.open(item["line"])[0]
-            headers_line.append(hdul.header)
+            header_line = hdul.header
             # (1, C, W, H) > (C, W, H)
             data_line = np.squeeze(hdul.data)
             data_line = np.transpose(data_line, axes=(1, 2, 0)) # (W, H, C)
@@ -574,11 +577,12 @@ class CubePipeline:
 
             if "continuum" in item:
                 hdul = fits.open(item["continuum"])[0]
-                headers_continuum.append(hdul.header)
+                header_cont = hdul.header
                 data_continuum = np.squeeze(hdul.data) # (W, H)
                 data_continuum = data_continuum[inds_mask]
             else:
                 data_continuum = np.zeros(len(inds_mask[0]))
+                header_cont = header_line
 
             # Fix nan and inf values
             num_tot = np.prod(data_line.shape)
@@ -648,15 +652,40 @@ class CubePipeline:
             freq_data.append(freqs)
             noise_data.append(noise)
             beam_data.append(beam_info)
-            mask_data.append(item.get("mask", None))
+
+            n_sub = 1
+            if "window" in item and "mask" in item:
+                raise ValueError("Can only specify either window or mask.")
+            if "window" in item:
+                windows = check_overlap(item["window"])
+                if windows is None:
+                    raise ValueError("Windows have overlaps.")
+                windows = [[shift_factor*x[0], shift_factor*x[1]] for x in windows]
+                window_data.append(windows)
+                n_sub = len(windows)
+            else:
+                window_data.append(None)
+            if "mask" in item:
+                masks = check_overlap(item["mask"])
+                if masks is None:
+                    raise ValueError("Masks have overlaps.")
+                masks = [[shift_factor*x[0], shift_factor*x[1]] for x in masks]
+                mask_data.append(masks)
+                n_sub = len(masks) + 1
+            else:
+                mask_data.append(None)
+
+            headers_line.extend([header_line]*n_sub)
+            headers_continuum.extend([header_cont]*n_sub)
 
         #
         T_obs_data, \
         T_bg_data, \
         freq_data, \
         noise_data, \
-        beam_data = self.split_by_mask(
-            T_obs_data, T_bg_data, freq_data, noise_data, beam_data, mask_data
+        beam_data = self.extract_sub_window(
+            T_obs_data, T_bg_data, freq_data,
+            noise_data, beam_data, window_data, mask_data,
         )
 
         #
@@ -796,41 +825,48 @@ class CubePipeline:
         frac = np.count_nonzero(cond)/len(target)
         return target_ret, frac
 
-    def split_by_mask(self, T_obs_data, T_bg_data, freq_data, noise_data, beam_data, mask_data):
+    def extract_sub_window(self, T_obs_data, T_bg_data, freq_data,
+                           noise_data, beam_data, window_data, mask_data):
+        window_data_ = []
+        for windows, masks in zip(window_data, mask_data):
+            if windows is not None:
+                window_data_.append(windows)
+            elif masks is not None:
+                windows = []
+
+                left = masks[0][0]
+                windows.append((-np.inf, left))
+
+                for idx in range(1, len(masks)):
+                    right_prev = masks[idx - 1][1]
+                    left = masks[idx][0]
+                    windows.append((right_prev, left))
+
+                windows.append((masks[-1][1], np.inf))
+                window_data_.append(windows)
+            else:
+                window_data_.append(None)
+
         T_obs_data_ret = []
         T_bg_data_ret = []
         freq_data_ret = []
         noise_data_ret = []
         beam_data_ret = []
-        for T_obs, T_bg, freqs, noise, beam, masks in zip(
-            T_obs_data, T_bg_data, freq_data, noise_data, beam_data, mask_data
+        for T_obs, T_bg, freqs, noise, beam, windows in zip(
+            T_obs_data, T_bg_data, freq_data, noise_data, beam_data, window_data_
         ):
-            if masks is None:
+            if windows is None:
                 T_obs_data_ret.append(T_obs)
                 T_bg_data_ret.append(T_bg)
                 freq_data_ret.append(freqs)
                 noise_data_ret.append(noise)
                 beam_data_ret.append(beam)
             else:
-                masks.sort(key=lambda x: x[0])
-                cond_r = np.full(len(freqs), True)
-                upper_prev = -np.inf
-                while len(masks) > 0:
-                    lower, upper = masks.pop(0)
-                    if upper_prev < lower:
-                        cond_l = (freqs >= upper_prev) & (freqs <= lower)
-                        T_obs_data_ret.append(T_obs[..., cond_l])
-                        T_bg_data_ret.append(T_bg)
-                        freq_data_ret.append(freqs[cond_l])
-                        noise_data_ret.append(noise)
-                        beam_data_ret.append(beam)
-                    upper_prev = upper
-
-                if upper_prev < freqs[-1]:
-                    cond_r = freqs > upper_prev
-                    T_obs_data_ret.append(T_obs[..., cond_r])
+                for left, right in windows:
+                    cond = (freqs >= left) & (freqs <= right)
+                    T_obs_data_ret.append(T_obs[..., cond])
                     T_bg_data_ret.append(T_bg)
-                    freq_data_ret.append(freqs[cond_r])
+                    freq_data_ret.append(freqs[cond])
                     noise_data_ret.append(noise)
                     beam_data_ret.append(beam)
 
@@ -841,7 +877,8 @@ class CubePipeline:
         i_seg_save = 0
         for header_l, header_c, T_obs, T_bg, freqs, noise, beam in zip(
             headers_line, headers_continuum,
-            T_obs_data, T_bg_data, freq_data, noise_data, beam_data
+            T_obs_data, T_bg_data, freq_data, noise_data, beam_data,
+            strict=True,
         ):
             grp_sub = grp.create_group(str(i_seg_save))
             grp_header_l = grp_sub.create_group("header/line")

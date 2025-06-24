@@ -255,6 +255,24 @@ def compute_shift(freq, vel):
     return freq*(1 + vel/c)
 
 
+def check_overlap(spans: list) -> list:
+    """Sort the input spans and check overlaps.
+
+    Retunrs:
+        list: Sorted spans if no overlap;``None`` otherwise.
+    """
+    if len(spans) == 1:
+        return spans
+
+    spans = sorted(spans, key=lambda x: x[0])
+    right_prev = spans[0][1]
+    for left, right in spans[1:]:
+        if left <= right_prev:
+            return
+        right_prev = right
+    return spans
+
+
 def assign_values_to_intervals(intervals, values):
     # Aussme inputs are sorted
     ret_list = [[] for _ in range(len(intervals))]
