@@ -204,8 +204,8 @@ def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
 def create_optimizer(config_opt: dict) -> Optimizer:
     method = config_opt["method"]
     kwargs = config_opt.get("kwargs_opt", {})
-    if method == "uniform":
-        cls_opt = UniformOptimizer
+    if method == "vanilla":
+        cls_opt = VanillaOptimizer
     elif method in ("pso", "abc"):
         cls_opt = SwingOptimizer
     elif method in ("trf", "dogbox", "lm"):
@@ -377,7 +377,7 @@ class SwingOptimizer(Optimizer):
         raise ValueError("n_rand < 0")
 
 
-class UniformOptimizer(Optimizer):
+class VanillaOptimizer(Optimizer):
     def __init__(self, n_draw=50):
         super().__init__(n_draw)
 
