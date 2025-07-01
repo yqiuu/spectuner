@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from collections import defaultdict
 
-from .preprocess import get_freq_data, get_T_data
+from .preprocess import load_preprocess, get_freq_data, get_T_data
 
 
 class PeakPlot:
@@ -181,7 +181,7 @@ class SpectralPlot:
     @classmethod
     def from_config(cls, config, freq_per_row=1000., width=15., height=3.,
                     axes=None, color="k", **kwargs):
-        obs_data = [np.loadtxt(fname) for fname in config["files"]]
+        obs_data = load_preprocess(config["obs_info"], clip=False)
         freq_data = get_freq_data(obs_data)
         plot = cls(
             freq_data=freq_data,

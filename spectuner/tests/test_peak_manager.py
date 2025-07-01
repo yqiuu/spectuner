@@ -43,7 +43,7 @@ def create_peak_manager(obs_data):
     T_back = 0.
     prominence = .1
     rel_height = .25
-    return spectuner.PeakManager(obs_data, T_back, prominence, rel_height)
+    return spectuner.PeakManager(obs_data, prominence, rel_height, T_back=T_back)
 
 
 def get_fname():

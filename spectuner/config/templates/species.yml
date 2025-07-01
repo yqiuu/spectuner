@@ -1,43 +1,13 @@
-molecules:
+species:
   - CO
-  - CN
-  - CS
   - H2CO
-  - H2CCO
-  - H2S
-  - H2CS
-  - HCOOH
-  - HCO+
-  - OCS
-  - HCN
-  - HCCCN
-  - HCCCCCN
-  - HNC
-  - HNCO
-  - CCH
-  - c-C3H2
-  - c-C2H4O
   - CH3OH
-  - CH3CHO
-  - CH3OCHO
-  - CH3OCH3
-  - CH3CN
-  - C2H3CN
-  - C2H5CN
-  - C2H5OH
-  - CH3COCH3
-  - HC(O)NH2
-  - NH3
-  - SO
-  - SO2
-ElowMin: 0.0
-ElowMax: 5000.
 elements: null
-base_only: False
-iso_mode: "separate"
+combine_iso: False
+combine_state: False
+collect_iso: False
 iso_order: 1
-sort_mode: "default"
+version_mode: "default"
 include_hyper: False
-separate_all: False
 exclude_list: null
 rename_dict: null

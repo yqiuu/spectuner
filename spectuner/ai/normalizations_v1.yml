@@ -1,0 +1,30 @@
+A_ul:
+  mu: -4.1
+  std: 2.1
+  x_min: 1.e-15
+  x_max: 1.e+5
+  scale: log
+g_u:
+  mu: 2.
+  std: 0.40
+  x_min: null
+  x_max: null
+  scale: log
+E_low:
+  mu: 7.4
+  std: 1.1
+  x_min: null
+  x_max: null
+  scale: arcsinh
+E_up:
+  mu: 7.4
+  std: 1.1
+  x_min: null
+  x_max: null
+  scale: arcsinh
+Q_T:
+  mu: 5.9
+  std: 3.1
+  x_min: null
+  x_max: 1.e+8
+  scale: arcsinh

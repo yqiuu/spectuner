@@ -1,147 +1,126 @@
-import pickle
+from __future__ import annotations
+import multiprocessing as mp
+from typing import Optional, Union
+from abc import ABC, abstractmethod
 from pathlib import Path
-from multiprocessing import Pool
+from copy import deepcopy
+from collections import defaultdict
 
+import h5py
 import numpy as np
+from tqdm import tqdm
 from swing import ParticleSwarm, ArtificialBeeColony
-from tqdm import trange
+from scipy.optimize import minimize, least_squares
+from scipy.cluster.vq import kmeans2
 
-from ..xclass_wrapper import extract_line_frequency
-from ..identify import create_spans
-
-
-def optimize(model, config_opt, pool):
-    res_list = []
-    for _ in range(config_opt["n_trail"]):
-        res_list.append(optimize_sub(model, config_opt, pool))
-    ret_dict = min(res_list, key=lambda x: x["cost_best"])
-    save_all = config_opt.get("save_all", False)
-    if save_all:
-        cost_all = np.concatenate([res["cost_all"] for res in res_list])
-        pos_all = np.vstack([res["pos_all"] for res in res_list])
-        blob = []
-        for res in res_list:
-            blob.extend(res["blob"])
-        ret_dict["cost_all"] = cost_all
-        ret_dict["pos_all"] = pos_all
-        ret_dict["blob"] = blob
-    return ret_dict
+from .. import ai
+from ..peaks import create_spans
+from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
+from ..identify import IdentResult
+from ..utils import pick_default_kwargs
 
 
-def optimize_sub(model, config_opt, pool):
-    opt_name = config_opt["optimizer"]
-    if opt_name == "pso":
-        cls_opt = ParticleSwarm
-    elif opt_name == "abc":
-        cls_opt = ArtificialBeeColony
+def optimize(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
+             obs_info: list,
+             specie_list: list,
+             config_opt: dict,
+             T_base_data: Optional[list]=None,
+             x0: Optional[np.ndarray]=None,
+             config_inf: dict=None):
+    opt = create_optimizer(config_opt)
+    if isinstance(engine, SpectralLineModelFactory):
+        fitting_model = engine.create_fitting_model(
+            obs_info=obs_info,
+            specie_list=specie_list,
+            T_base_data=T_base_data,
+        )
+        jit_fitting_model(fitting_model)
+        if x0 is None:
+            return opt(fitting_model)
+        return opt(fitting_model, x0)
+    elif isinstance(engine, ai.InferenceModel) is not None:
+        return engine.call_single(
+            obs_info=obs_info,
+            specie_name=specie_list[0]["root"],
+            postprocess=opt,
+            T_base_data=T_base_data,
+            device=config_inf["device"],
+        )
     else:
-        raise ValueError("Unknown optimizer: {}.".format(cls_opt))
-    kwargs_opt = config_opt.get("kwargs_opt", {})
-    blob = config_opt.get("blob", False)
-    save_all = config_opt.get("save_all", False)
-    opt = cls_opt(model, model.bounds, pool=pool, **kwargs_opt)
-
-    n_cycle_min = config_opt["n_cycle_min"] \
-        + (len(model.bounds) - 5)*config_opt["n_cycle_dim"]
-    n_cycle_max = config_opt["n_cycle_max"]
-    n_stop = config_opt["n_stop"]
-    tol_stop = config_opt["tol_stop"]
-
-    def compute_rate(opt):
-        history = opt.memo["cost"]
-        return abs(history[-2] - history[-1])/abs(history[-2])
-
-    pos_all = []
-    cost_all = []
-    blob = []
-    n_stuck = 0
-    for i_cycle in trange(n_cycle_max):
-        for data in opt.swarm(niter=1, progress_bar=False).values():
-            if save_all:
-                pos_all.append(data["pos"])
-                cost_all.append(data["cost"])
-                if data.get("blob", None) is not None:
-                    blob.extend(data["blob"])
-
-        if i_cycle > 1:
-            rate = compute_rate(opt)
-            if rate < tol_stop:
-                n_stuck += 1
-            else:
-                n_stuck = 0
-
-        if n_stuck >= n_stop and i_cycle + 1 >= n_cycle_min:
-            break
-
-    if len(pos_all) != 0:
-        pos_all = np.vstack(pos_all)
-        cost_all = np.concatenate(cost_all)
-
-    T_pred_data, trans_data = prepare_pred_data(model, opt.pos_global_best)
-
-    ret_dict = {
-        "mol_store": model.mol_store,
-        "freq": model.freq_data,
-        "T_pred": T_pred_data,
-        "T_obs": model.T_obs_data,
-        "T_base": model.T_base_data,
-        "T_back": model.T_back,
-        "trans_dict": trans_data,
-        "cost_best": opt.cost_global_best,
-        "params_best": opt.pos_global_best,
-    }
-    if config_opt.get("save_local_best", False):
-        T_pred_data_local = []
-        trans_data_local = []
-        for pos in opt.pos_local_best:
-            T_tmp, trans_tmp = prepare_pred_data(model, pos)
-            T_pred_data_local.append(T_tmp)
-            trans_data_local.append(trans_tmp)
-        local_best = {
-            "cost_best": opt.cost_local_best,
-            "params_best": opt.pos_local_best,
-            "T_pred": T_pred_data_local,
-            "trans_dict": trans_data_local,
-        }
-        ret_dict["local_best"] = local_best
-    if config_opt.get("save_history", False):
-        ret_dict["history"] = opt.memo
-    if save_all:
-        ret_dict["pos_all"] = pos_all
-        ret_dict["cost_all"] = cost_all
-        ret_dict["blob"] = blob
-    return ret_dict
+        raise ValueError(f"Unknown engine: {engine}.")
 
 
-def create_pool(n_process, use_mpi):
-    if use_mpi:
-        from mpi4py.futures import MPIPoolExecutor
-        return MPIPoolExecutor(n_process)
+def optimize_all(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
+                 obs_info: list,
+                 targets: list,
+                 config_opt: dict,
+                 T_base_data: list=None,
+                 trans_counts: dict=None,
+                 config_inf: dict=None,
+                 pool: mp.Pool=None):
+    # Optimize without inference model
+    if isinstance(engine, SpectralLineModelFactory):
+        results = []
+        with tqdm(total=len(targets), desc="Fitting") as pbar:
+            callback = lambda _: pbar.update()
+            for specie_list in targets:
+                fitting_model = engine.create_fitting_model(
+                    obs_info=obs_info,
+                    specie_list=specie_list,
+                    T_base_data=T_base_data,
+                )
+                if pool is None:
+                    res = _optimize_worker(fitting_model, config_opt)
+                    pbar.update()
+                else:
+                    res = pool.apply_async(
+                        _optimize_worker,
+                        args=(fitting_model, config_opt),
+                        callback=callback
+                    )
+                results.append(res)
+
+            if pool is not None:
+                results = [res.get() for res in results]
+        return results
+    elif isinstance(engine, ai.InferenceModel):
+        specie_names = []
+        numbers = []
+        for specie_list in targets:
+            name = specie_list[0]["root"]
+            specie_names.append(name)
+            numbers.append(trans_counts[name])
+        opt = create_optimizer(config_opt)
+        results = ai.predict_single_pixel(
+            inf_model=engine,
+            obs_info=obs_info,
+            entries=specie_names,
+            numbers=numbers,
+            postprocess=opt,
+            max_diff=config_inf["max_diff"],
+            max_batch_size=config_inf["batch_size"],
+            device=config_inf["device"],
+            pool=pool
+        )
+        for res, specie_list in zip(results, targets):
+            res["specie"] = specie_list
+        return results
     else:
-        return Pool(n_process)
+        raise ValueError(f"Unknown engine: {engine}.")
 
 
-def prepare_pred_data(model, pos):
-    T_pred_data, trans_data, _, job_dir_data = model.call_func(pos)
-    if isinstance(job_dir_data, str):
-        T_pred_data = [T_pred_data]
-        trans_data_ret = [extract_line_frequency(trans_data)]
-        return T_pred_data, trans_data_ret
-
-    trans_data_ret = []
-    for trans in trans_data:
-        if trans is None:
-            trans_data_ret.append(None)
-        else:
-            trans_data_ret.append(extract_line_frequency(trans))
-    return T_pred_data, trans_data_ret
+def _optimize_worker(fitting_model, config_opt):
+    opt = create_optimizer(config_opt)
+    jit_fitting_model(fitting_model)
+    return opt(fitting_model)
 
 
 def prepare_base_props(fname, config):
     if fname is not None:
         fname = Path(fname)
         fname = fname.with_name(f"identify_{fname.name}")
-        res = pickle.load(open(fname, "rb"))
+        with h5py.File(fname) as fp:
+            res = IdentResult.load_hdf(fp["combine"])
         T_base_data = res.get_T_pred()
         freqs_exclude = res.get_identified_lines()
         spans_include = create_spans(
@@ -150,7 +129,7 @@ def prepare_base_props(fname, config):
         exclude_list = derive_exclude_list(res)
 
         id_offset = 0
-        for key in res.mol_data:
+        for key in res.specie_data:
             id_offset = max(id_offset, key)
         id_offset += 1
     else:
@@ -171,10 +150,18 @@ def prepare_base_props(fname, config):
 
 def derive_exclude_list(res):
     exclude_set = set()
-    for sub_dict in res.mol_data.values():
+    for sub_dict in res.specie_data.values():
         for key in sub_dict:
             exclude_set.add(key.split(";")[0])
     return list(exclude_set)
+
+
+def print_fitting(specie_list):
+    print("Fitting: {}.".format(", ".join(specie_list)))
+
+
+def join_specie_names(species):
+    return ", ".join(species)
 
 
 def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
@@ -212,3 +199,359 @@ def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
             params_den[inds] = np.random.uniform(lb_den[inds], ub_den[inds])
     params_new = np.concatenate([params_mol, params_den, params_misc])
     return params_new
+
+
+def create_optimizer(config_opt: dict) -> Optimizer:
+    method = config_opt["method"]
+    kwargs = config_opt.get("kwargs_opt", {})
+    if method == "vanilla":
+        cls_opt = VanillaOptimizer
+    elif method in ("pso", "abc"):
+        cls_opt = SwingOptimizer
+    elif method in ("trf", "dogbox", "lm"):
+        cls_opt = LeastSquares
+    else:
+        cls_opt = ScipyOptimizer
+
+    kwargs.update(pick_default_kwargs(cls_opt, config_opt))
+    return cls_opt(**kwargs)
+
+
+class Optimizer(ABC):
+    def __init__(self, n_draw=1):
+        self._n_draw = n_draw
+
+    def __call__(self, fitting_model, *args) -> dict:
+        res = self._optimize(fitting_model, *args)
+        res["specie"] = fitting_model.sl_model.specie_list
+        res["freq"] = fitting_model.sl_model.freq_data
+        res["T_pred"] = fitting_model.sl_model(res["x"])
+        return res
+
+    @abstractmethod
+    def _optimize(self, fitting_model, *args) -> dict:
+        """
+        This method may have the following input signatures:
+
+          - ``len(args) == 0``: Default mode.
+          - ``len(args) == 1``: Possible initial guess is provided.
+          - ``len(args) > 1``: Possible initial guess ``(n_draw, D)``
+            is provided.
+        """
+
+    @property
+    def n_draw(self):
+        return self._n_draw
+
+
+class SwingOptimizer(Optimizer):
+    def __init__(self,
+                 method: str,
+                 n_swarm: int=32,
+                 n_cycle_min: int=100,
+                 n_cycle_max: int=1000,
+                 n_cycle_dim: int=5,
+                 n_stop: int=15,
+                 tol_stop: float=1.e-5,
+                 n_trial: int=1,
+                 save_history: bool=True,
+                 save_all: bool=False,
+                 **kwargs):
+        super().__init__(n_draw=n_swarm)
+        self._method = method
+        self._n_cycle_min = n_cycle_min
+        self._n_cycle_max = n_cycle_max
+        self._n_cycle_dim = n_cycle_dim
+        self._n_stop = n_stop
+        self._tol_stop = tol_stop
+        self._n_trial = n_trial
+        self._save_history = save_history
+        self._save_all = save_all
+        self._kwargs = kwargs
+
+    def _optimize(self, fitting_model, *args, pool=None) -> dict:
+        res_list = []
+        for _ in range(self._n_trial):
+            res_list.append(self._optimize_sub(fitting_model, *args, pool=pool))
+        res_dict = deepcopy(min(res_list, key=lambda x: x["fun"]))
+        if len(res_list) > 1:
+            res_dict["trial"] = {f"{idx}": res for idx, res in enumerate(res_list)}
+        if self._save_all:
+            cost_all = np.concatenate([res["cost_all"] for res in res_list])
+            pos_all = np.vstack([res["pos_all"] for res in res_list])
+            blob = []
+            for res in res_list:
+                blob.extend(res["blob"])
+            res_dict["cost_all"] = cost_all
+            res_dict["pos_all"] = pos_all
+            res_dict["blob"] = blob
+        return res_dict
+
+    def _optimize_sub(self, fitting_model, *args, pool=None) -> dict:
+        if self._method == "pso":
+            cls_opt = ParticleSwarm
+        elif self._method == "abc":
+            cls_opt = ArtificialBeeColony
+        else:
+            raise ValueError("Unknown optimizer: {}.".format(self._method))
+
+        blob = self._kwargs.get("blob", False)
+        kwargs = deepcopy(self._kwargs)
+        nfev = 0
+        if len(args) == 1:
+            kwargs["initial_pos"] = self.derive_initial_pos(
+                args[0], fitting_model.bounds, self.n_draw
+            )
+        elif len(args) > 1:
+            kwargs["initial_pos"] = args[0]
+        opt = cls_opt(
+            fitting_model,
+            fitting_model.bounds,
+            nswarm=self.n_draw,
+            pool=pool,
+            blob=blob,
+            **kwargs
+        )
+        n_cycle_min = self._n_cycle_min \
+            + (len(fitting_model.bounds) - 5)*self._n_cycle_dim
+        n_cycle_max = self._n_cycle_max
+
+        def compute_rate(opt):
+            history = opt.memo["cost"]
+            return abs(history[-2] - history[-1])/abs(history[-2])
+
+        pos_all = []
+        cost_all = []
+        blob = []
+        n_stuck = 0
+        for i_cycle in range(n_cycle_max):
+            for data in opt.swarm(niter=1, progress_bar=False).values():
+                if self._save_all:
+                    pos_all.append(data["pos"])
+                    cost_all.append(data["cost"])
+                    if data["blob"] is not None:
+                        blob.extend(data["blob"])
+
+            if i_cycle > 1:
+                rate = compute_rate(opt)
+                if rate < self._tol_stop:
+                    n_stuck += 1
+                else:
+                    n_stuck = 0
+
+            if n_stuck >= self._n_stop and i_cycle + 1 >= n_cycle_min:
+                break
+
+        if len(pos_all) != 0:
+            pos_all = np.vstack(pos_all)
+            cost_all = np.concatenate(cost_all)
+
+        T_pred_data = fitting_model.sl_model(opt.pos_global_best)
+
+        res_dict = {
+            "x":  opt.pos_global_best,
+            "fun": opt.cost_global_best,
+            "nfev": opt.memo["ncall"][-1] + nfev,
+            "specie": fitting_model.sl_model.specie_list,
+            "freq": fitting_model.sl_model.freq_data,
+            "T_pred": T_pred_data,
+        }
+        if self._save_history:
+            res_dict["history"] = opt.memo
+        if self._save_all:
+            res_dict["pos_all"] = pos_all
+            res_dict["cost_all"] = cost_all
+            res_dict["blob"] = np.asarray(blob)
+        return res_dict
+
+    def derive_initial_pos(self, x0, bounds, n_swarm):
+        x0 = np.atleast_2d(x0)
+        n_rand = n_swarm - x0.shape[0]
+        if n_rand == 0:
+            return x0
+        elif n_rand > 0:
+            lb, ub = bounds.T
+            x_rand = lb + (ub - lb)*np.random.rand(n_rand, 1)
+            return np.vstack([x0, x_rand])
+
+        raise ValueError("n_rand < 0")
+
+
+class VanillaOptimizer(Optimizer):
+    def __init__(self, n_draw=50):
+        super().__init__(n_draw)
+
+    def _optimize(self, fitting_model, *args) -> dict:
+        if len(args) == 0:
+            lower, upper = fitting_model.bounds.T
+            samps_ = lower \
+                + (upper - lower)*np.random.rand(self.n_draw, len(lower))
+        else:
+            samps_ = args[0]
+
+        fun_all = tuple(map(fitting_model, samps_[:self.n_draw]))
+        fun_all = np.asarray(fun_all)
+        idx = np.argmin(fun_all)
+        x0 = samps_[idx]
+        fun_min = fun_all[idx]
+
+        return {
+            "x":  x0,
+            "fun": fun_min,
+            "nfev": self.n_draw,
+            "x_all": samps_,
+            "fun_all": fun_all
+        }
+
+
+class ScipyOptimizer(Optimizer):
+    def __init__(self,
+                 method: str,
+                 n_draw: int=50,
+                 jac: str="3-point",
+                 n_cluster: int=1,
+                 maxiter: int=2000):
+        super().__init__(n_draw)
+        self._method = method
+        self._jac = jac
+        self._n_cluster = n_cluster
+        self._maxiter = maxiter
+
+    def _optimize(self, fitting_model, *args) -> dict:
+        kwargs = {"method": self._method, "options": {"maxiter": self._maxiter}}
+        if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
+            lower, upper = fitting_model.bounds.T
+            kwargs.update(jac=self._jac)
+
+        if len(args) == 1:
+            x0 = args[0]
+            res = minimize(
+                fitting_model,
+                x0=x0,
+                bounds=fitting_model.bounds,
+                **kwargs
+            )
+            nfev = res.nfev
+            x_best = res.x
+            fun_best = res.fun
+        else:
+            if len(args) == 0:
+                lower, upper = fitting_model.bounds.T
+                samps_ = lower \
+                    + (upper - lower)*np.random.rand(self.n_draw, len(lower))
+            else:
+                samps_ = args[0]
+            values = tuple(map(fitting_model, samps_))
+            values = np.asarray(values)
+
+            if self._n_cluster > 1 and len(args) > 1:
+                clusters = _clustering(samps_, values, self._n_cluster)
+                results = []
+                for sub in clusters.values():
+                    x0, _ = min(sub, key=lambda x: x[1])
+                    results.append(minimize(
+                        fitting_model,
+                        x0=x0,
+                        bounds=fitting_model.bounds,
+                        **kwargs
+                    ))
+                res = min(results, key=lambda x: x.fun)
+                nfev = sum(res.nfev for res in results)
+            else:
+                x0 = samps_[np.argmin(values)].astype("f8")
+                res = minimize(
+                    fitting_model,
+                    x0=x0,
+                    bounds=fitting_model.bounds,
+                    **kwargs
+                )
+                nfev = len(values) + res.nfev
+
+            idx = np.argmin(values)
+            if res.fun < values[idx]:
+                x_best = res.x
+                fun_best = res.fun
+            else:
+                x_best = samps_[idx]
+                fun_best = values[idx]
+
+        return {
+            "x":  x_best,
+            "fun": fun_best,
+            "nfev": nfev,
+        }
+
+
+def _clustering(samps, values, n_cluster):
+    mu = np.mean(samps, axis=0)
+    std = np.std(samps, axis=0)
+    samps_scaled = (samps - mu)/std
+    _, labels = kmeans2(samps_scaled, n_cluster, minit="++")
+    clusters = defaultdict(list)
+    for i, x, v in zip(labels, samps, values):
+        clusters[i].append((x, v))
+    return clusters
+
+
+class LeastSquares(Optimizer):
+    def __init__(self,
+                 method: str,
+                 n_draw: int=50,
+                 jac: str="3-point",
+                 maxiter: int=2000):
+        super().__init__(n_draw)
+        self._method = method
+        self._jac = jac
+        self._maxiter = maxiter
+
+    def _optimize(self, fitting_model, *args) -> dict:
+        lower, upper = fitting_model.bounds.T
+        kwargs = {
+            "method": self._method,
+            "jac": self._jac,
+            "bounds": (lower, upper),
+            "x_scale": "jac",
+            "max_nfev": self._maxiter,
+        }
+
+        if len(args) == 1:
+            x0 = args[0]
+            res = least_squares(
+                fitting_model,
+                x0=x0,
+                **kwargs
+            )
+            nfev = res.nfev
+            x_best = res.x
+            fun_best = res.cost
+        else:
+            if len(args) == 0:
+                lower, upper = fitting_model.bounds.T
+                samps_ = lower \
+                    + (upper - lower)*np.random.rand(self.n_draw, len(lower))
+            else:
+                samps_ = args[0]
+            values = np.asarray(tuple(map(fitting_model, samps_)))
+            values = .5*np.sum(np.square(values), axis=1)
+
+            idx_min = np.argmin(values)
+            x0 = samps_[idx_min].astype("f8")
+            res = least_squares(
+                fitting_model,
+                x0=x0,
+                **kwargs
+            )
+            nfev = len(values) + res.nfev
+
+            if res.cost < values[idx_min]:
+                x_best = res.x
+                fun_best = res.cost
+            else:
+                x_best = samps_[idx_min]
+                fun_best = values[idx_min]
+
+        return {
+            "x":  x_best,
+            "fun": fun_best,
+            "nfev": nfev,
+        }
