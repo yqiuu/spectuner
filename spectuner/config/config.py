@@ -2,6 +2,7 @@ import yaml
 import shutil
 from copy import deepcopy
 from pathlib import Path
+from typing import Union
 
 import numpy as np
 
@@ -134,3 +135,12 @@ class Config(dict):
             raise ValueError("Spectral windows should be non-overlapping and in"
                              " asceding of frequency.")
         self["obs_info"].append(item)
+
+    def set_peak_manager(self,
+                         noise_factor: float=4.,
+                         rel_height: float=0.25,
+                         freqs_exclude: Union[str, np.ndarray, None]=None):
+        config_peak_mgr = self["peak_manager"]
+        config_peak_mgr["noise_factor"] = noise_factor
+        config_peak_mgr["rel_height"] = rel_height
+        config_peak_mgr["freqs_exclude"] = freqs_exclude
