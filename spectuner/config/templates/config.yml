@@ -1,15 +1,10 @@
-obs_info:
-    - spec: null
-      beam_info: 30. # [1/3600, 1/3600] [deg]
-      T_bg: 0.
-      need_cmb: True
-      noise: 1.
-
-    # Use the following for multiple observed segments
-    #- spec: None
-    #  beam_info: 30. # [1/3600, 1/3600] [deg]
-    #  T_bg: 0.
-    #  need_cmb: True
+# Each item of obs_info should have the following format:
+#  - spec: PATH
+#    beam_info: 30. # [1/3600, 1/3600] [deg]
+#    T_bg: 0.
+#    need_cmb: True
+#    noise: 1.
+obs_info: null
 fname_base: null
 sl_model:
   fname_db: null

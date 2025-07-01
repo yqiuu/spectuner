@@ -10,8 +10,10 @@ __all__ = [
     "create_config",
     "load_preprocess_config",
     "load_config",
+    "load_default_config",
     "preprocess_config",
-    "append_exclude_info"
+    "append_exclude_info",
+    "Config",
 ]
 
 
@@ -38,7 +40,11 @@ def load_config(dir):
     config = yaml.safe_load(open(dir/"config.yml"))
     for key, fname in iter_config_names():
         config[key] = yaml.safe_load(open(dir/fname))
-    return config
+    return Config(**config)
+
+
+def load_default_config():
+    return load_config(Path(__file__).parent/"templates")
 
 
 def preprocess_config(config):
@@ -82,3 +88,49 @@ def append_exclude_info(config, freqs_exclude, exlude_list):
         config["species"]["exclude_list"] = []
     config["species"]["exclude_list"].extend(exlude_list)
     return config
+
+
+class Config(dict):
+    """A subclass of dict with user-friendly methods to update the config."""
+    def append_spectral_window(self,
+                               spec: np.ndarray,
+                               beam_info: float | tuple,
+                               noise: float,
+                               T_bg: float=0.,
+                               need_cmb: bool=True):
+        """Add a spectral window to ``obs_info``.
+
+        Args:
+            spec: The observed spectrum given by a 2D array, with the first
+                column being the frequency in MHz and the second column
+                being the intensity in K.
+            beam_info (float | tuple): For single disk telescopes, this should
+                be a float indicating the telescope diameter in meter. For
+                interferometers, this should be (``BMAJ``, ``BMIN``) indicating
+                the beam size in degree.
+            noise (float): RMS noise in K.
+            T_bg (float, optional): Background temperature in K.
+            need_cmb (bool, optional): If ``true``, additionally add 2.726 K to
+                the background temperature.
+        """
+        if self["obs_info"] is None:
+            self["obs_info"] = []
+
+        item = {
+            "spec": spec,
+            "beam_info": beam_info,
+            "T_bg": T_bg,
+            "need_cmb": need_cmb,
+            "noise": noise,
+        }
+        if len(self["obs_info"]) == 0:
+            self["obs_info"].append(item)
+            return
+
+        spec_prev = self["obs_info"][-1]["spec"]
+        freq_max_prev = np.max(spec_prev[:, 0])
+        freq_min = np.min(item["spec"][:, 0])
+        if freq_max_prev >= freq_min:
+            raise ValueError("Spectral windows should be non-overlapping and in"
+                             " asceding of frequency.")
+        self["obs_info"].append(item)
