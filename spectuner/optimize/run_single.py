@@ -1,22 +1,25 @@
-import pickle
 from pathlib import Path
 
+import h5py
 import numpy as np
 
-from .optimize import prepare_base_props, optimize, create_pool
+from .optimize import prepare_base_props, optimize_all
+from .. import ai
 from ..config import append_exclude_info
 from ..preprocess import load_preprocess, get_freq_data
-from ..spectral_data import query_molecules
-from ..xclass_wrapper import MoleculeStore
-from ..identify import PeakManager
-from ..identify.identify import identify
-from ..fitting_model import create_fitting_model
+from ..sl_model import query_species, select_master_name, create_spectral_line_db
+from ..slm_factory import SpectralLineModelFactory
+from ..peaks import PeakManager
+from ..identify import identify
+from ..utils import (
+    save_fitting_result, derive_specie_save_name, create_process_pool
+)
 
 
-__all__ = ["run_single", "select_molecules"]
+__all__ = ["run_single", "create_specie_list"]
 
 
-def run_single(config, result_dir, need_identify=True):
+def run_single(config, result_dir, need_identify=True, sl_db=None):
     """Run the individual fitting phase.
 
     Args:
@@ -29,51 +32,62 @@ def run_single(config, result_dir, need_identify=True):
     config = append_exclude_info(
         config, base_props["freqs_exclude"], base_props["exclude_list"]
     )
+    if sl_db is None:
+        sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
+    slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
 
-    obs_data = load_preprocess_from_config(config)
-    mol_list, include_dict = select_molecules(
-        obs_data, base_props["spans_include"], config
+    targets, trans_counts = create_specie_list(
+        sl_db, base_props["id_offset"],
+        base_props["spans_include"], config
     )
-
-    save_dir = Path(result_dir)/"single"
-    save_dir.mkdir(exist_ok=True)
-
-    use_mpi = config["opt"].get("use_mpi", False)
-    with create_pool(config["opt"]["n_process"], use_mpi) as pool:
-        for item in mol_list:
-            name = item["root"]
-            item["id"] = item["id"] + base_props["id_offset"]
-            mol_store = MoleculeStore([item], include_dict[name])
-            model = create_fitting_model(
-                obs_data, mol_store, config, base_props["T_base"]
-            )
-            ret_dict = optimize(model, config["opt"], pool)
-            pickle.dump(ret_dict, open(save_dir/Path("{}.pickle".format(name)), "wb"))
-
-        if need_identify:
-            identify(config, result_dir, "single")
-
-
-def select_molecules(obs_data, spans, config):
-    if len(spans) == 0:
-        T_back = config["sl_model"].get("tBack", 0.)
-        peak_mgr = PeakManager(
-            obs_data, T_back, **config["peak_manager"]
+    with create_process_pool(config["n_process"]) as pool:
+        if config["inference"]["ckpt"] is None:
+            engine = slm_factory
+        else:
+            engine = ai.InferenceModel.from_config(config, sl_db=sl_db)
+        results = optimize_all(
+            engine=engine,
+            obs_info=config["obs_info"],
+            targets=targets,
+            config_opt=config["opt_single"],
+            T_base_data=base_props["T_base"],
+            trans_counts=trans_counts,
+            config_inf=config["inference"],
+            pool=pool,
         )
+
+    with h5py.File(Path(result_dir)/"results_single.h5", "w") as fp:
+        for res in results:
+            grp = fp.create_group(derive_specie_save_name(res["specie"][0]))
+            save_fitting_result(grp, res)
+
+    if need_identify:
+        identify(config, result_dir, "single", sl_db=sl_db)
+
+
+def create_specie_list(sl_db, id_offset, spans, config):
+    obs_data = load_preprocess(config["obs_info"])
+    if len(spans) == 0:
+        peak_mgr = PeakManager(obs_data, **config["peak_manager"])
         freqs = np.mean(np.vstack(peak_mgr.spans_obs_data), axis=1)
     else:
         freqs = np.mean(spans, axis=1)
-    mol_list, include_dict = query_molecules(
-        get_freq_data(obs_data),
+
+    groups, trans_counts = query_species(
+        sl_db=sl_db,
+        freq_data=get_freq_data(obs_data),
         v_LSR=config["sl_model"].get("vLSR", 0.),
         freqs_include=freqs,
-        v_range=config["opt"]["bounds"]["v_LSR"],
+        v_range=config["bound_info"]["v_LSR"],
         **config["species"],
     )
-    return mol_list, include_dict
 
-
-def load_preprocess_from_config(config):
-    file_spec = config["files"]
-    T_back = config["sl_model"].get("tBack", 0.)
-    return load_preprocess(file_spec, T_back)
+    idx = id_offset
+    targets = []
+    for species in groups:
+        root_name = select_master_name(species)
+        if root_name is None:
+            continue
+        targets.append([{"id": idx, "root": root_name, "species": species}])
+        idx += 1
+    return targets, trans_counts

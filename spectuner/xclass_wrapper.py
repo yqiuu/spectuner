@@ -197,8 +197,11 @@ class XCLASSWrapper:
             **params_dict,
             **self._kwargs_xclass
         )
-        if remove_dir:
-            shutil.rmtree(job_dir)
+        try:
+            if remove_dir:
+                shutil.rmtree(job_dir)
+        except OSError:
+            pass
         return spec, log, trans, tau, job_dir
 
     def create_molfit_file(self, fname, params):

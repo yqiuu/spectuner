@@ -64,7 +64,7 @@ def modify(config, result_dir):
     }
     pickle.dump(save_dict, open(save_name, "wb"))
 
-    identify(config, result_dir, save_name)
+    identify(config, save_name)
 
 
 def load_data_list(target_dir, include_id_list):
