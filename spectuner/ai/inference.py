@@ -224,7 +224,9 @@ class InferenceModel:
         embed_obs, embed_sl, sl_dict, specie_list \
                 = self.embedding_model(obs_info_, specie_name)
         fitting_model = self.slm_factory.create_fitting_model(
-            obs_info, specie_list, [sl_dict], T_base_data=T_base_data
+            obs_info, specie_list,
+            sl_dict_list=[sl_dict],
+            T_base_data=T_base_data
         )
         embed_obs = torch.from_numpy(embed_obs).unsqueeze(0).to(device)
         embed_sl = torch.from_numpy(embed_sl).unsqueeze(0).to(device)
