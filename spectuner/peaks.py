@@ -1,8 +1,11 @@
+from typing import Optional
 from functools import partial
 from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import signal
+
+from .preprocess import load_preprocess
 
 
 def derive_intersections(spans_a, spans_b):
@@ -327,6 +330,23 @@ class PeakManager:
             self.scale = None
         else:
             self.scale = self._derive_scale(pfactor)
+
+    @classmethod
+    def from_config(cls, config: dict, T_base_data: Optional[list]=None):
+        obs_info = config["obs_info"]
+        obs_data = load_preprocess(obs_info)
+        if "noise_factor" in config["peak_manager"]:
+            noise_factor = config["peak_manager"]["noise_factor"]
+            prominence = [noise_factor*item["noise"] for item in obs_info]
+        else:
+            prominence = config["peak_manager"]["prominence"]
+        return PeakManager(
+            obs_data,
+            prominence=prominence,
+            rel_height=config["peak_manager"]["rel_height"],
+            freqs_exclude=config["peak_manager"]["freqs_exclude"],
+            T_base_data=T_base_data
+        )
 
     def __call__(self, T_pred_data):
         loss_delta = 0.
