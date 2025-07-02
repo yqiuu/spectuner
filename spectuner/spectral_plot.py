@@ -135,6 +135,9 @@ class SpectralPlot:
         self._fig = fig
         self._axes = axes
         self._bounds = bounds
+        self._y_min = None
+        self._y_max = None
+        self._freq_per_row = freq_per_row
 
     def _derive_bounds(self, freq_data, freq_per_row):
         freq_data = freq_data.copy()
@@ -191,6 +194,8 @@ class SpectralPlot:
             axes=axes,
         )
         plot.plot_spec(freq_data, get_T_data(obs_data), color=color, **kwargs)
+        noise = np.mean([item["noise"] for item in config["obs_info"]])
+        plot.set_ylim(-10.*noise, 100.*noise)
         return plot
 
     @property
@@ -205,10 +210,10 @@ class SpectralPlot:
     def bounds(self):
         return self._bounds
 
-    def plot_T_pred(self, ident_result, y_min, y_max, key=None, name=None,
-                    show_lines=True, offset_0=1.5,
-                    color="k", color_blen="r", color_fp="b",
-                    fontsize=12, T_base_data=None, kwargs_spec=None):
+    def plot_ident_result(self, ident_result, key=None, name=None,
+                          show_lines=True, txt_offset=2.,
+                          color="k", color_blen="r", color_fp="b",
+                          fontsize=12, T_base_data=None, kwargs_spec=None):
         T_data = ident_result.get_T_pred(key, name)
         if T_base_data is not None:
             for i_segment, T_base in enumerate(T_base_data):
@@ -227,16 +232,14 @@ class SpectralPlot:
             self.plot_names(
                 ident_result.line_table.freq,
                 ident_result.line_table.name,
-                y_min, y_max,
                 color=color, color_blen=color_blen,
-                offset_0=offset_0, fontsize=fontsize
+                txt_offset=txt_offset, fontsize=fontsize
             )
             self.plot_names(
                 ident_result.line_table_fp.freq,
                 ident_result.line_table_fp.name,
-                y_min, y_max,
                 color=color_fp, color_blen=color_fp,
-                offset_0=offset_0, fontsize=fontsize
+                txt_offset=txt_offset, fontsize=fontsize
             )
             return
 
@@ -251,22 +254,22 @@ class SpectralPlot:
         spans = line_table.freq[inds]
         name_list = np.array(line_table.name, dtype=object)[inds]
         self.plot_names(
-            spans, name_list, y_min, y_max,
+            spans, name_list,
             color=color, color_blen=color_blen,
-            offset_0=offset_0, fontsize=fontsize
+            txt_offset=txt_offset, fontsize=fontsize
         )
         inds = ident_result.filter_name_list(name_set, line_table_fp.name)
         spans = line_table_fp.freq[inds]
         name_list = np.array(line_table_fp.name, dtype=object)[inds]
         self.plot_names(
-            spans, name_list, y_min, y_max,
+            spans, name_list,
             color=color_fp, color_blen=color_fp,
-            offset_0=offset_0, fontsize=fontsize
+            txt_offset=txt_offset, fontsize=fontsize
         )
 
-    def plot_unknown_lines(self, ident_result, y_min, y_max, color="grey", linestyle="-"):
+    def plot_unknown_lines(self, ident_result, color="grey", linestyle="-"):
         freqs = ident_result.get_unknown_lines()
-        self.vlines(freqs, y_min, y_max, colors=color, linestyles=linestyle)
+        self.vlines(freqs, colors=color, linestyles=linestyle)
 
     def plot_spec(self, freq_list, spec_list, *args, color="C0", **kwargs):
         sort_list = list(zip(freq_list, spec_list))
@@ -297,19 +300,20 @@ class SpectralPlot:
                 i_segment += 1
                 idx_b = 0
 
-    def plot_names(self, freqs, name_list, y_min, y_max, key=None,
+    def plot_names(self, freqs, name_list, key=None,
                    color="k", color_blen="r", linestyles="--",
-                   offset_0=1.5, frac=.95, fontsize=12):
+                   txt_offset=2., frac=.95, fontsize=12):
         for freq_c, names in zip(freqs, name_list):
             if names is None or (key is not None and key not in names):
                 continue
 
             idx_ax = self._get_axe_idx(freq_c)
             ax = self.axes[idx_ax]
+            y_min, y_max = self.get_ylim(ax)
             c = color if len(names) == 1 else color_blen
             ax.vlines(freq_c, y_min, y_max, c, linestyles)
             y_show = y_min + frac*(y_max - y_min)
-            x_show = freq_c + offset_0
+            x_show = freq_c + txt_offset*self._freq_per_row/1000.
             ax.text(
                 x_show, y_show, "\n".join(names),
                 rotation="vertical", verticalalignment="top",
@@ -324,11 +328,23 @@ class SpectralPlot:
             ax.text(
                 freq_c + offset, y_max, "{:.3f}".format(err), rotation="vertical")
 
-    def vlines(self, freqs, *args, **kwargs):
+    def vlines(self, freqs, **kwargs):
         for freq_c in freqs:
             idx_ax = self._get_axe_idx(freq_c)
-            self.axes[idx_ax].vlines(freq_c, *args, **kwargs)
+            ax = self.axes[idx_ax]
+            y_min, y_max = self.get_ylim(ax)
+            ax.vlines(freq_c, y_min, y_max, **kwargs)
 
-    def set_ylim(self, *args, **kwargs):
+    def set_ylim(self, y_min, y_max, **kwargs):
         for ax in self.axes:
-            ax.set_ylim(*args, **kwargs)
+            ax.set_ylim(y_min, y_max, **kwargs)
+        self._y_min = y_min
+        self._y_max = y_max
+
+    def get_ylim(self, ax):
+        y_min, y_max = ax.get_ylim()
+        if self._y_min is not None:
+            y_min = self._y_min
+        if self._y_max is not None:
+            y_max = self._y_max
+        return y_min, y_max
