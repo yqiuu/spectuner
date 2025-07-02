@@ -6,7 +6,6 @@ import numpy as np
 from .optimize import prepare_base_props, optimize_all
 from .. import ai
 from ..config import append_exclude_info
-from ..preprocess import load_preprocess, get_freq_data
 from ..sl_model import query_species, select_master_name, create_spectral_line_db
 from ..slm_factory import SpectralLineModelFactory
 from ..peaks import PeakManager
@@ -56,7 +55,9 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
             pool=pool,
         )
 
-    with h5py.File(Path(result_dir)/"results_single.h5", "w") as fp:
+    result_dir = Path(result_dir)
+    result_dir.mkdir(parents=True, exist_ok=True)
+    with h5py.File(result_dir/"results_single.h5", "w") as fp:
         for res in results:
             grp = fp.create_group(derive_specie_save_name(res["specie"][0]))
             save_fitting_result(grp, res)
@@ -66,16 +67,17 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
 
 
 def create_specie_list(sl_db, id_offset, spans, config):
-    obs_data = load_preprocess(config["obs_info"])
     if len(spans) == 0:
-        peak_mgr = PeakManager(obs_data, **config["peak_manager"])
-        freqs = np.mean(np.vstack(peak_mgr.spans_obs_data), axis=1)
+        peak_mgr = PeakManager.from_config(config)
+        freqs = peak_mgr.freqs_peak
+        freq_data = peak_mgr.freq_data
     else:
         freqs = np.mean(spans, axis=1)
+        freq_data = [item["spec"][:, 0] for item in config["obs_info"]]
 
     groups, trans_counts = query_species(
         sl_db=sl_db,
-        freq_data=get_freq_data(obs_data),
+        freq_data=freq_data,
         v_LSR=config["sl_model"].get("vLSR", 0.),
         freqs_include=freqs,
         v_range=config["bound_info"]["v_LSR"],

@@ -22,7 +22,8 @@ from ..slm_factory import (
     jit_fitting_model, combine_specie_lists, SpectralLineModelFactory
 )
 from ..peaks import (
-    derive_peak_params, derive_peaks_multi, derive_intersections
+    derive_peak_params, derive_peaks_multi,
+    derive_intersections, derive_prominence
 )
 from ..identify import identify, Identification
 
@@ -39,7 +40,7 @@ def run_combine(config, result_dir, need_identify=True, sl_db=None):
             directory to save the results of the individual fitting.
         need_identify (bool):  If ``True``, peform the identification.
     """
-    prominence = config["peak_manager"]["prominence"]
+    prominence = derive_prominence(config)
     rel_height = config["peak_manager"]["rel_height"]
     #
     result_dir = Path(result_dir)

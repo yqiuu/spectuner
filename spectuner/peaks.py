@@ -295,6 +295,15 @@ def assign_values_to_intervals(intervals, values):
     return ret_list
 
 
+def derive_prominence(config):
+    if "prominence" in config["peak_manager"]:
+        prominence = config["peak_manager"]["prominence"]
+    else:
+        noise_factor = config["peak_manager"]["noise_factor"]
+        prominence = [noise_factor*item["noise"] for item in config["obs_info"]]
+    return prominence
+
+
 @np.vectorize
 def linear_deacy(x, x_left, x_right, side, height):
     if side == 1:
@@ -334,12 +343,8 @@ class PeakManager:
     @classmethod
     def from_config(cls, config: dict, T_base_data: Optional[list]=None):
         obs_info = config["obs_info"]
-        obs_data = load_preprocess(obs_info)
-        if "noise_factor" in config["peak_manager"]:
-            noise_factor = config["peak_manager"]["noise_factor"]
-            prominence = [noise_factor*item["noise"] for item in obs_info]
-        else:
-            prominence = config["peak_manager"]["prominence"]
+        obs_data = load_preprocess(obs_info, clip=True)
+        prominence = derive_prominence(config)
         return PeakManager(
             obs_data,
             prominence=prominence,
