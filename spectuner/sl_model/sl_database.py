@@ -7,6 +7,7 @@ from collections import defaultdict
 from functools import partial
 
 import numpy as np
+import pandas as pd
 from astropy import constants, units
 
 from .atoms import MolecularDecomposer
@@ -475,18 +476,13 @@ class SQLSpectralLineDB(SpectralLineDB):
             pass
 
         conn = sqlite3.connect(self._fname)
-        cursor = conn.cursor()
-
         query = """select T_Name, T_Frequency from transitions where """\
             """T_name not like '%RRL%'"""
-        cursor.execute(query)
-        data = cursor.fetchall()
-        names, freqs = tuple(zip(*data))
-        cursor.close()
+        df = pd.read_sql_query(query, conn)
+        names = df['T_Name'].to_numpy()
+        freqs = df['T_Frequency'].to_numpy()
         conn.close()
 
-        names = np.asarray(names)
-        freqs = np.asarray(freqs)
         if self._cache:
             self._transitions = names, freqs
 
