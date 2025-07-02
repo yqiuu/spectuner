@@ -40,10 +40,12 @@ def query_species(sl_db: SpectralLineDB,
         v_LSR: LSR velocity [km/s].
         freqs_include: List of frequencies to include.
         v_range: Tolerance to check ``freqs_include``. Should be ``(min, max)``.
-        species: List of species to include. If ``None``, inlcude all species.
+        species: List of species to include. If ``None``, inlcude all possible
+            species in the given frequency ranges.
         elements: List of elements to include. If ``None``, do not filter
             elements.
-        collect_iso: If ``True``, collect isotopologues.
+        collect_iso: If ``True``, collect isotopologues of molecules in
+            ``species``.
         iso_order: Number of isotopes to include (Do not use this).
         combine_iso: If ``True``, combine isotopologues and fitting them
             jointly.
