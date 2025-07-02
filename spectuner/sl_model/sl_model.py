@@ -240,6 +240,8 @@ def prepare_effective_spectra(freq_list, freq_list_fine, spec_list_fine):
     for idx_fine, idx_tgt, (idx_l, idx_r) in zip(inds_fine, inds_tgt, slice_list):
         if idx_r - idx_l < 2:
             continue
+        # If raise ValueError: negative dimensions are not allowed, check if the
+        # input frequency is in ascending order.
         spec_list[idx_tgt][idx_l:idx_r] = integrate_fine_spectra(
             freq_list[idx_tgt][idx_l:idx_r], freq_list_fine[idx_fine], spec_list_fine[idx_fine]
         )
