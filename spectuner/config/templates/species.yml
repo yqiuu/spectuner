@@ -2,11 +2,9 @@ species:
   - CO
   - H2CO
   - CH3OH
-elements: null
 combine_iso: False
 combine_state: False
-collect_iso: False
-iso_order: 1
+collect_iso: True
 version_mode: "default"
 include_hyper: False
 exclude_list: null
