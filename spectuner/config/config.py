@@ -1,8 +1,9 @@
 import yaml
 import shutil
+from typing import Union, Optional, Literal
 from copy import deepcopy
 from pathlib import Path
-from typing import Union
+
 
 import numpy as np
 
@@ -136,6 +137,22 @@ class Config(dict):
                              " asceding of frequency.")
         self["obs_info"].append(item)
 
+    def set_fname_db(self, fname_db: str):
+        """Set the path to the spectroscopic database.
+
+        Args:
+            fname_db: Path to the spectroscopic database.
+        """
+        self["sl_model"]["fname_db"] = fname_db
+
+    def set_n_process(self, n_process):
+        """Set the number of processes for the multiprocessing pool.
+
+        Args:
+            n_process: Number of processes.
+        """
+        self["n_process"] = n_process
+
     def set_peak_manager(self,
                          noise_factor: float=4.,
                          rel_height: float=0.25,
@@ -144,3 +161,57 @@ class Config(dict):
         config_peak_mgr["noise_factor"] = noise_factor
         config_peak_mgr["rel_height"] = rel_height
         config_peak_mgr["freqs_exclude"] = freqs_exclude
+
+    def set_ident_species(self,
+                          speices: Optional[list],
+                          collect_iso: bool=True,
+                          combine_iso: bool=False,
+                          combine_state: bool=False,
+                          include_hyper: bool=False,
+                          exclude_list: Optional[list]=None,
+                          rename_dict: Optional[dict]=None):
+        """Set species for line identification.
+
+        Args:
+            speices: List of species to include. If ``None``, inlcude all
+                possible species in the given frequency ranges.
+            collect_iso: If ``True``, collect isotopologues of molecules in
+                ``species``.
+            combine_iso: If ``True``, combine isotopologues and fitting them
+                jointly.
+            combine_state: If ``True``, combine states and fitting them jointly.
+            include_hyper: If ``True``, include hyperfine states.
+            exclude_list: List of species to exclude.
+            rename_dict: A dict to rename species.
+        """
+        config_species = self["species"]
+        config_species["species"] = speices
+        config_species["collect_iso"] = collect_iso
+        config_species["combine_iso"] = combine_iso
+        config_species["combine_state"] = combine_state
+        config_species["include_hyper"] = include_hyper
+        config_species["exclude_list"] = exclude_list
+        config_species["rename_dict"] = rename_dict
+
+    def set_modificaiton_lists(self,
+                               exclude_id_list: Optional[list]=None,
+                               exclude_name_list: Optional[list]=None,
+                               include_id_list: Optional[list]=None):
+        """Set modification lists.
+
+        Args:
+            exclude_id_list: List of IDs to be removed from the combined result.
+            exclude_name_list: List of molecule names to be removed from the
+                combined result.
+            include_id_list: List of IDs to be added to the combined result.
+        """
+        if exclude_id_list is None:
+            exclude_id_list = []
+        if exclude_name_list is None:
+            exclude_name_list = []
+        if include_id_list is None:
+            include_id_list = []
+        config_modify = self["modify"]
+        config_modify["exclude_id_list"] = exclude_id_list
+        config_modify["exclude_name_list"] = exclude_name_list
+        config_modify["include_id_list"] = include_id_list
