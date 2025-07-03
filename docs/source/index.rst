@@ -6,27 +6,60 @@
 Spectuner
 =========
 
-Spectuner is an ease-of-use tool for automated spectral line identification of
-interstellar molecules. The code integrates the following techniques:
+Spectuner is a tool for automated spectral line analysis of instellar molecules.
+The code implements the one-dimensional LTE spectral line model and offers the
+following applications:
 
-* Spectral line model: XCLASS.
-* Peak finder: Scipy.
-* Spectral fitting: Particle swarm optimization & peak matching loss function.
+* Robust broadband line identification.
+* Efficient pixel-by-pixel spectral line fitting.
 
 Installation
 ------------
-#. Install XCLASS according to this
-   `link <https://xclass-pip.astro.uni-koeln.de/>`__.
-#. Clone the repository and run ``setpy.py``:
+The code requires Python>=3.10. If you do not have Python installed, we
+recommend installing `Anaconda <https://www.anaconda.com/products/individual>`__.
+Then, we can install the code from the repository.
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      git clone https://github.com/yqiuu/spectuner.git
-      cd spectuner
-      pip install .
+   git clone https://github.com/yqiuu/spectuner.git
+   cd spectuner
+   pip install .
+
+If you want to use the AI module, you need to install
+`PyTorch <https://pytorch.org/>`__.
+
+.. code-block:: bash
+
+   pip install torch
+
+In addition, the code also requires the Cologne Database for Molecular
+Spectroscopy (`CDMS <https://cdms.astro.uni-koeln.de/>`__) as input. You may
+download the database using the following command.
+
+.. code-block:: bash
+
+   wget https://cdms.astro.uni-koeln.de/static/cdms/download/official/cdms_sqlite__official-version__2024-01-01.db.gz
+
+Prerequisites
+-------------
+This documentation aussmes that you are familiar with the following packages:
+
+* `Numpy <https://numpy.org/>`__
+* `Scipy <https://scipy.org/>`__
+* `Matplotlib <https://matplotlib.org/>`__
+* `Pandas <https://pandas.pydata.org/>`__
+
+You may also be familiar with YAML, a human-readable data serialization format
+that is often used for configuration files.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Contents:
+   :caption: Tutorials:
 
-   tutorial
+   notebooks/line_identification
+
+.. toctree::
+   :maxdepth: 1
+   :caption: User guide:
+
+   config
