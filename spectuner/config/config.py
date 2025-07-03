@@ -1,11 +1,13 @@
 import yaml
 import shutil
-from typing import Union, Optional, Literal
+from typing import Union, Optional, Literal, Tuple
+from pprint import pformat
 from copy import deepcopy
 from pathlib import Path
 
-
 import numpy as np
+
+from ..sl_model import ParameterManager
 
 
 __all__ = [
@@ -94,6 +96,9 @@ def append_exclude_info(config, freqs_exclude, exlude_list):
 
 class Config(dict):
     """A subclass of dict with user-friendly methods to update the config."""
+    def __repr__(self) -> str:
+        return pformat(dict(self), sort_dicts=False)
+
     def append_spectral_window(self,
                                spec: np.ndarray,
                                beam_info: float | tuple,
@@ -106,14 +111,14 @@ class Config(dict):
             spec: The observed spectrum given by a 2D array, with the first
                 column being the frequency in MHz and the second column
                 being the intensity in K.
-            beam_info (float | tuple): For single disk telescopes, this should
+            beam_info: For single disk telescopes, this should
                 be a float indicating the telescope diameter in meter. For
                 interferometers, this should be (``BMAJ``, ``BMIN``) indicating
                 the beam size in degree.
-            noise (float): RMS noise in K.
-            T_bg (float, optional): Background temperature in K.
-            need_cmb (bool, optional): If ``true``, additionally add 2.726 K to
-                the background temperature.
+            noise: RMS noise in K.
+            T_bg: Background temperature in K.
+            need_cmb: If ``true``, additionally add 2.726 K to the background
+                temperature.
         """
         if self["obs_info"] is None:
             self["obs_info"] = []
@@ -161,6 +166,49 @@ class Config(dict):
         config_peak_mgr["noise_factor"] = noise_factor
         config_peak_mgr["rel_height"] = rel_height
         config_peak_mgr["freqs_exclude"] = freqs_exclude
+
+    def set_param_info(self,
+                       param_name: Literal["theta", "T_ex", "N_tot", "delta_v", "v_offset"],
+                       is_log: bool,
+                       bound: Tuple[float, float],
+                       is_shared: bool=False,
+                       special: Optional[str]=None):
+        r"""Update the settings of a parameter.
+
+        Args:
+            param_name: Parameter name.
+            is_log: Whether to use log-scale for this parameter.
+            bound: Lower and upper limits used by optimizers for fitting. If
+                ``is_log=True``, the limits should be in log-scale. For
+                example, if ``is_log=True``, ``bound=(12, 20)`` means that
+                the parameter is between :math:`10^{12}` and :math:`10^{20}`.
+                The unit of the limits follows:
+
+                -  theta: arcsec
+                -  T_ex: K
+                -  N_tot: cm^-2
+                -  delta_v: km/s
+                -  v_offset: km/s
+
+            is_shared: Whether the parameter is shared in joint fitting of
+                different states and isotopologues.
+            special: Special parametrization. Now, this can only be used for
+                ``theta``. If set ``special="eta"``, ``theta`` should be
+                treated as the filling factor :math:`\eta`, with
+                :math:`\eta = \theta^2/(\theta^2 + \theta_{\rm maj} \theta_{\rm min})`.
+        """
+        if param_name not in ParameterManager.param_names:
+            raise ValueError("param_name should be one of {}.".format(
+                ParameterManager.param_names))
+
+        item = {
+            "is_shared": is_shared,
+            "is_log": is_log,
+            "bound": bound,
+        }
+        if special is not None:
+            item["special"] = special
+        self["param_info"][param_name] = item
 
     def set_ident_species(self,
                           speices: Optional[list],
