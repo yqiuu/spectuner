@@ -36,9 +36,10 @@ peak_manager:
   freqs_exclude: null
 n_process: 8
 optimizer:
-  method: "pso"
-  n_swarm: 32
+  method: "auto"
+  n_swarm: 28
   n_trial: 1
+  n_draw: 50
 identify:
   use_f_dice: True
   criteria:
@@ -52,3 +53,4 @@ inference:
   num_workers: 2
 cube:
   need_spectra: True
+  species: null
