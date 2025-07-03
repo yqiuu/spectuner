@@ -26,14 +26,17 @@ release = '1.0.0'
 
 
 # -- General configuration ---------------------------------------------------
-
+autodoc_member_order = 'bysource'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
+    'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
+    'nbsphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -51,7 +54,9 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 html_theme = 'sphinx_rtd_theme'
-
+html_theme_options = {
+    'navigation_depth': -1,
+}
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
