@@ -15,10 +15,10 @@ from ..utils import (
 )
 
 
-__all__ = ["run_single", "create_specie_list"]
+__all__ = ["run_individual_line_id", "create_specie_list"]
 
 
-def run_single(config, result_dir, need_identify=True, sl_db=None):
+def run_individual_line_id(config, result_dir, need_identify=True, sl_db=None):
     """Run the individual fitting phase.
 
     Args:

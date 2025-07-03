@@ -28,10 +28,10 @@ from ..peaks import (
 from ..identify import identify, Identification
 
 
-__all__ = ["run_combine"]
+__all__ = ["run_combining_line_id"]
 
 
-def run_combine(config, result_dir, need_identify=True, sl_db=None):
+def run_combining_line_id(config, result_dir, need_identify=True, sl_db=None):
     """Combine all individual fitting results.
 
     Args:

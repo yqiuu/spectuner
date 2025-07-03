@@ -3,7 +3,7 @@ from pathlib import Path
 from argparse import ArgumentParser
 
 from .config import create_config, load_preprocess_config
-from .optimize import run_single, run_combine
+from .optimize import run_individual_line_id, run_combining_line_id
 from .identify import identify
 from .modify import modify
 
@@ -49,12 +49,12 @@ def exec_fit():
     save_dir = Path(args.target)
     save_dir.mkdir(parents=True, exist_ok=True)
     if args.mode == "single":
-        run_single(config, save_dir)
+        run_individual_line_id(config, save_dir)
     elif args.mode == "combine":
-        run_combine(config, save_dir)
+        run_combining_line_id(config, save_dir)
     elif args.mode == "entire":
-        run_single(config, save_dir)
-        run_combine(config, save_dir)
+        run_individual_line_id(config, save_dir)
+        run_combining_line_id(config, save_dir)
     else:
         raise ValueError(f"Unknown mode: {args.mode}.")
 
