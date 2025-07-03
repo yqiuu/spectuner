@@ -120,7 +120,7 @@ class PeakPlot:
 
 
 class SpectralPlot:
-    def __init__(self, freq_data, freq_per_row=1000., width=15., height=3., axes=None):
+    def __init__(self, freq_data, freq_per_row=1000., width=20., height=3., axes=None):
         bounds = self._derive_bounds(freq_data, freq_per_row)
         n_axe = len(bounds)
         if axes is None:
@@ -182,7 +182,7 @@ class SpectralPlot:
         return idx
 
     @classmethod
-    def from_config(cls, config, freq_per_row=1000., width=15., height=3.,
+    def from_config(cls, config, freq_per_row=1000., width=20., height=3.,
                     axes=None, color="k", **kwargs):
         obs_data = load_preprocess(config["obs_info"], clip=False)
         freq_data = get_freq_data(obs_data)
