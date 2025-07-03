@@ -16,7 +16,7 @@ from .embedding import create_embeding_model, EmbeddingV3
 from .networks import create_parameter_estimator
 from .. import cube
 from ..sl_model import SpectralLineDB
-from ..slm_factory import SpectralLineModelFactory
+from ..slm_factory import SpectralLineModelFactory, ParameterManager
 
 
 def predict_single_pixel(inf_model: InferenceModel,
@@ -160,12 +160,26 @@ def collate_fn_padding(batch):
     return (embed_obs_batch, embed_sl_batch, mask) + others
 
 
-def _create_bound_info(config):
-    param_names = ["theta", "T_ex", "N_tot", "delta_v", "v_LSR"]
+def _create_param_info(config_ckpt):
+    """Create param_info of the config in checkpoints."""
+    # Ensure the order of the paramters is correct
+    param_names = ["theta", "T_ex", "N_tot", "delta_v", "v_offset"]
     bound_info = {}
-    for key, values in zip(param_names, config["nn"]["sampler"]["bounds"]):
+    for key, values in zip(param_names, config_ckpt["nn"]["sampler"]["bounds"]):
         bound_info[key] = values
-    return bound_info
+
+    config_params = config_ckpt["sl_model"]["params"]
+    param_info = {}
+    for key in ParameterManager.param_names:
+        if key in config_params:
+            param_info[key] = deepcopy(config_params[key])
+        elif key == "v_offset" and "v_LSR" in config_params:
+            # v_LSR is renamed to v_offset in the config file
+            param_info[key] = deepcopy(config_params["v_LSR"])
+        else:
+            raise ValueError(f"Fail to find {key} in the config file.")
+        param_info[key]["bound"] = bound_info[key]
+    return param_info
 
 
 class InferenceModel:
@@ -201,10 +215,11 @@ class InferenceModel:
         embedding_model = create_embeding_model(
             ckpt["config"]["embedding"], sl_db=sl_db
         )
+        config["param_info"] = _create_param_info(ckpt["config"])
         warnings.warn("When the AI model is employed, the parameterization "
-                      "and bound information in the config is overwritten.")
-        config["sl_model"]["params"] = ckpt["config"]["sl_model"]["params"]
-        config["bound_info"] = _create_bound_info(ckpt["config"])
+                      "and bound information in the config is overwritten."
+                      "The following settings are adopted:\n"
+                      "{}".format(config["param_info"]))
         slm_factory = SpectralLineModelFactory(config, sl_db=embedding_model.sl_db)
         return cls(model, embedding_model, slm_factory)
 

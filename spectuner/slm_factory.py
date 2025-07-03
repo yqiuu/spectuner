@@ -161,7 +161,7 @@ class SpectralLineModelFactory:
             self._sl_db = sl_db
 
     def create_parameter_mgr(self, specie_list: list, obs_info: list):
-        param_info = self._config["sl_model"]["params"]
+        param_info = self._config["param_info"]
         return ParameterManager(specie_list, param_info, obs_info)
 
     def create_sl_model(self,
@@ -226,7 +226,7 @@ class SpectralLineModelFactory:
             loss_fn = ChiSquare(obs_data, T_base_data, use_ls=True)
         else:
             raise ValueError(f"Unknown fitting loss {loss_fn}.")
-        bounds = sl_model.param_mgr.derive_bounds(self._config["bound_info"])
+        bounds = sl_model.param_mgr.derive_bounds()
         return FittingModel(obs_info, sl_model, loss_fn, bounds)
 
 

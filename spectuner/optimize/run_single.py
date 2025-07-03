@@ -80,7 +80,7 @@ def create_specie_list(sl_db, id_offset, spans, config):
         freq_data=freq_data,
         v_LSR=config["sl_model"].get("vLSR", 0.),
         freqs_include=freqs,
-        v_range=config["bound_info"]["v_LSR"],
+        v_range=config["param_info"]["v_offset"]["bound"],
         **config["species"],
     )
 

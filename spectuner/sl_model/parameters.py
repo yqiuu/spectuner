@@ -5,7 +5,7 @@ from .sl_model import derive_average_beam_size
 
 class ParameterManager:
     """A class to decode parameters into a 2D array and apply scaling."""
-    param_names = ["theta", "T_ex", "N_tot", "delta_v", "v_LSR"]
+    param_names = ["theta", "T_ex", "N_tot", "delta_v", "v_offset"]
 
     def __init__(self, specie_list, params_info, obs_info):
         self.specie_list = specie_list
@@ -33,10 +33,12 @@ class ParameterManager:
         else:
             self._beam_size = None
             self._special = None
+        #
+        self._bounds_dict = {key: params_info[key]["bound"] for key in self.param_names}
 
     @classmethod
     def from_config(cls, specie_list, config):
-        return cls(specie_list, config["sl_model"]["params"], config["obs_info"])
+        return cls(specie_list, config["param_info"], config["obs_info"])
 
     def derive_params(self, params):
         """Decode input parameters into a 2D array and apply scaling."""
@@ -101,15 +103,15 @@ class ParameterManager:
                 params_mol[:, idx] = np.log10(params_mol[:, idx])
         return params_mol
 
-    def derive_bounds(self, bounds_dict):
+    def derive_bounds(self):
         bounds_list = []
         shared_names = [self.param_names[idx] for idx in self._inds_shared]
         private_names = [self.param_names[idx] for idx in self._inds_private]
         for item in self.specie_list:
             for name in shared_names:
-                bounds_list.append(bounds_dict[name])
+                bounds_list.append(self._bounds_dict[name])
             for name in private_names:
-                bounds_list.extend([bounds_dict[name]]*len(item["species"]))
+                bounds_list.extend([self._bounds_dict[name]]*len(item["species"]))
         bounds = np.vstack(bounds_list)
         return bounds
 
