@@ -196,6 +196,10 @@ class SpectralPlot:
         plot.plot_spec(freq_data, get_T_data(obs_data), color=color, **kwargs)
         noise = np.mean([item["noise"] for item in config["obs_info"]])
         plot.set_ylim(-10.*noise, 100.*noise)
+        for ax in plot.axes:
+            ax.set_xlabel("Frequency [MHz]")
+            ax.set_ylabel("Intensity [K]")
+        plt.subplots_adjust(hspace=.3)
         return plot
 
     @property
