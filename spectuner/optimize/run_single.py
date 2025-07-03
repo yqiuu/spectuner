@@ -48,10 +48,9 @@ def run_single(config, result_dir, need_identify=True, sl_db=None):
             engine=engine,
             obs_info=config["obs_info"],
             targets=targets,
-            config_opt=config["optimizer"],
+            config=config,
             T_base_data=base_props["T_base"],
             trans_counts=trans_counts,
-            config_inf=config["inference"],
             pool=pool,
         )
 

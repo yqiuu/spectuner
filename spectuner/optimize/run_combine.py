@@ -40,11 +40,6 @@ def run_combine(config, result_dir, need_identify=True, sl_db=None):
             directory to save the results of the individual fitting.
         need_identify (bool):  If ``True``, peform the identification.
     """
-    #
-    config = deepcopy(config)
-    if "optimizer_combine" not in config:
-        config["optimizer_combine"] = config["optimizer"]
-    #
     prominence = derive_prominence(config)
     rel_height = config["peak_manager"]["rel_height"]
     #
@@ -124,10 +119,9 @@ def combine_greedy(pack_list, pack_base, config, sl_db=None):
                 engine=engine,
                 obs_info=obs_info,
                 specie_list=pack.specie_list,
-                config_opt=config["optimizer_combine"],
+                config=config,
                 T_base_data=pack_curr.T_pred_data,
                 x0=pack.params,
-                config_inf=config["inference"]
             )
             specie_list_new = pack.specie_list
             params_new = res_dict["x"]
@@ -224,10 +218,9 @@ def combine_greedy(pack_list, pack_base, config, sl_db=None):
             engine=engine,
             obs_info=obs_info,
             targets=targets,
-            config_opt=config["optimizer"],
+            config=config,
             T_base_data=pack_curr.T_pred_data,
             trans_counts=trans_counts,
-            config_inf=config["inference"],
             pool=pool,
         )
     for save_name, res in zip(target_names, results):

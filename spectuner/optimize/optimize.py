@@ -23,11 +23,10 @@ from ..utils import pick_default_kwargs
 def optimize(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
              obs_info: list,
              specie_list: list,
-             config_opt: dict,
+             config: dict,
              T_base_data: Optional[list]=None,
-             x0: Optional[np.ndarray]=None,
-             config_inf: dict=None):
-    opt = create_optimizer(config_opt)
+             x0: Optional[np.ndarray]=None):
+    opt = create_optimizer(config)
     if isinstance(engine, SpectralLineModelFactory):
         fitting_model = engine.create_fitting_model(
             obs_info=obs_info,
@@ -44,7 +43,7 @@ def optimize(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
             specie_name=specie_list[0]["root"],
             postprocess=opt,
             T_base_data=T_base_data,
-            device=config_inf["device"],
+            device=config["inference"]["device"],
         )
     else:
         raise ValueError(f"Unknown engine: {engine}.")
@@ -53,10 +52,9 @@ def optimize(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
 def optimize_all(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
                  obs_info: list,
                  targets: list,
-                 config_opt: dict,
+                 config: dict,
                  T_base_data: list=None,
                  trans_counts: dict=None,
-                 config_inf: dict=None,
                  pool: mp.Pool=None):
     # Optimize without inference model
     if isinstance(engine, SpectralLineModelFactory):
@@ -70,12 +68,12 @@ def optimize_all(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
                     T_base_data=T_base_data,
                 )
                 if pool is None:
-                    res = _optimize_worker(fitting_model, config_opt)
+                    res = _optimize_worker(fitting_model, config)
                     pbar.update()
                 else:
                     res = pool.apply_async(
                         _optimize_worker,
-                        args=(fitting_model, config_opt),
+                        args=(fitting_model, config),
                         callback=callback
                     )
                 results.append(res)
@@ -90,7 +88,8 @@ def optimize_all(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
             name = specie_list[0]["root"]
             specie_names.append(name)
             numbers.append(trans_counts[name])
-        opt = create_optimizer(config_opt)
+        opt = create_optimizer(config)
+        config_inf = config["inference"]
         results = ai.predict_single_pixel(
             inf_model=engine,
             obs_info=obs_info,
@@ -109,8 +108,8 @@ def optimize_all(engine: Union[SpectralLineModelFactory, ai.InferenceModel],
         raise ValueError(f"Unknown engine: {engine}.")
 
 
-def _optimize_worker(fitting_model, config_opt):
-    opt = create_optimizer(config_opt)
+def _optimize_worker(fitting_model, config):
+    opt = create_optimizer(config)
     jit_fitting_model(fitting_model)
     return opt(fitting_model)
 
@@ -201,8 +200,15 @@ def random_mutation_by_group(pm, params, bounds, prob=0.4, rstate=None):
     return params_new
 
 
-def create_optimizer(config_opt: dict) -> Optimizer:
+def create_optimizer(config: dict) -> Optimizer:
+    config_opt = config["optimizer"]
     method = config_opt["method"]
+    if method == "auto":
+        if config["inference"]["ckpt"] is None:
+            method = "pso"
+        else:
+            method = "slsqp"
+
     kwargs = config_opt.get("kwargs_opt", {})
     if method == "vanilla":
         cls_opt = VanillaOptimizer
@@ -214,6 +220,8 @@ def create_optimizer(config_opt: dict) -> Optimizer:
         cls_opt = ScipyOptimizer
 
     kwargs.update(pick_default_kwargs(cls_opt, config_opt))
+    # method is modified if it is 'auto', and therefore we need to update method
+    kwargs.update(method=method)
     return cls_opt(**kwargs)
 
 
@@ -412,14 +420,14 @@ class ScipyOptimizer(Optimizer):
                  n_cluster: int=1,
                  maxiter: int=2000):
         super().__init__(n_draw)
-        self._method = method
+        self._method = method.lower()
         self._jac = jac
         self._n_cluster = n_cluster
         self._maxiter = maxiter
 
     def _optimize(self, fitting_model, *args) -> dict:
         kwargs = {"method": self._method, "options": {"maxiter": self._maxiter}}
-        if self._method in ("L-BFGS-B", "TNC", "SLSQP"):
+        if self._method in ("l-bfgs-b", "tnc", "slsqp"):
             lower, upper = fitting_model.bounds.T
             kwargs.update(jac=self._jac)
 

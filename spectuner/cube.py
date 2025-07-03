@@ -70,7 +70,7 @@ def fit_cube(config: dict,
     else:
         inf_model = ai.InferenceModel.from_config(config, sl_db=sl_db)
         slm_factory = inf_model.slm_factory
-    opt = create_optimizer(config["optimizer"])
+    opt = create_optimizer(config)
     need_spectra = config["cube"]["need_spectra"]
     postprocess = _AddExtraProps(slm_factory, opt, need_spectra=need_spectra)
 
