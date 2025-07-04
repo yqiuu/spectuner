@@ -37,6 +37,8 @@ def preprocess_spectrum(spectrum, clip=True):
     """
     if spectrum[0, 0] > spectrum[-1, 0]: # Make freq ascending
         spectrum = spectrum[::-1]
+    assert np.all(np.diff(spectrum[:, 0]) > 0), \
+        "Frequency of the input spectrum is not strictly ascending."
     if clip:
         spectrum[:, 1] = np.maximum(spectrum[:, 1], 0.)
     return spectrum
