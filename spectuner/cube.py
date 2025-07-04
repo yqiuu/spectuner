@@ -33,10 +33,10 @@ PARAM_NAMES = ("theta", "T_ex", "N_tot", "delta_v", "v_offset")
 PARAM_UNITS = ("arcsec", "K", "cm-2", "km/s", "km/s")
 
 
-def fit_cube(config: dict,
-             fname_cube: str,
-             save_name: str,
-             sl_db: Optional[SQLSpectralLineDB]=None):
+def fit_pixel_by_pixel(config: dict,
+                       fname_cube: str,
+                       save_name: str,
+                       sl_db: Optional[SQLSpectralLineDB]=None):
     """Fit the spectra of a cube.
 
     Args:
@@ -914,9 +914,6 @@ class CubePipeline:
             grp_sub.create_dataset("noise", data=noise, dtype="f4")
             grp_sub.create_dataset("beam", data=beam, dtype="f4")
             i_seg_save += 1
-
-
-
 
 
 def to_kelvin(J_obs, freqs, bmaj, bmin):
