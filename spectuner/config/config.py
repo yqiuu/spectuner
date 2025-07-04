@@ -282,17 +282,18 @@ class Config(dict):
         config_modify["exclude_name_list"] = exclude_name_list
         config_modify["include_id_list"] = include_id_list
 
-    def set_pixel_by_pixel_fitting(self, species: list, need_spectra: bool=True):
+    def set_pixel_by_pixel_fitting(self,
+                                   species: list,
+                                   loss_fn: Literal["pm", "chi2"]="pm",
+                                   need_spectra: bool=True):
         """Set pixel-by-pixel fitting.
 
         Args:
             species: List of species to fit. The species will be fit jointly.
             need_spectra: Whether to save the best-fitting model spectrum.
         """
-        if self["cube"] is None:
-            self["cube"] = {}
-
         self["cube"]["species"] = species
+        self["cube"]["loss_fn"] = loss_fn
         self["cube"]["need_spectra"] = need_spectra
 
     def set_inference_model(self,
