@@ -5,6 +5,7 @@ from typing import Optional, Literal
 from abc import abstractmethod, ABC
 from collections import defaultdict
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -456,6 +457,8 @@ class SpectralLineDB(ABC):
 class SQLSpectralLineDB(SpectralLineDB):
     def __init__(self, fname, cache=False):
         super().__init__(cache)
+        if not Path(fname).is_file():
+            raise ValueError(f"Wrong path of the spectroscopic database: {fname}.")
         self._fname = fname
         # load x_T
         conn = sqlite3.connect(self._fname)
