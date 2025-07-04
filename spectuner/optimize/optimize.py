@@ -226,7 +226,7 @@ def create_optimizer(config: dict) -> Optimizer:
 
 
 class Optimizer(ABC):
-    def __init__(self, n_draw=1):
+    def __init__(self, n_draw=50):
         self._n_draw = n_draw
 
     def __call__(self, fitting_model, *args) -> dict:
@@ -255,7 +255,7 @@ class Optimizer(ABC):
 class SwingOptimizer(Optimizer):
     def __init__(self,
                  method: str,
-                 n_swarm: int=32,
+                 n_swarm: int=28,
                  n_cycle_min: int=100,
                  n_cycle_max: int=1000,
                  n_cycle_dim: int=5,
