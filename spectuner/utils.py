@@ -139,6 +139,22 @@ def pick_default_kwargs(func, kwargs):
     return kwargs_ret
 
 
+def print_h5_structure(fname):
+    def print_name(group, indent=""):
+        for key in group.keys():
+            item = group[key]
+            if isinstance(item, h5py.Group):
+                print(f"{indent}{key}/")
+                print_name(item, indent + "  ")
+            elif isinstance(item, h5py.Dataset):
+                print(f"{indent}{key} (shape: {item.shape}, type: {item.dtype})")
+            else:
+                print(f"{indent}{key} (unknown)")
+
+    with h5py.File(fname, 'r') as f:
+        print_name(f)
+
+
 def create_process_pool(n_process, *args, **kwargs):
     if n_process > 1:
         return mp.Pool(n_process, *args, **kwargs)
