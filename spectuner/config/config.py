@@ -1,6 +1,6 @@
 import yaml
 import shutil
-from typing import Union, Optional, Literal, Tuple
+from typing import Optional, Literal, Tuple
 from pprint import pformat
 from copy import deepcopy
 from pathlib import Path
@@ -281,3 +281,37 @@ class Config(dict):
         config_modify["exclude_id_list"] = exclude_id_list
         config_modify["exclude_name_list"] = exclude_name_list
         config_modify["include_id_list"] = include_id_list
+
+    def set_pixel_by_pixel_fitting(self, species: list, need_spectra: bool=True):
+        """Set pixel-by-pixel fitting.
+
+        Args:
+            species: List of species to fit. The species will be fit jointly.
+            need_spectra: Whether to save the best-fitting model spectrum.
+        """
+        if self["cube"] is None:
+            self["cube"] = {}
+
+        self["cube"]["species"] = species
+        self["cube"]["need_spectra"] = need_spectra
+
+    def set_inference_model(self,
+                            ckpt: str,
+                            device: str="cuda:0",
+                            batch_size: int=64,
+                            num_workers: int=2):
+        """Set AI model related parameters.
+
+        Args:
+            ckpt: Path to the checkpoint file.
+            device: Device to use. Set ``device="cpu"`` if no GPU is available.
+                Defaults to "cuda:0".
+            batch_size: Batch size of inference. Reduce this number if GPU
+                memory is not enough. Defaults to 64.
+            num_workers: Number of workers for the data loader.
+        """
+        config_inf = self["inference"]
+        config_inf["ckpt"] = ckpt
+        config_inf["device"] = device
+        config_inf["batch_size"] = batch_size
+        config_inf["num_workers"] = num_workers
