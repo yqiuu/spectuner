@@ -150,7 +150,7 @@ class Config(dict):
         """
         self["sl_model"]["fname_db"] = fname_db
 
-    def set_n_process(self, n_process):
+    def set_n_process(self, n_process: int):
         """Set the number of processes for the multiprocessing pool.
 
         Args:
@@ -209,6 +209,33 @@ class Config(dict):
         if special is not None:
             item["special"] = special
         self["param_info"][param_name] = item
+
+    def set_optimizer(self, method: str, **kwargs):
+        """Set the optimizer for the fitting.
+
+        Args:
+            method (str): Name of the optimizer.
+
+                - Use 'pso' (particle swarm optimization) for line
+                  identification.
+                - Use 'slsqp' (sequential least squares programming implemented
+                  in ``scipy.minimize``), for pixel-by-pixel fitting with a
+                  nerual network.
+
+            **kwargs: Additional arguments for the optimizer.
+
+                - n_trial (int): Number of trials for 'pso'. The optimizer will
+                    be run for n_trial times, and the best fit will be selected
+                    among all trials. Defaults is 1.
+                - n_swarm (int): Number of particles for 'pso'. Defaults is 28.
+                - n_draw (int): Number of samples drawed by the neural network.
+                    This only works for local optimizers such as 'slsqp'. The
+                    code will compute the fitness for each sample and select the
+                    best one as the initial guess. Defaults is 50.
+        """
+        config_opt = self["optimizer"]
+        config_opt["method"] = method
+        config_opt.update(kwargs)
 
     def set_ident_species(self,
                           speices: Optional[list],
