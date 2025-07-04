@@ -54,24 +54,15 @@ def load_default_config():
 def preprocess_config(config):
     """This function does the following (in-place):
         1. Load ``spec`` in ``obs_info`` if applicable.
-        2. Derive and set ``prominence`` in ``config["peak_manager"]``.
-        3. Load ``freqs_exclude`` in ``peak_manager`` if applicable.
+        2. Load ``freqs_exclude`` in ``peak_manager`` if applicable.
     """
     if config["obs_info"] is not None:
         for item in config["obs_info"]:
-            if not isinstance(item["spec"], np.ndarray):
+            if isinstance(item["spec"], str) or isinstance(item["spec"], Path):
                 item["spec"] = np.loadtxt(item["spec"])
-
-    if "prominence" not in config["peak_manager"] \
-        and config["obs_info"] is not None:
-        noises = np.array([item["noise"] for item in config["obs_info"]])
-        noise_factor = config["peak_manager"].pop("noise_factor")
-        config["peak_manager"]["prominence"] = noise_factor*noises
-
-    if not isinstance(config["peak_manager"]["prominence"], np.ndarray):
-        config["peak_manager"]["freqs_exclude"] \
-            = np.loadtxt(config["peak_manager"]["freqs_exclude"])
-
+    freqs_exclude_in = config["peak_manager"]["freqs_exclude"]
+    if isinstance(freqs_exclude_in, str) or isinstance(freqs_exclude_in, Path):
+        config["peak_manager"]["freqs_exclude"] = np.loadtxt(freqs_exclude_in)
 
 def iter_config_names():
     keys = ["species", "modify"]
@@ -161,7 +152,7 @@ class Config(dict):
     def set_peak_manager(self,
                          noise_factor: float=4.,
                          rel_height: float=0.25,
-                         freqs_exclude: Union[str, np.ndarray, None]=None):
+                         freqs_exclude: Optional[np.ndarray]=None):
         config_peak_mgr = self["peak_manager"]
         config_peak_mgr["noise_factor"] = noise_factor
         config_peak_mgr["rel_height"] = rel_height
