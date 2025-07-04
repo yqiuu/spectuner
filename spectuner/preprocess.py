@@ -18,9 +18,10 @@ def load_preprocess(obs_info, clip=True):
     """
     obs_data = []
     for item in obs_info:
-        if "spec" in item:
-            obs_data.append(np.copy(item["spec"]))
-    return [preprocess_spectrum(spec, clip) for spec in obs_data]
+        spec = np.copy(item["spec"])
+        spec = preprocess_spectrum(spec, clip)
+        obs_data.append(spec)
+    return obs_data
 
 
 def preprocess_spectrum(spectrum, clip=True):
