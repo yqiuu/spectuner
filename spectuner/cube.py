@@ -930,25 +930,31 @@ def to_kelvin(J_obs, freqs, bmaj, bmin):
     return factor/(freqs*freqs*bmaj*bmin)*J_obs
 
 
-class HDFCube2FITS:
-    """Convert HDF cube to FITS files.
-
-    Args:
-        fname: Path to the HDF file that saves the observed data.
-    """
-    def __init__(self, fname: str, save_dir: str="./", add_T_bg=False):
-        save_dir = Path(save_dir)
-        save_dir.mkdir(parents=True, exist_ok=True)
-
+class HDFCubeManager:
+    def __init__(self, fname: str):
         self._fname = fname
-        self._save_dir = save_dir
-        self._add_T_bg = add_T_bg
         self._freq_data = load_misc_data(self._fname)[0]
         with h5py.File(self._fname, "r") as fp:
             self._indices = np.array(fp["index"])
             self._shape = fp.attrs["n_row"], fp.attrs["n_col"]
 
-    def save_obs_data(self, overwrite=False):
+    def load_count_map(self):
+        """Load the map which shows the number of peaks in each pixel."""
+        with h5py.File(self._fname, "r") as fp:
+            count = np.array(fp["count"], dtype="f4")
+        return to_dense_matrix(count, self._indices, self._shape)
+
+    def load_pred_data(self, fname: str, target: str):
+        with h5py.File(fname, "r") as fp:
+            data = np.array(fp[target])
+        return to_dense_matrix(data, self._indices, self._shape)
+
+    def obs_data_to_fits(self,
+                         save_dir: str,
+                         add_T_bg: bool=False,
+                         overwrite=False):
+        save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
         units = load_cube_units(self._fname)
         for i_segment in range(len(self._freq_data)):
             # Save T_bg
@@ -959,7 +965,7 @@ class HDFCube2FITS:
             T_bg = T_bg.astype("f4")
             header_conti["BUNIT"] = units["intensity"]
             hdu = fits.PrimaryHDU(T_bg, header=header_conti)
-            save_name = self._save_dir/f"{i_segment}_obs_continuum.fits"
+            save_name = save_dir/f"{i_segment}_obs_continuum.fits"
             hdu.writeto(save_name, overwrite=overwrite)
 
             # Save T_obs
@@ -967,24 +973,35 @@ class HDFCube2FITS:
                 T_obs = np.array(fp[f"cube/{i_segment}/T_obs"])
             T_obs = to_dense_matrix(T_obs, self._indices, self._shape)
             T_obs = np.transpose(T_obs, axes=(2, 0, 1))
-            if self._add_T_bg:
+            if add_T_bg:
                 T_obs += T_bg
             T_obs = T_obs.astype("f4")
             header_line = self._derive_header_line(i_segment)
             header_line["BUNIT"] = units["intensity"]
             header_line["CUNIT3"] = units["frequency"]
             hdu = fits.PrimaryHDU(T_obs, header=header_line)
-            save_name = self._save_dir/f"{i_segment}_obs_line.fits"
+            save_name = save_dir/f"{i_segment}_obs_line.fits"
             hdu.writeto(save_name, overwrite=overwrite)
 
-    def save_pred_data(self, fname, overwrite=False):
+    def pred_data_to_fits(self,
+                          fname: str,
+                          save_dir: str,
+                          add_T_bg: bool=False,
+                          overwrite=False):
         units = load_cube_units(fname)
         with h5py.File(fname) as fp:
             for name, grp in fp.items():
-                self._save_pred_data_sub(name, grp, units, overwrite)
+                self._save_pred_data(
+                    name=name,
+                    grp=grp,
+                    units=units,
+                    save_dir=save_dir,
+                    add_T_bg=add_T_bg,
+                    overwrite=overwrite
+                )
 
-    def _save_pred_data_sub(self, name, grp, units, overwrite):
-        save_dir = self._save_dir/name
+    def _save_pred_data(self, name, grp, units, save_dir, add_T_bg, overwrite):
+        save_dir = Path(save_dir)/name
         save_dir.mkdir(parents=True, exist_ok=True)
 
         header = self._derive_header_scalar(i_segment=0)
@@ -1009,7 +1026,7 @@ class HDFCube2FITS:
             T_pred = np.array(grp[f"T_pred/{i_segment}"])
             T_pred = to_dense_matrix(T_pred, self._indices, self._shape)
             T_pred = np.transpose(T_pred, axes=(2, 0, 1))
-            if self._add_T_bg:
+            if add_T_bg:
                 with h5py.File(self._fname) as fp:
                     T_bg = np.array(fp[f"cube/{i_segment}/T_bg"])
                 T_bg = to_dense_matrix(T_bg, self._indices, self._shape)
