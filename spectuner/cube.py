@@ -454,6 +454,26 @@ class  _AddExtraProps:
         return self._postprocess.n_draw
 
 
+@dataclass(frozen=True)
+class CubeItem:
+    line: str
+    continuum: Optional[str] = None
+    window: Optional[list] = None
+    mask: Optional[list] = None
+    header: Optional[dict] = None
+
+    def __post_init__(self):
+        if self.window is not None and self.mask is not None:
+            raise ValueError("Can only specify either window or mask.")
+        if self.window is not None:
+            windows = check_overlap(self.window)
+            if windows is None:
+                raise ValueError("Windows have overlaps.")
+        if self.mask is not None:
+            masks = check_overlap(self.mask)
+            if masks is None:
+                raise ValueError("Masks have overlaps.")
+
 
 @dataclass(frozen=True)
 class CubePipeline:
@@ -495,7 +515,7 @@ class CubePipeline:
     v_LSR: float = 0.
 
     def run(self,
-            file_list: list,
+            file_list: list[CubeItem],
             save_name: str,
             fname_mask=None,
             header_lookup: Optional[dict]=None):
@@ -541,9 +561,9 @@ class CubePipeline:
             cond_mask = ~np.isnan(mask)
 
         for item in file_list:
-            if "continuum" not in item:
+            if item.continuum is None:
                 continue
-            data_continuum = np.squeeze(fits.open(item["continuum"])[0].data) # (W, H)
+            data_continuum = np.squeeze(fits.open(item.continuum)[0].data) # (W, H)
             n_row, n_col = data_continuum.shape
             if cond_mask is None:
                 cond_mask = np.full(data_continuum.shape, True)
@@ -563,7 +583,7 @@ class CubePipeline:
         mask_data = []
         shift_factor = 1. + const_factor_mu_sigma()[0]*self.v_LSR
         for item, header in zip(file_list, header_list):
-            hdul = fits.open(item["line"])[0]
+            hdul = fits.open(item.line)[0]
             header_line = hdul.header
             # (1, C, W, H) > (C, W, H)
             data_line = np.squeeze(hdul.data)
@@ -575,14 +595,14 @@ class CubePipeline:
                 counts = np.zeros(len(inds_mask[0]), dtype="i8")
             data_line = data_line[inds_mask] # (N, C)
 
-            if "continuum" in item:
-                hdul = fits.open(item["continuum"])[0]
+            if item.continuum is None:
+                data_continuum = np.zeros(len(inds_mask[0]))
+                header_cont = header_line
+            else:
+                hdul = fits.open(item.continuum)[0]
                 header_cont = hdul.header
                 data_continuum = np.squeeze(hdul.data) # (W, H)
                 data_continuum = data_continuum[inds_mask]
-            else:
-                data_continuum = np.zeros(len(inds_mask[0]))
-                header_cont = header_line
 
             # Fix nan and inf values
             num_tot = np.prod(data_line.shape)
@@ -716,7 +736,9 @@ class CubePipeline:
                 T_obs_data, T_bg_data, freq_data, noise_data, beam_data
             )
 
-    def prepare_header_list(self, file_list, header_lookup):
+    def prepare_header_list(self,
+                            file_list: list[CubeItem],
+                            header_lookup: dict):
         header_lookup_ = {
             "freq_start": "CRVAL3",
             "dfreq": "CDELT3",
@@ -730,13 +752,12 @@ class CubePipeline:
 
         header_list = []
         for item in file_list:
-            header_aux = item.get("header", {})
-            if "continuum" in "item":
-                header_cont = dict(fits.open(item["continuum"])[0].header)
-            else:
+            header_aux = item.header if item.header is not None else {}
+            if item.continuum is None:
                 header_cont = {}
-            header_line = dict(fits.open(item["line"])[0].header)
-
+            else:
+                header_cont = dict(fits.open(item.continuum)[0].header)
+            header_line = dict(fits.open(item.line)[0].header)
             header = {}
             for key, alias in header_lookup_.items():
                 if key in header_aux:
@@ -893,6 +914,9 @@ class CubePipeline:
             grp_sub.create_dataset("noise", data=noise, dtype="f4")
             grp_sub.create_dataset("beam", data=beam, dtype="f4")
             i_seg_save += 1
+
+
+
 
 
 def to_kelvin(J_obs, freqs, bmaj, bmin):
