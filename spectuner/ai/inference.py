@@ -3,6 +3,7 @@ import warnings
 from typing import Optional, Callable
 from pathlib import Path
 from copy import deepcopy
+from pprint import pformat
 
 import h5py
 import numpy as np
@@ -219,7 +220,7 @@ class InferenceModel:
         warnings.warn("When the AI model is employed, the parameterization "
                       "and bound information in the config is overwritten."
                       "The following settings are adopted:\n"
-                      "{}".format(config["param_info"]))
+                      "{}".format(pformat(config["param_info"], sort_dicts=False)))
         slm_factory = SpectralLineModelFactory(config, sl_db=embedding_model.sl_db)
         return cls(model, embedding_model, slm_factory)
 
