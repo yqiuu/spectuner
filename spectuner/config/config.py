@@ -48,6 +48,9 @@ def load_config(fname: str) -> Config:
     Args:
         fname: Path to the config file. If this is a directory, it will load
         the config defined by YAML files.
+
+    Returns:
+        Loaded config.
     """
     fname = Path(fname)
     if fname.is_file():
@@ -62,11 +65,21 @@ def load_config(fname: str) -> Config:
 
 
 def load_default_config() -> Config:
+    """Load the default config.
+
+    Returns:
+        Default config.
+    """
     return load_config(Path(__file__).parent/"templates")
 
 
 def save_config(config: Config, fname: str):
-    """Save the config to a pickle file."""
+    """Save the config to a pickle file.
+
+    Args:
+        config: Config to save.
+        fname: Saving name.
+    """
     if isinstance(config, Config):
         pickle.dump(dict(config), open(fname, "wb"))
     else:
