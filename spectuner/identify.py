@@ -708,7 +708,7 @@ class ResultManager:
                 setattr(self, attr_name_1, fname_)
                 setattr(self, attr_name_2, tuple(h5py.File(fname_).keys()))
             else:
-                setattr(self, attr_name_1, tuple())
+                setattr(self, attr_name_1, None)
                 setattr(self, attr_name_2, tuple())
 
     def __repr__(self):
@@ -754,6 +754,8 @@ class ResultManager:
     def load_fitting_result(self, target, name):
         self._validate_target(target)
         fname = getattr(self, f"_f_fitting_{target}")
+        if fname is None:
+            raise ValueError(f"Fail to find any fitting results in '{target}'")
         with h5py.File(fname) as fp:
             res = load_fitting_result(fp[name])
         return res
@@ -761,6 +763,8 @@ class ResultManager:
     def load_ident_result(self, target, name):
         self._validate_target(target)
         fname = getattr(self, f"_f_ident_{target}")
+        if fname is None:
+            raise ValueError(f"Fail to find any identification results in '{target}'")
         with h5py.File(fname) as fp:
             res = IdentResult.load_hdf(fp[name])
         return res
@@ -769,7 +773,7 @@ class ResultManager:
         self._validate_target(target)
         fname = getattr(self, f"_f_ident_{target}")
         if fname is None:
-            raise ValueError
+            raise ValueError(f"Fail to find any identification results in '{target}'")
 
         res_list = []
         with h5py.File(fname) as fp:
