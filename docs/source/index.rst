@@ -64,3 +64,10 @@ files.
    :caption: User guide:
 
    config
+
+.. toctree::
+   :maxdepth: 1
+   :caption: API reference:
+
+   api/config
+   api/identify

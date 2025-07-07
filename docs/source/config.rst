@@ -10,6 +10,3 @@ be created by
 
 This creates an instance of the ``Config`` class, which inlcudes a coulpe of
 user-friendly methods to update settings.
-
-.. autoclass:: spectuner.Config
-   :members:
