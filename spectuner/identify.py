@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import Optional, Literal
 from copy import deepcopy
 from pathlib import Path
 from collections import defaultdict
@@ -690,7 +690,12 @@ class IdentResult:
 
 
 class ResultManager:
-    def __init__(self, dirname):
+    """Interface to load fitting and identification results.
+
+    Args:
+        dirname: Directory that stores the results.
+    """
+    def __init__(self, dirname: str):
         dirname = Path(dirname)
         file_list = (
             ("fitting_single", "results_single.h5"),
@@ -743,15 +748,44 @@ class ResultManager:
         if target not in ["single", "combine", "modified"]:
             raise ValueError("Set target from ['single', 'combine', 'modified'].")
 
-    def list_fitting_results(self, target):
+    def list_fitting_results(self,
+                             target: Literal["single", "combine", "modified"]) -> tuple:
+        """List all fitting results.
+
+        Args:
+            target: Category name.
+
+        Returns:
+            List of fitting result names.
+        """
         self._validate_target(target)
         return getattr(self, f"_names_fitting_{target}")
 
-    def list_ident_results(self, target):
+    def list_ident_results(self,
+                           target: Literal["single", "combine", "modified"]) -> tuple:
+        """List all identification results.
+
+        Args:
+            target: Category name.
+
+        Returns:
+            List of identification result names.
+        """
         self._validate_target(target)
         return getattr(self, f"_names_ident_{target}")
 
-    def load_fitting_result(self, target, name):
+    def load_fitting_result(self,
+                            target: Literal["single", "combine", "modified"],
+                            name: str) -> dict:
+        """Load a fitting result.
+
+        Args:
+            target: Category name.
+            name: Name of the fitting result.
+
+        Returns:
+            Fitting result.
+        """
         self._validate_target(target)
         fname = getattr(self, f"_f_fitting_{target}")
         if fname is None:
@@ -760,7 +794,18 @@ class ResultManager:
             res = load_fitting_result(fp[name])
         return res
 
-    def load_ident_result(self, target, name):
+    def load_ident_result(self,
+                          target: Literal["single", "combine", "modified"],
+                          name: str) -> IdentResult:
+        """Load an identification result.
+
+        Args:
+            target: Category name.
+            name: Name of the identification result.
+
+        Returns:
+            Identification result.
+        """
         self._validate_target(target)
         fname = getattr(self, f"_f_ident_{target}")
         if fname is None:
@@ -769,7 +814,19 @@ class ResultManager:
             res = IdentResult.load_hdf(fp[name])
         return res
 
-    def derive_df_mol_master(self, target="combine", max_order=3):
+    def derive_df_mol_master(self,
+                             target: Literal["single", "combine"]="combine",
+                             max_order: int=3) -> pd.DataFrame:
+        """Derive a dataframe that summarizes the identification results of all
+        candidates.
+
+        Args:
+            target: Category name.
+            max_order: Number of the top-x scores to include.
+
+        Returns:
+            Identification result summary.
+        """
         self._validate_target(target)
         fname = getattr(self, f"_f_ident_{target}")
         if fname is None:
