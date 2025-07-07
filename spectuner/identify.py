@@ -765,7 +765,7 @@ class ResultManager:
             res = IdentResult.load_hdf(fp[name])
         return res
 
-    def derive_df_mol_master(self, target="combine"):
+    def derive_df_mol_master(self, target="combine", max_order=3):
         self._validate_target(target)
         fname = getattr(self, f"_f_ident_{target}")
         if fname is None:
@@ -779,9 +779,11 @@ class ResultManager:
                 res_list.append(IdentResult.load_hdf(grp))
         if len(res_list) == 0:
             return
-        df_mol_master = pd.concat([res.derive_df_mol_master() for res in res_list])
+        df_mol_master = pd.concat([res.derive_df_mol_master(max_order=max_order)
+                                   for res in res_list])
         df_mol_master.sort_values(
-            ["t3_score", "t2_score", "t1_score", "num_tp_i"], ascending=False, inplace=True
+            ["t3_score", "t2_score", "t1_score", "num_tp_i"],
+            ascending=False, inplace=True
         )
         df_mol_master.reset_index(drop=True, inplace=True)
         return df_mol_master
