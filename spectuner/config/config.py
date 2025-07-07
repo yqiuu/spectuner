@@ -1,5 +1,7 @@
+from __future__ import annotations
 import yaml
 import shutil
+import pickle
 from typing import Optional, Literal, Tuple
 from pprint import pformat
 from copy import deepcopy
@@ -15,6 +17,7 @@ __all__ = [
     "load_preprocess_config",
     "load_config",
     "load_default_config",
+    "save_config",
     "preprocess_config",
     "append_exclude_info",
     "Config",
@@ -39,16 +42,35 @@ def load_preprocess_config(dirname):
     return config
 
 
-def load_config(dir):
-    dir = Path(dir)
-    config = yaml.safe_load(open(dir/"config.yml"))
-    for key, fname in iter_config_names():
-        config[key] = yaml.safe_load(open(dir/fname))
+def load_config(fname: str) -> Config:
+    """Load the config.
+
+    Args:
+        fname: Path to the config file. If this is a directory, it will load
+        the config defined by YAML files.
+    """
+    fname = Path(fname)
+    if fname.is_file():
+        config = pickle.load(open(fname, "rb"))
+    elif fname.is_dir():
+        config = yaml.safe_load(open(fname/"config.yml"))
+        for key, name in iter_config_names():
+            config[key] = yaml.safe_load(open(fname/name))
+    else:
+        raise ValueError(f"Unknown path: {fname}")
     return Config(**config)
 
 
-def load_default_config():
+def load_default_config() -> Config:
     return load_config(Path(__file__).parent/"templates")
+
+
+def save_config(config: Config, fname: str):
+    """Save the config to a pickle file."""
+    if isinstance(config, Config):
+        pickle.dump(dict(config), open(fname, "wb"))
+    else:
+        raise ValueError(f"Unknown input: {config}")
 
 
 def preprocess_config(config):
