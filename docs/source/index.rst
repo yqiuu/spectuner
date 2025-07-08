@@ -49,7 +49,7 @@ This documentation aussmes that you are familiar with the following packages:
 * `Matplotlib <https://matplotlib.org/>`__
 * `Pandas <https://pandas.pydata.org/>`__
 
-You may also be familiar with `jupyter notebook<https://jupyter.org/>` and YAML,
+You may also be familiar with `jupyter notebook <https://jupyter.org/>`__ and YAML,
 a human-readable data serialization format that is often used for configuration
 files.
 
@@ -61,13 +61,8 @@ files.
 
 .. toctree::
    :maxdepth: 1
-   :caption: User guide:
-
-   config
-
-.. toctree::
-   :maxdepth: 1
    :caption: API reference:
 
    api/config
    api/identify
+   api/spectral_plot
