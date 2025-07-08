@@ -203,7 +203,7 @@ class Config(dict):
 
         Args:
             param_name: Parameter name.
-            is_log: Whether to use log-scale for this parameter.
+            is_log: Whether to use log-scale during fitting for this parameter.
             bound: Lower and upper limits used by optimizers for fitting. If
                 ``is_log=True``, the limits should be in log-scale. For
                 example, if ``is_log=True``, ``bound=(12, 20)`` means that
@@ -252,12 +252,12 @@ class Config(dict):
 
                 - n_trial (int): Number of trials for 'pso'. The optimizer will
                     be run for n_trial times, and the best fit will be selected
-                    among all trials. Defaults is 1.
-                - n_swarm (int): Number of particles for 'pso'. Defaults is 28.
+                    among all trials. Defaults to 1.
+                - n_swarm (int): Number of particles for 'pso'. Defaults to 28.
                 - n_draw (int): Number of samples drawed by the neural network.
                     This only works for local optimizers such as 'slsqp'. The
                     code will compute the fitness for each sample and select the
-                    best one as the initial guess. Defaults is 50.
+                    best one as the initial guess. Defaults to 50.
         """
         config_opt = self["optimizer"]
         config_opt["method"] = method
