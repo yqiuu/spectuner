@@ -1,18 +1,17 @@
 # Spectuner
 [![Documentation Status](https://readthedocs.org/projects/spectuner/badge/?version=latest)](https://spectuner.readthedocs.io/en/latest/?badge=latest)
 
-Spectuner is an ease-of-use tool for automated spectral line identification of
-interstellar molecules. The code integrates the following techniques:
+Spectuner is a tool for automated spectral line analysis of instellar molecules.
 
-* Spectral line model: XCLASS.
-* Peak finder: Scipy.
-* Spectral fitting: Particle swarm optimization & peak matching loss function.
 
-Our methodology is described in [Qiu et al. 2024](https://arxiv.org/abs/2408.06004).
+## Notice (15/07/25)
+This is a transitional version from 1.0 to 2.0. In a few months, we will release the pixel-by-pixel fitting functionality based on neural networks. Version 1.0 will no longer be maintained thereafter.
+
 
 ## Installation
-1. Install XCLASS according to this [link](https://xclass-pip.astro.uni-koeln.de/).
-2. Clone the repository and run ``setpy.py``:
+The code requires Python>=3.10. If you do not have Python installed, we
+recommend installing [Anaconda](https://www.anaconda.com/products/individual).
+Then, we can install the code from the repository.
 
 ```
 git clone https://github.com/yqiuu/spectuner.git
@@ -23,23 +22,26 @@ pip install .
 ## Documentation
 Read the docs at this [link](https://spectuner.readthedocs.io/en/latest/index.html).
 
+
 ## Attribution
-If you find this code useful in your research, please cite our work using the following BibTeX entry:
+If you find this code useful in your research, please cite our work in the acknowledgment section using the following BibTeX entry:
 ```
-@ARTICLE{2024arXiv240806004Q,
-       author = {{Qiu}, Yisheng and {Zhang}, Tianwei and {M{\"o}ller}, Thomas and {Jiang}, XueJian and {Song}, Zihao and {Chen}, Huaxi and {Quan}, Donghui},
+@ARTICLE{2025ApJS..277...21Q,
+       author = {{Qiu}, Yisheng and {Zhang}, Tianwei and {M{\"o}ller}, Thomas and {Jiang}, Xue-Jian and {Song}, Zihao and {Chen}, Huaxi and {Quan}, Donghui},
         title = "{Spectuner: A Framework for Automated Line Identification of Interstellar Molecules}",
-      journal = {arXiv e-prints},
-     keywords = {Astrophysics - Astrophysics of Galaxies, Astrophysics - Instrumentation and Methods for Astrophysics, Astrophysics - Solar and Stellar Astrophysics},
-         year = 2024,
-        month = aug,
-          eid = {arXiv:2408.06004},
-        pages = {arXiv:2408.06004},
-          doi = {10.48550/arXiv.2408.06004},
+      journal = {\apjs},
+     keywords = {Spectral line identification, Interstellar medium, 2073, 847, Astrophysics - Astrophysics of Galaxies, Astrophysics - Instrumentation and Methods for Astrophysics, Astrophysics - Solar and Stellar Astrophysics},
+         year = 2025,
+        month = mar,
+       volume = {277},
+       number = {1},
+          eid = {21},
+        pages = {21},
+          doi = {10.3847/1538-4365/adaeba},
 archivePrefix = {arXiv},
        eprint = {2408.06004},
  primaryClass = {astro-ph.GA},
-       adsurl = {https://ui.adsabs.harvard.edu/abs/2024arXiv240806004Q},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2025ApJS..277...21Q},
       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
 }
 ```
