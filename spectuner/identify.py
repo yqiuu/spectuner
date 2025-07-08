@@ -651,12 +651,14 @@ class IdentResult:
         freqs = np.asarray(freqs)
         return freqs
 
-    def get_identified_lines(self):
+    def get_identified_lines(self, include_fp=False):
         freqs = []
         for freq, names in zip(self.line_table.freq, self.line_table.name):
             if names is not None:
                 freqs.append(freq)
         freqs = np.asarray(freqs)
+        if include_fp:
+            freqs = np.sort(np.append(freqs, self.line_table_fp.freq))
         return freqs
 
     def save_hdf(self, fp):
