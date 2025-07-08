@@ -54,6 +54,26 @@ class PeakPlot:
     def bounds(self):
         return self._bounds
 
+    def plot_spec_from_config(self,
+                              config: Config,
+                              step_plot: bool=True,
+                              ylim_factor: Optional[float]=None,
+                              y_top_min: float=0.,
+                              color="k",
+                              **kwargs):
+        """Plot the spectrum defined in the config dict."""
+        obs_data = load_preprocess(config["obs_info"], clip=False)
+        freq_data = get_freq_data(obs_data)
+        T_data = get_T_data(obs_data)
+        self.plot_spec(
+            freq_data, T_data,
+            step_plot=step_plot,
+            ylim_factor=ylim_factor,
+            y_top_min=y_top_min,
+            color=color,
+            **kwargs
+        )
+
     def plot_spec(self,
                   freq_data: list,
                   spec_data: list,
