@@ -1,9 +1,12 @@
+from typing import Optional
+from collections import defaultdict
+
 import numpy as np
 import matplotlib.pyplot as plt
 
-from collections import defaultdict
-
+from .config import Config
 from .preprocess import load_preprocess, get_freq_data, get_T_data
+from .identify import IdentResult
 
 
 class PeakPlot:
@@ -51,18 +54,18 @@ class PeakPlot:
     def bounds(self):
         return self._bounds
 
-    def plot_spec(self, freq_list, spec_list, *args, ylim_factor=None, y_top_min=0., **kwargs):
+    def plot_spec(self, freq_data, spec_data, *args, ylim_factor=None, y_top_min=0., **kwargs):
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
 
             y_max = 0.
             lower, upper = self.bounds[i_a]
-            for i_segment, freq in enumerate(freq_list):
+            for i_segment, freq in enumerate(freq_data):
                 cond = (freq >= lower) & (freq <= upper)
                 if np.count_nonzero(cond) == 0:
                     continue
-                T_data = spec_list[i_segment][cond]
+                T_data = spec_data[i_segment][cond]
                 ax.plot(freq[cond], T_data, *args, **kwargs)
                 y_max = max(y_max, max(T_data))
             if ylim_factor is not None:
@@ -70,13 +73,13 @@ class PeakPlot:
                 y_top = max(y_top, y_top_min)
                 ax.set_ylim(-1e-2*y_max, y_top)
 
-    def plot_prominence(self, freq_list, prom_list):
+    def plot_prominence(self, freq_data, prom_list):
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
 
             lower, upper = self.bounds[i_a]
-            for freq, prom in zip(freq_list, prom_list):
+            for freq, prom in zip(freq_data, prom_list):
                 if freq[0] > upper or freq[-1] < upper:
                     continue
                 x_min = max(freq[0], lower)
@@ -120,7 +123,23 @@ class PeakPlot:
 
 
 class SpectralPlot:
-    def __init__(self, freq_data, freq_per_row=1000., width=20., height=3., axes=None):
+    """Multi-row plot for visualizing the spectrum of multiple spectral windows.
+
+    Args:
+        freq_data: List of 1D array that specifies the frequency values for each
+            spectral window.
+        freq_per_row: Frequency range to show in each row. The unit should be
+            the same as ``freq_data``.
+        width: Figure width.
+        height: Figure height of each row.
+        axes: Axes to plot. If ``None``, create a new figure.
+    """
+    def __init__(self,
+                 freq_data: list,
+                 freq_per_row: float=1000.,
+                 width: float=20.,
+                 height: float=3.,
+                 axes: Optional[np.ndarray]=None):
         bounds = self._derive_bounds(freq_data, freq_per_row)
         n_axe = len(bounds)
         if axes is None:
@@ -182,8 +201,27 @@ class SpectralPlot:
         return idx
 
     @classmethod
-    def from_config(cls, config, freq_per_row=1000., width=20., height=3.,
-                    axes=None, color="k", **kwargs):
+    def from_config(cls,
+                    config: Config,
+                    freq_per_row: float=1000.,
+                    width: float=20.,
+                    height: float=3.,
+                    axes:np.ndarray=None,
+                    color: str="k",
+                    **kwargs):
+        """Create a plot from a ``Config`` instance.
+
+        Args:
+            config: ``Config`` instance.
+            freq_per_row: Frequency range to show in each row. The unit should
+                be the same as defined in ``config``.
+            width: Figure width.
+            height: Figure height of each row.
+            axes: Axes to plot. If ``None``, create a new figure.
+            color: Color of the spectrum defined in ``config``.
+            **kwargs: Other arguments passed to ``plt.plot`` to plot the
+                spectrum defined in ``config``.
+        """
         obs_data = load_preprocess(config["obs_info"], clip=False)
         freq_data = get_freq_data(obs_data)
         plot = cls(
@@ -214,10 +252,42 @@ class SpectralPlot:
     def bounds(self):
         return self._bounds
 
-    def plot_ident_result(self, ident_result, key=None, name=None,
-                          show_lines=True, txt_offset=2.,
-                          color="k", color_blen="r", color_fp="b",
-                          fontsize=12, T_base_data=None, kwargs_spec=None):
+    def plot_ident_result(self,
+                          ident_result: IdentResult,
+                          key: Optional[int]=None,
+                          name: Optional[str]=None,
+                          show_lines: bool=True,
+                          txt_offset: float=2.,
+                          color: str="k",
+                          color_blen: str="r",
+                          color_fp: str="b",
+                          fontsize: float=12,
+                          T_base_data: Optional[list]=None,
+                          kwargs_spec: Optional[dict]=None):
+        """Plot a identification result.
+
+        This method is a combination of ``plot_spec`` and ``plot_names``.
+
+        Args:
+            ident_result: Identification result.
+            key: Molecule ID. This is used to plot the result of a single
+                molecule in a combined result.
+            name: Molecule name. This is used to plot the result of a single
+                molecule in a combined result.
+            show_lines: Whether to show the vertical lines that indicate the
+                molecules.
+            txt_offset: Text offset of the lines. Larger values mean farther
+                from the line.
+            color: Line color of the peaks that match the observed spectrum.
+            color_blen: Line color of the peaks that match the observed
+                spectrum but contributed by multiple species.
+            color_fp: Color of the peaks found in the fitted spectrum but
+                missing from the observed spectrum.
+            fontsize: Font size of the molecules.
+            T_base_data: Base intensity data.
+            kwargs_spec: Keyword arguments passed to ``plt.plot`` to plot the
+                spectrum.
+        """
         T_data = ident_result.get_T_pred(key, name)
         if T_base_data is not None:
             for i_segment, T_base in enumerate(T_base_data):
@@ -271,22 +341,34 @@ class SpectralPlot:
             txt_offset=txt_offset, fontsize=fontsize
         )
 
-    def plot_unknown_lines(self, ident_result, color="grey", linestyle="-"):
-        freqs = ident_result.get_unknown_lines()
-        self.vlines(freqs, colors=color, linestyles=linestyle)
+    def plot_spec(self,
+                  freq_data: list,
+                  spec_data: list,
+                  *args,
+                  color: str="C0",
+                  **kwargs):
+        """Plot a spectrum.
 
-    def plot_spec(self, freq_list, spec_list, *args, color="C0", **kwargs):
-        sort_list = list(zip(freq_list, spec_list))
+        Args:
+            freq_data: List of 1D array specifiyng the frequency of each
+                spectral window.
+            spec_data: List of 1D array specifiyng the intensity of each
+                spectral window.
+            *args: Arguments passed to ``plt.plot``.
+            color: Color of the spectrum.
+            **kwargs: Keyword arguments passed to ``plt.plot``.
+        """
+        sort_list = list(zip(freq_data, spec_data))
         sort_list.sort(key=lambda item: item[0][0])
-        freq_list, spec_list = list(zip(*sort_list))
+        freq_data, spec_data = list(zip(*sort_list))
 
         i_segment = 0
         i_ax = 0
         idx_b = 0
 
-        while i_segment < len(freq_list) and i_ax < len(self.axes):
-            freq = freq_list[i_segment]
-            spec = spec_list[i_segment]
+        while i_segment < len(freq_data) and i_ax < len(self.axes):
+            freq = freq_data[i_segment]
+            spec = spec_data[i_segment]
 
             idx_e = np.searchsorted(freq, self.bounds[i_ax][-1])
             if idx_e - idx_b > 1 and spec is not None:
@@ -304,9 +386,32 @@ class SpectralPlot:
                 i_segment += 1
                 idx_b = 0
 
-    def plot_names(self, freqs, name_list, key=None,
-                   color="k", color_blen="r", linestyles="--",
-                   txt_offset=2., frac=.95, fontsize=12):
+    def plot_names(self,
+                   freqs: np.ndarray,
+                   name_list: list,
+                   key: Optional[int]=None,
+                   color: str="k",
+                   color_blen: str="r",
+                   linestyles: str="--",
+                   txt_offset: float=2.,
+                   frac: float=.95,
+                   fontsize: float=12):
+        """Plot the identitied names of the lines.
+
+        Args:
+            freqs: Frequencies of the lines.
+            name_list: Names of the lines.
+            key: Molecule ID. This is used to plot the result of a single
+                molecule in a combined result.
+            color: Line color of the peaks that match the observed spectrum.
+            color_blen: Line color of the peaks that match the observed
+                spectrum but contributed by multiple species.
+            linestyles: Line styles.
+            txt_offset: Text offset of the lines. Larger values mean farther
+                from the line.
+            frac: Vertical offset of the names.
+            fontsize: Font size of the molecules.
+        """
         for freq_c, names in zip(freqs, name_list):
             if names is None or (key is not None and key not in names):
                 continue
@@ -324,28 +429,54 @@ class SpectralPlot:
                 fontsize=fontsize, c=c
             )
 
-    def plot_errors(self, freqs, errors, y_min, y_max, colors="k", linestyles="--", offset=3):
-        for freq_c, err in zip(freqs, errors):
-            idx_ax = self._get_axe_idx(freq_c)
-            ax = self.axes[idx_ax]
-            ax.vlines(freq_c, y_min, y_max, colors, linestyles)
-            ax.text(
-                freq_c + offset, y_max, "{:.3f}".format(err), rotation="vertical")
+    def plot_unknown_lines(self,
+                           ident_result: IdentResult,
+                           color: str="grey",
+                           linestyle: str="-",
+                           alpha: float=0.5):
+        """Plot unidentified lines.
 
-    def vlines(self, freqs, **kwargs):
+        Args:
+            ident_result: Identification result.
+            color: Color of the lines.
+            linestyle: Line style.
+            alpha: Transparency.
+        """
+        freqs = ident_result.get_unknown_lines()
+        self.vlines(freqs, colors=color, linestyles=linestyle, alpha=alpha)
+
+    def vlines(self, freqs: np.ndarray, **kwargs):
+        """Plot vertical lines.
+
+        Args:
+            freqs: Frequencies of the lines.
+            **kwargs: Keyword arguments passed to ``plt.vlines``.
+        """
         for freq_c in freqs:
             idx_ax = self._get_axe_idx(freq_c)
             ax = self.axes[idx_ax]
             y_min, y_max = self.get_ylim(ax)
             ax.vlines(freq_c, y_min, y_max, **kwargs)
 
-    def set_ylim(self, y_min, y_max, **kwargs):
+    def set_ylim(self, y_min: float, y_max: float, **kwargs):
+        """Set the y limits for each plot.
+
+        Args:
+            y_min: Minimum y value.
+            y_max: Maximum y value.
+            **kwargs: Keyword arguments passed to ``plt.set_ylim``.
+        """
         for ax in self.axes:
             ax.set_ylim(y_min, y_max, **kwargs)
         self._y_min = y_min
         self._y_max = y_max
 
     def get_ylim(self, ax):
+        """Get the y limits for the given axis.
+
+        Args:
+            ax: Axis.
+        """
         y_min, y_max = ax.get_ylim()
         if self._y_min is not None:
             y_min = self._y_min
