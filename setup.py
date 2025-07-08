@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 exec(open('spectuner/version.py', 'r').read())
 
 #
-description = "A tool for automated line identification of interstellar molecules."
+description = "A tool for automated spectral line analysis of instellar molecules."
 
 install_requires = [
     "astropy>=6.1.0",
