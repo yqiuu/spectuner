@@ -54,7 +54,13 @@ class PeakPlot:
     def bounds(self):
         return self._bounds
 
-    def plot_spec(self, freq_data, spec_data, *args, ylim_factor=None, y_top_min=0., **kwargs):
+    def plot_spec(self,
+                  freq_data: list,
+                  spec_data: list,
+                  step_plot: bool=False,
+                  ylim_factor: Optional[float]=None,
+                  y_top_min: float=0.,
+                  **kwargs):
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
@@ -66,7 +72,10 @@ class PeakPlot:
                 if np.count_nonzero(cond) == 0:
                     continue
                 T_data = spec_data[i_segment][cond]
-                ax.plot(freq[cond], T_data, *args, **kwargs)
+                if step_plot:
+                    ax.step(freq[cond], T_data, where="mid", **kwargs)
+                else:
+                    ax.plot(freq[cond], T_data, **kwargs)
                 y_max = max(y_max, max(T_data))
             if ylim_factor is not None:
                 y_top = ylim_factor*y_max
