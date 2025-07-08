@@ -100,7 +100,7 @@ class PeakPlot:
             if ylim_factor is not None:
                 y_top = ylim_factor*y_max
                 y_top = max(y_top, y_top_min)
-                ax.set_ylim(-1e-2*y_max, y_top)
+                ax.set_ylim(top=y_top)
 
     def plot_prominence(self, freq_data, prom_list):
         for i_a, ax in enumerate(self._axes.flat):
