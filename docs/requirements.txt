@@ -1,2 +1,8 @@
 sphinx
 sphinx_rtd_theme
+nbsphinx>=0.9.0
+ipython>=8.10.0
+astropy>=6.1.0
+numpy>=1.17
+scipy==1.5
+matplotlib==3.0
