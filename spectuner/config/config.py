@@ -251,13 +251,13 @@ class Config(dict):
             **kwargs: Additional arguments for the optimizer.
 
                 - n_trial (int): Number of trials for 'pso'. The optimizer will
-                    be run for n_trial times, and the best fit will be selected
-                    among all trials. Defaults to 1.
+                  be run for n_trial times, and the best fit will be selected
+                  among all trials. Defaults to 1.
                 - n_swarm (int): Number of particles for 'pso'. Defaults to 28.
                 - n_draw (int): Number of samples drawed by the neural network.
-                    This only works for local optimizers such as 'slsqp'. The
-                    code will compute the fitness for each sample and select the
-                    best one as the initial guess. Defaults to 50.
+                  This only works for local optimizers such as 'slsqp'. The
+                  code will compute the fitness for each sample and select the
+                  best one as the initial guess. Defaults to 50.
         """
         config_opt = self["optimizer"]
         config_opt["method"] = method
