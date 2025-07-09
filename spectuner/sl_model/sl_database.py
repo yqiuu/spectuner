@@ -51,6 +51,11 @@ def query_species(sl_db: SpectralLineDB,
         combine_iso: If ``True``, combine isotopologues and fitting them
             jointly.
         combine_state: If ``True``, combine states and fitting them jointly.
+        version_mode: If set to ``'all'``, include all versions of the species
+            in the indiviudal fitting phase. Then, during the combining phase,
+            the best fit among the versions is used. Both ``combine_iso`` and
+            ``combine_state`` must be ``False`` for this option to work.
+            Defaults to ``'default'``.
         include_hyper: If ``True``, include hyperfine states.
         exclude_list: List of species to exclude.
         rename_dict: A dict to rename species.
@@ -58,6 +63,10 @@ def query_species(sl_db: SpectralLineDB,
     Returns:
         List of species to fit.
     """
+    if version_mode == "all":
+        assert not combine_iso and not combine_state, \
+            "If version_mode is 'all', combine_iso and combine_state must be False."
+
     if freqs_include is not None and len(freqs_include) == 0:
         return []
 

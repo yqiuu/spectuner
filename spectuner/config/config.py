@@ -268,6 +268,7 @@ class Config(dict):
                           collect_iso: bool=True,
                           combine_iso: bool=False,
                           combine_state: bool=False,
+                          version_mode: Literal["default", "all"]="default",
                           include_hyper: bool=False,
                           exclude_list: Optional[list]=None,
                           rename_dict: Optional[dict]=None):
@@ -281,6 +282,11 @@ class Config(dict):
             combine_iso: If ``True``, combine isotopologues and fitting them
                 jointly.
             combine_state: If ``True``, combine states and fitting them jointly.
+            version_mode: If set to ``'all'``, include all versions of the species
+                in the indiviudal fitting phase. Then, during the combining phase,
+                the best fit among the versions is used. Both ``combine_iso`` and
+                ``combine_state`` must be ``False`` for this option to work.
+                Defaults to ``'default'``.
             include_hyper: If ``True``, include hyperfine states.
             exclude_list: List of species to exclude.
             rename_dict: A dict to rename species.
@@ -290,6 +296,7 @@ class Config(dict):
         config_species["collect_iso"] = collect_iso
         config_species["combine_iso"] = combine_iso
         config_species["combine_state"] = combine_state
+        config_species["version_mode"] = version_mode
         config_species["include_hyper"] = include_hyper
         config_species["exclude_list"] = exclude_list
         config_species["rename_dict"] = rename_dict
