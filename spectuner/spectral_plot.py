@@ -129,8 +129,8 @@ class PeakPlot:
     def vtexts(self,
                freqs: np.ndarray,
                texts: list,
-               txt_offset_x: float=1.5e-2,
-               txt_offset_y: float=.95,
+               h_txt_offset: float=1.5e-2,
+               v_txt_offset: float=.95,
                **kwargs):
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
@@ -141,8 +141,8 @@ class PeakPlot:
             for freq, text in zip(freqs, texts):
                 lower, upper = self.bounds[i_a]
                 if freq >= lower and freq <= upper:
-                    y_show = y_min_ + txt_offset_y*(y_max_ - y_min_)
-                    x_show = freq + txt_offset_x*(x_max - x_min)
+                    y_show = y_min_ + v_txt_offset*(y_max_ - y_min_)
+                    x_show = freq + h_txt_offset*(x_max - x_min)
                     ax.text(
                         x_show, y_show, text, rotation="vertical", va="top", **kwargs
                     )
@@ -283,10 +283,11 @@ class SpectralPlot:
                           key: Optional[int]=None,
                           name: Optional[str]=None,
                           show_lines: bool=True,
-                          txt_offset: float=2.,
                           color: str="k",
                           color_blen: str="r",
                           color_fp: str="b",
+                          h_txt_offset: float=2.5e-3,
+                          v_txt_offset: float=.95,
                           fontsize: float=12,
                           T_base_data: Optional[list]=None,
                           kwargs_spec: Optional[dict]=None):
@@ -332,14 +333,20 @@ class SpectralPlot:
             self.plot_names(
                 ident_result.line_table.freq,
                 ident_result.line_table.name,
-                color=color, color_blen=color_blen,
-                txt_offset=txt_offset, fontsize=fontsize
+                color=color,
+                color_blen=color_blen,
+                h_txt_offset=h_txt_offset,
+                v_txt_offset=v_txt_offset,
+                fontsize=fontsize
             )
             self.plot_names(
                 ident_result.line_table_fp.freq,
                 ident_result.line_table_fp.name,
-                color=color_fp, color_blen=color_fp,
-                txt_offset=txt_offset, fontsize=fontsize
+                color=color_fp,
+                color_blen=color_fp,
+                h_txt_offset=h_txt_offset,
+                v_txt_offset=v_txt_offset,
+                fontsize=fontsize
             )
             return
 
@@ -355,16 +362,22 @@ class SpectralPlot:
         name_list = np.array(line_table.name, dtype=object)[inds]
         self.plot_names(
             spans, name_list,
-            color=color, color_blen=color_blen,
-            txt_offset=txt_offset, fontsize=fontsize
+            color=color,
+            olor_blen=color_blen,
+            h_txt_offset=h_txt_offset,
+            v_txt_offset=v_txt_offset,
+            fontsize=fontsize
         )
         inds = ident_result.filter_name_list(name_set, line_table_fp.name)
         spans = line_table_fp.freq[inds]
         name_list = np.array(line_table_fp.name, dtype=object)[inds]
         self.plot_names(
             spans, name_list,
-            color=color_fp, color_blen=color_fp,
-            txt_offset=txt_offset, fontsize=fontsize
+            color=color_fp,
+            color_blen=color_fp,
+            h_txt_offset=h_txt_offset,
+            v_txt_offset=v_txt_offset,
+            fontsize=fontsize
         )
 
     def plot_spec(self,
@@ -419,8 +432,8 @@ class SpectralPlot:
                    color: str="k",
                    color_blen: str="r",
                    linestyles: str="--",
-                   txt_offset: float=2.,
-                   frac: float=.95,
+                   h_txt_offset: float=2.5e-3,
+                   v_txt_offset: float=.95,
                    fontsize: float=12):
         """Plot the identitied names of the lines.
 
@@ -433,9 +446,10 @@ class SpectralPlot:
             color_blen: Line color of the peaks that match the observed
                 spectrum but contributed by multiple species.
             linestyles: Line styles.
-            txt_offset: Text offset of the lines. Larger values mean farther
+            h_txt_offset: Horizontal text offset. Larger values mean farther
                 from the line.
-            frac: Vertical offset of the names.
+            v_txt_offset: Vertical text offset. Smaller values mean farther
+                from the top.
             fontsize: Font size of the molecules.
         """
         for freq_c, names in zip(freqs, name_list):
@@ -447,8 +461,8 @@ class SpectralPlot:
             y_min, y_max = self.get_ylim(ax)
             c = color if len(names) == 1 else color_blen
             ax.vlines(freq_c, y_min, y_max, c, linestyles)
-            y_show = y_min + frac*(y_max - y_min)
-            x_show = freq_c + txt_offset*self._freq_per_row/1000.
+            y_show = y_min + v_txt_offset*(y_max - y_min)
+            x_show = freq_c + h_txt_offset*self._freq_per_row
             ax.text(
                 x_show, y_show, "\n".join(names),
                 rotation="vertical", verticalalignment="top",
