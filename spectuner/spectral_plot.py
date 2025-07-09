@@ -10,7 +10,22 @@ from .identify import IdentResult
 
 
 class PeakPlot:
-    def __init__(self, freqs, delta_v=100, n_col=5, plot_width=4, plot_height=3):
+    """Multi-window plot for visualizing the spectrum.
+
+    Args:
+        freqs: Cenetral frequencies for each window.
+        delta_v: Velocity width in km/s of each window. Windows with overlaps
+            will be merged.
+        n_col: Number of windows per row.
+        plot_width: Figure width of each sub-plot.
+        plot_height: Figure height of each sub-plot.
+    """
+    def __init__(self,
+                 freqs: np.ndarray,
+                 delta_v: float=100.,
+                 n_col: int=5,
+                 plot_width: float=4,
+                 plot_height: float=3):
         bounds = []
         for freq in freqs:
             bounds.append([freq*(1 - delta_v/3e5), freq*(1 + delta_v/3e5)])
@@ -81,6 +96,7 @@ class PeakPlot:
                   ylim_factor: Optional[float]=None,
                   y_top_min: float=0.,
                   **kwargs):
+        """Plot a spectrum."""
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
@@ -116,6 +132,7 @@ class PeakPlot:
                 ax.hlines(prom, x_min, x_max, "grey")
 
     def vlines(self, freqs: np.ndarray, **kwargs):
+        """Plot vertical lines."""
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
@@ -132,6 +149,7 @@ class PeakPlot:
                h_txt_offset: float=1.5e-2,
                v_txt_offset: float=.95,
                **kwargs):
+        """Plot vertical texts."""
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
