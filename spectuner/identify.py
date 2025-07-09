@@ -15,7 +15,8 @@ from .slm_factory import (
     combine_specie_lists, sum_T_single_data, compute_T_single_data,
     SpectralLineModelFactory
 )
-from .peaks import compute_peak_norms
+from .sl_model import SpectralLineDB
+from .peaks import compute_peak_norms, compute_shift
 from .utils import (
     load_result_list, load_fitting_result, load_result_combine,
     hdf_save_dict, hdf_load_dict, derive_specie_save_name
@@ -660,6 +661,38 @@ class IdentResult:
         if include_fp:
             freqs = np.sort(np.append(freqs, self.line_table_fp.freq))
         return freqs
+
+    def query_sl_dict(self,
+                      sl_db: SpectralLineDB,
+                      key: int,
+                      name: str) -> dict:
+        """Query transitions properties.
+
+        This method provides frequencies corrected using the velocity offset.
+
+        Args:
+            sl_db: SpectralLineDB object.
+            key: Molecular ID.
+            name: Molecular name.
+
+        Returns:
+            A dict with the following keys:
+
+            -  freq: Corrected frequency in MHz.
+            -  freq_rest: Rest-frame frequency in MHz.
+            -  E_low: Enerygy of the lower state in K.
+            -  E_up: Enerygy of the upper state in K.
+            -  A_ul: Einstein A cofficient in s^-1.
+            -  g_u: Upper state degeneracy.
+            -  Q_T: Partition function.
+            -  x_T: Temperature of the partition function.
+        """
+        v_offset = self.specie_data[key][name]["v_offset"]
+        sl_dict = sl_db.query_sl_dict(name, self.freq_data, v_enlarge=v_offset)
+        sl_dict["freq_rest"] = sl_dict["freq"]
+        sl_dict["freq"] = compute_shift(sl_dict["freq"], -v_offset)
+        sl_dict.pop("segment", None)
+        return sl_dict
 
     def save_hdf(self, fp):
         save_dict = {
