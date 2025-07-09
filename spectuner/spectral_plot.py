@@ -115,37 +115,34 @@ class PeakPlot:
                 x_max = min(freq[-1], upper)
                 ax.hlines(prom, x_min, x_max, "grey")
 
-    def vlines(self, freqs, y_min=None, y_max=None, **kwargs):
+    def vlines(self, freqs: np.ndarray, **kwargs):
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
 
             y_min_, y_max_ = ax.get_ylim()
-            if y_min is not None:
-                y_min_ = y_min
-            if y_max is not None:
-                y_max_ = y_max
             for freq in freqs:
                 lower, upper = self.bounds[i_a]
                 if freq >= lower and freq <= upper:
                     ax.vlines(freq, y_min_, y_max_, **kwargs)
 
-    def vtexts(self, freqs, texts, y_min=None, y_max=None,
-               offset_x=1e-5, offset_y=-.05, **kwargs):
+    def vtexts(self,
+               freqs: np.ndarray,
+               texts: list,
+               txt_offset_x: float=1.5e-2,
+               txt_offset_y: float=.95,
+               **kwargs):
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
 
+            x_min, x_max = ax.get_xlim()
             y_min_, y_max_ = ax.get_ylim()
-            if y_min is not None:
-                y_min_ = y_min
-            if y_max is not None:
-                y_max_ = y_max
             for freq, text in zip(freqs, texts):
                 lower, upper = self.bounds[i_a]
                 if freq >= lower and freq <= upper:
-                    y_show = y_min_ + (1 + offset_y)*(y_max_ - y_min_)
-                    x_show = freq*(1 + offset_x)
+                    y_show = y_min_ + txt_offset_y*(y_max_ - y_min_)
+                    x_show = freq + txt_offset_x*(x_max - x_min)
                     ax.text(
                         x_show, y_show, text, rotation="vertical", va="top", **kwargs
                     )
