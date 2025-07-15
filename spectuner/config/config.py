@@ -264,7 +264,7 @@ class Config(dict):
         config_opt.update(kwargs)
 
     def set_ident_species(self,
-                          speices: Optional[list],
+                          species: Optional[list],
                           collect_iso: bool=True,
                           combine_iso: bool=False,
                           combine_state: bool=False,
@@ -275,7 +275,7 @@ class Config(dict):
         """Set species for line identification.
 
         Args:
-            speices: List of species to include. If ``None``, inlcude all
+            species: List of species to include. If ``None``, inlcude all
                 possible species in the given frequency ranges.
             collect_iso: If ``True``, collect isotopologues of molecules in
                 ``species``.
@@ -292,7 +292,7 @@ class Config(dict):
             rename_dict: A dict to rename species.
         """
         config_species = self["species"]
-        config_species["species"] = speices
+        config_species["species"] = species
         config_species["collect_iso"] = collect_iso
         config_species["combine_iso"] = combine_iso
         config_species["combine_state"] = combine_state
