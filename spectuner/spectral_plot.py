@@ -3,6 +3,7 @@ from collections import defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator, ScalarFormatter
 
 from .config import Config
 from .preprocess import load_preprocess, get_freq_data, get_T_data
@@ -23,7 +24,7 @@ class PeakPlot:
     def __init__(self,
                  freqs: np.ndarray,
                  delta_v: float=100.,
-                 n_col: int=5,
+                 n_col: int=4,
                  plot_width: float=4,
                  plot_height: float=3):
         bounds = []
@@ -53,6 +54,12 @@ class PeakPlot:
         )
         if n_row == 1 and n_col == 1:
             self._axes = np.ravel(self.axes)
+
+        formatter = ScalarFormatter(useOffset=False)
+        formatter.set_scientific(False)
+        for ax in self._axes.flat:
+            ax.xaxis.set_major_locator(MaxNLocator('auto', integer=True))
+            ax.xaxis.set_major_formatter(formatter)
 
         for ax in np.ravel(self._axes)[n_plot:]:
             ax.axis("off")
