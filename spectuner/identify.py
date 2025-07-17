@@ -493,7 +493,7 @@ class IdentResult:
         score_dict = defaultdict(lambda: defaultdict(dict_factory))
         increase_score_dict(self.line_table, score_dict)
         increase_score_dict(self.line_table_fp, score_dict)
-        self.update_specie_data(score_dict)
+        self._update_specie_data(score_dict)
 
     def _add_count_data(self):
         def increase_count_dict(line_table, count_dict, target):
@@ -515,15 +515,14 @@ class IdentResult:
         increase_count_dict(self.line_table, count_dict, "num_tp")
         increase_count_dict(self.line_table_fp, count_dict, "num_fp")
         increase_count_i_dict(self.line_table, count_dict, "num_tp_i")
-        self.update_specie_data(count_dict)
+        self._update_specie_data(count_dict)
 
-    def is_empty(self):
-        return len(self.specie_data) == 0
-
-    def update_specie_data(self, data):
+    def _update_specie_data(self, data):
         for key, sub_dict in self.specie_data.items():
             for name, cols in sub_dict.items():
                 cols.update(data[key][name])
+    def is_empty(self):
+        return len(self.specie_data) == 0
 
     def get_aggregate_prop(self, key, prop_name):
         return sum([cols[prop_name] for cols in self.specie_data[key].values()])
