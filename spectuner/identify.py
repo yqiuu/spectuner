@@ -16,7 +16,8 @@ from .slm_factory import (
     SpectralLineModelFactory
 )
 from .sl_model import SpectralLineDB
-from .peaks import compute_peak_norms, compute_shift
+from .peaks import compute_peak_norms, compute_shift, derive_max_intensity
+from .preprocess import load_preprocess, get_freq_data, get_T_data
 from .utils import (
     load_result_list, load_fitting_result, load_result_combine,
     hdf_save_dict, hdf_load_dict, derive_specie_save_name
@@ -660,6 +661,56 @@ class IdentResult:
         if include_fp:
             freqs = np.sort(np.append(freqs, self.line_table_fp.freq))
         return freqs
+
+    def get_line_props(self,
+                       target: Literal["tp", "fp"],
+                       key: str,
+                       name: str) -> dict:
+        """Load properties of identified lines.
+
+        Args:
+            target: Target peaks:
+
+                - 'tp': Peaks that have intersections between the observed
+                  and model spectra.
+                - 'fp': Peaks identified in the model spectrum but not in the
+                  observed spectrum.
+
+            key: Molecular ID.
+            name: Molecular name.
+
+        Returns:
+            A dict with the following fields:
+
+                - 'freq' (array): Frequencies of the peaks.
+                - 'span' (array): Frequency spans of the peaks.
+                - 'score' (array): Scores of the peaks.
+                - 'frac' (list): Fraction contributions of the scores of
+                  each molecule.
+                - 'id': Group IDs.
+                - 'name': Molecular names.
+        """
+        inds = []
+        if target == "tp":
+            line_table = self.line_table
+        elif target == "fp":
+            line_table = self.line_table_fp
+        else:
+            raise ValueError(f"Unknown target: {target}")
+
+        for idx in range(len(line_table)):
+            if line_table.id[idx] is not None and key in line_table.id[idx] \
+                and name in line_table.name[idx]:
+                inds.append(idx)
+        ret_dict = {
+            "freq": line_table.freq[inds],
+            "span": line_table.span[inds],
+            "score": line_table.score[inds],
+            "frac": [line_table.frac[idx] for idx in inds],
+            "id": [line_table.id[idx] for idx in inds],
+            "name": [line_table.name[idx] for idx in inds],
+        }
+        return ret_dict
 
     def query_sl_dict(self,
                       sl_db: SpectralLineDB,
