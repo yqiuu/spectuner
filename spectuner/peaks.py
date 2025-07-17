@@ -1,6 +1,7 @@
 from typing import Optional
 from functools import partial
 from dataclasses import dataclass, field
+from bisect import bisect_left, bisect_right
 
 import numpy as np
 from scipy import signal
@@ -115,6 +116,23 @@ def find_peaks_inters(x, height, prominence, rel_height):
             is_inter[-1] = True
 
     return spans_new, is_inter
+
+
+def derive_max_intensity(spans: np.ndarray, freq_data: list, T_data: list):
+    """Derive the maximum intensity for each span identified from the spectrum.
+    """
+    intens = []
+    i_span = 0
+    i_freq = 0
+    while i_span < len(spans) and i_freq < len(freq_data):
+        idx_b = bisect_left(freq_data[i_freq], spans[i_span][0])
+        idx_e = bisect_right(freq_data[i_freq], spans[i_span][1])
+        intens.append(max(T_data[i_freq][idx_b:idx_e]))
+        if spans[i_span][0] < freq_data[i_freq][-1]:
+            i_span += 1
+        else:
+            i_freq += 1
+    return intens
 
 
 def derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_exclude):
