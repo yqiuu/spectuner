@@ -133,6 +133,8 @@ class PeakPlot:
 
     def vlines(self, freqs: np.ndarray, **kwargs):
         """Plot vertical lines."""
+        kwargs_ = {"linestyle": "--", "color": "k"}
+        kwargs_.update(kwargs)
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
@@ -141,7 +143,8 @@ class PeakPlot:
             for freq in freqs:
                 lower, upper = self.bounds[i_a]
                 if freq >= lower and freq <= upper:
-                    ax.vlines(freq, y_min_, y_max_, **kwargs)
+                    ax.vlines(freq, y_min_, y_max_, **kwargs_)
+                    ax.set_ylim(y_min_, y_max_)
 
     def vtexts(self,
                freqs: np.ndarray,
