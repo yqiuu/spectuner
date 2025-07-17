@@ -381,7 +381,7 @@ class SpectralPlot:
         self.plot_names(
             spans, name_list,
             color=color,
-            olor_blen=color_blen,
+            color_blen=color_blen,
             h_txt_offset=h_txt_offset,
             v_txt_offset=v_txt_offset,
             fontsize=fontsize
