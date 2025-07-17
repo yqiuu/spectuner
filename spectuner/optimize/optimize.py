@@ -284,6 +284,7 @@ class SwingOptimizer(Optimizer):
         res_dict = deepcopy(min(res_list, key=lambda x: x["fun"]))
         if len(res_list) > 1:
             res_dict["trial"] = {f"{idx}": res for idx, res in enumerate(res_list)}
+            res_dict["nfev"] = sum(res["nfev"] for res in res_list)
         if self._save_all:
             cost_all = np.concatenate([res["cost_all"] for res in res_list])
             pos_all = np.vstack([res["pos_all"] for res in res_list])
