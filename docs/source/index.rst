@@ -61,6 +61,12 @@ files.
 
 .. toctree::
    :maxdepth: 1
+   :caption: User guide
+
+   guide/identification_results
+
+.. toctree::
+   :maxdepth: 1
    :caption: API reference:
 
    api/config
