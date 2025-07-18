@@ -973,3 +973,34 @@ class ResultManager:
         )
         df_mol_master.reset_index(drop=True, inplace=True)
         return df_mol_master
+
+    def query_line(self,
+                   freq: float | np.ndarray,
+                   target: Literal["single", "combine"]="combine") -> list:
+        """
+        Find possible candidcates for a unidentified line from the
+        identification results.
+
+        Args:
+            freq: Frequency of the unidentified lines. The code finds the
+                closest lines to this frequency. Use an array to query multiple
+                lines.
+            target: Category name. Defaults to "combine".
+
+        Returns:
+            List of identification result names. If ``freq`` is an array,
+            multiple lists are returned.
+        """
+        inds = None
+        freq_q = np.ravel(freq)[:, None]
+        ret_list = [[] for _ in range(len(freq_q))]
+        for name in self.list_ident_results(target):
+            line_tab = self.load_ident_result(target, name).line_table
+            if inds is None:
+                inds = np.argmin(np.abs(line_tab.freq - freq_q), axis=1)
+            for idx_q, idx in enumerate(inds):
+                if line_tab.id[idx] is not None:
+                    ret_list[idx_q].append(name)
+        if len(freq_q) == 1:
+            ret_list = ret_list[0]
+        return ret_list
