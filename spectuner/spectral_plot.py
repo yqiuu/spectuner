@@ -321,7 +321,9 @@ class SpectralPlot:
                           kwargs_spec: Optional[dict]=None):
         """Plot a identification result.
 
-        This method is a combination of ``plot_spec`` and ``plot_names``.
+        This method is a combination of ``plot_spec`` and ``plot_names``. This
+        method reads the curret y limts to plot the lines. Therefore, this
+        method should be called after ``set_ylim``.
 
         Args:
             ident_result: Identification result.
@@ -334,10 +336,13 @@ class SpectralPlot:
             txt_offset: Text offset of the lines. Larger values mean farther
                 from the line.
             color: Line color of the peaks that match the observed spectrum.
+                Set ``color='none'`` to hide the lines.
             color_blen: Line color of the peaks that match the observed
-                spectrum but contributed by multiple species.
+                spectrum but contributed by multiple species. Set
+                ``color_blen='none'`` to hide the lines.
             color_fp: Color of the peaks found in the fitted spectrum but
-                missing from the observed spectrum.
+                missing from the observed spectrum. Set ``color_fp='none'``
+                to hide the lines.
             fontsize: Font size of the molecules.
             T_base_data: Base intensity data.
             kwargs_spec: Keyword arguments passed to ``plt.plot`` to plot the
