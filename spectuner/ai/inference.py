@@ -196,6 +196,10 @@ class InferenceModel:
     def from_config(cls,
                     config: dict,
                     sl_db: Optional[SpectralLineDB]=None) -> InferenceModel:
+        assert not config["species"]["combine_iso"] \
+            and not config["species"]["combine_state"], \
+            "When using the AI model, combine_iso and combine_state must be False."
+
         config_inf = config["inference"]
         ckpt = torch.load(
             config_inf["ckpt"],
@@ -217,7 +221,7 @@ class InferenceModel:
             ckpt["config"]["embedding"], sl_db=sl_db
         )
         config["param_info"] = _create_param_info(ckpt["config"])
-        warnings.warn("When the AI model is employed, the parameterization "
+        warnings.warn("When using the AI model, the parameterization "
                       "and bound information in the config is overwritten."
                       "The following settings are adopted:\n"
                       "{}".format(pformat(config["param_info"], sort_dicts=False)))
