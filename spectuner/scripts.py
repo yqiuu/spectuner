@@ -3,8 +3,7 @@ from pathlib import Path
 from argparse import ArgumentParser
 
 from .config import create_config, load_preprocess_config
-from .optimize import run_individual_line_id, run_combining_line_id
-from .identify import identify
+from .identify import identify, run_individual_line_id, run_combining_line_id
 from .modify import modify
 
 

@@ -2,11 +2,9 @@ from __future__ import annotations
 import multiprocessing as mp
 from typing import Optional, Union
 from abc import ABC, abstractmethod
-from pathlib import Path
 from copy import deepcopy
 from collections import defaultdict
 
-import h5py
 import numpy as np
 from tqdm import tqdm
 from swing import ParticleSwarm, ArtificialBeeColony
@@ -14,9 +12,7 @@ from scipy.optimize import minimize, least_squares
 from scipy.cluster.vq import kmeans2
 
 from .. import ai
-from ..peaks import create_spans
 from ..slm_factory import jit_fitting_model, SpectralLineModelFactory
-from ..identify import IdentResult
 from ..utils import pick_default_kwargs
 
 
@@ -112,47 +108,6 @@ def _optimize_worker(fitting_model, config):
     opt = create_optimizer(config)
     jit_fitting_model(fitting_model)
     return opt(fitting_model)
-
-
-def prepare_base_props(fname, config):
-    if fname is not None:
-        fname = Path(fname)
-        fname = fname.with_name(f"identify_{fname.name}")
-        with h5py.File(fname) as fp:
-            res = IdentResult.load_hdf(fp["combine"])
-        T_base_data = res.get_T_pred()
-        freqs_exclude = res.get_identified_lines()
-        spans_include = create_spans(
-            res.get_unknown_lines(), *config["opt"]["bounds"]["v_LSR"]
-        )
-        exclude_list = derive_exclude_list(res)
-
-        id_offset = 0
-        for key in res.specie_data:
-            id_offset = max(id_offset, key)
-        id_offset += 1
-    else:
-        T_base_data = None
-        freqs_exclude = np.zeros(0)
-        spans_include = np.zeros((0, 2))
-        exclude_list = []
-        id_offset = 0
-
-    return {
-        "T_base": T_base_data,
-        "freqs_exclude": freqs_exclude,
-        "spans_include": spans_include,
-        "exclude_list": exclude_list,
-        "id_offset": id_offset
-    }
-
-
-def derive_exclude_list(res):
-    exclude_set = set()
-    for sub_dict in res.specie_data.values():
-        for key in sub_dict:
-            exclude_set.add(key.split(";")[0])
-    return list(exclude_set)
 
 
 def print_fitting(specie_list):

@@ -11,14 +11,13 @@ import numpy as np
 import pandas as pd
 import torch
 
-from .slm_factory import (
+from ..slm_factory import (
     combine_specie_lists, sum_T_single_data, compute_T_single_data,
-    SpectralLineModelFactory
+    SpectralLineModelFactory, SpectralLineDB
 )
-from .sl_model import SpectralLineDB
-from .peaks import compute_peak_norms, compute_shift, derive_max_intensity
-from .preprocess import load_preprocess, get_freq_data, get_T_data
-from .utils import (
+from ..sl_model import SpectralLineDB
+from ..peaks import create_spans, compute_peak_norms, compute_shift
+from ..utils import (
     load_result_list, load_fitting_result, load_result_combine,
     hdf_save_dict, hdf_load_dict, derive_specie_save_name
 )
@@ -129,6 +128,47 @@ def identify_with_base(idn, pred_data_list, base_data, use_f_dice):
             continue
         res_dict[derive_specie_save_name(data["specie"][0])] = res
     return res_dict
+
+
+def prepare_base_props(fname, config):
+    if fname is not None:
+        fname = Path(fname)
+        fname = fname.with_name(f"identify_{fname.name}")
+        with h5py.File(fname) as fp:
+            res = IdentResult.load_hdf(fp["combine"])
+        T_base_data = res.get_T_pred()
+        freqs_exclude = res.get_identified_lines()
+        spans_include = create_spans(
+            res.get_unknown_lines(), *config["opt"]["bounds"]["v_LSR"]
+        )
+        exclude_list = derive_exclude_list(res)
+
+        id_offset = 0
+        for key in res.specie_data:
+            id_offset = max(id_offset, key)
+        id_offset += 1
+    else:
+        T_base_data = None
+        freqs_exclude = np.zeros(0)
+        spans_include = np.zeros((0, 2))
+        exclude_list = []
+        id_offset = 0
+
+    return {
+        "T_base": T_base_data,
+        "freqs_exclude": freqs_exclude,
+        "spans_include": spans_include,
+        "exclude_list": exclude_list,
+        "id_offset": id_offset
+    }
+
+
+def derive_exclude_list(res):
+    exclude_set = set()
+    for sub_dict in res.specie_data.values():
+        for key in sub_dict:
+            exclude_set.add(key.split(";")[0])
+    return list(exclude_set)
 
 
 def compute_contributions(values, T_back=0.):
