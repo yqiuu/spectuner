@@ -4,10 +4,21 @@ from .sl_model import derive_average_beam_size
 
 
 class ParameterManager:
-    """A class to decode parameters into a 2D array and apply scaling."""
+    """A class to decode parameters into a 2D array and apply scaling.
+
+    Args:
+        specie_list: Species information.
+        params_info: A dict to indicate whether a parameter is shared and is
+            log-scaled.
+        obs_info: This is only used to derive the average beam size for the
+            special parameterizations of theta. It can be ``None`` in other
+            cases.
+    """
     param_names = ["theta", "T_ex", "N_tot", "delta_v", "v_offset"]
 
-    def __init__(self, specie_list, params_info, obs_info):
+    def __init__(self, specie_list: list,
+                 params_info: dict,
+                 obs_info: list | None):
         self.specie_list = specie_list
         #
         inds_shared = []
