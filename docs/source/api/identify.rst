@@ -2,4 +2,4 @@ spectuner.identify
 ==================
 
 .. automodule:: spectuner.identify
-   :members: ResultManager
+   :members: ResultManager, IdentResult, LineTable

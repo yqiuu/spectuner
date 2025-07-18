@@ -360,6 +360,21 @@ class Identification:
 
 @dataclass
 class LineTable:
+    """Data class to store line properties.
+
+    Attributes:
+        freq (np.ndarray): Frequencies in MHz.
+        span (np.ndarray): Peak spans in MHz.
+        loss (np.ndarray): Losses.
+        score (np.ndarray): scores.
+        frac (np.ndarray): Fraction contributions of the scores of each
+            molecule.
+        id (list): Corresponding molecular IDs.
+        name (list): Corresponding molecular names.
+        error (np.ndarray): Difference of the intensities between the observed
+            and model spectra.
+        norm (np.ndarray): Peak intensities.
+    """
     freq: np.ndarray = field(default_factory=partial(np.zeros, 0))
     span: np.ndarray = field(default_factory=partial(np.zeros, (0, 2)))
     loss: np.ndarray = field(default_factory=partial(np.zeros, 0))
@@ -490,6 +505,17 @@ class LineTable:
 
 @dataclass
 class IdentResult:
+    """Data class to store properties related to identification.
+
+    Attributes:
+        specie_data: Dictionary containing information about species.
+        line_table: Line table for peaks that have intersections between the
+            observed and model spectra.
+        line_table_fp: Line table for peaks identified in the model spectrum
+            but not in the observed spectrum.
+        T_single_dict: Dictionary that stores the predicted spectra for each
+            species.
+    """
     specie_data: dict
     line_table: LineTable
     line_table_fp: LineTable
@@ -679,12 +705,30 @@ class IdentResult:
                 inds.append(idx)
         return inds
 
-    def get_T_pred(self, key=None, name=None):
+    def get_T_pred(self,
+                   key: Optional[int]=None,
+                   name: Optional[str]=None) -> list:
+        """Load the predicted spectrum.
+
+        Args:
+            key: Molecular ID. If ``None``, return the spectrum summed over all
+                keys.
+            name: Molecular name. If ``None``, return the spectrum summed over
+                all names of the same key.
+
+        Returns:
+            The predicted spectrum.
+        """
         if key is not None and name is not None:
             return self.T_single_dict[key][name]
         return sum_T_single_data(self.T_single_dict, key=key)
 
-    def get_unknown_lines(self):
+    def get_unknown_lines(self) -> np.ndarray:
+        """Load the frequencies of unidentified lines.
+
+        Returns:
+            Unidentified line frequencies.
+        """
         freqs = []
         for freq, names in zip(self.line_table.freq, self.line_table.name):
             if names is None:
@@ -692,7 +736,16 @@ class IdentResult:
         freqs = np.asarray(freqs)
         return freqs
 
-    def get_identified_lines(self, include_fp=False):
+    def get_identified_lines(self, include_fp: bool=False) -> np.ndarray:
+        """Load the frequencies of identified lines.
+
+        Args:
+            include_fp: Whether to include peaks identified in the model
+                spectrum but not in the observed spectrum.
+
+        Returns:
+            Identified line frequencies.
+        """
         freqs = []
         for freq, names in zip(self.line_table.freq, self.line_table.name):
             if names is not None:
@@ -720,7 +773,7 @@ class IdentResult:
             name: Molecular name.
 
         Returns:
-            A dict with the following fields:
+            :A dict with the following fields:
 
                 - 'freq' (array): Frequencies of the peaks.
                 - 'span' (array): Frequency spans of the peaks.
@@ -766,7 +819,7 @@ class IdentResult:
             name: Molecular name.
 
         Returns:
-            A dict with the following keys:
+            :A dict with the following keys:
 
             -  freq: Corrected frequency in MHz.
             -  freq_rest: Rest-frame frequency in MHz.
@@ -978,8 +1031,8 @@ class ResultManager:
                    freq: float | np.ndarray,
                    target: Literal["single", "combine"]="combine") -> list:
         """
-        Find possible candidcates for a unidentified line from the
-        identification results.
+        Find possible candidcates for an observed line from the identification
+        results.
 
         Args:
             freq: Frequency of the unidentified lines. The code finds the
