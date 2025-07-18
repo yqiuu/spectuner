@@ -18,11 +18,11 @@ sys.path.insert(0, os.path.abspath('../../'))
 # -- Project information -----------------------------------------------------
 
 project = 'Spectuner'
-copyright = '2024, Yisheng Qiu'
+copyright = '2025, Yisheng Qiu'
 author = 'Yisheng Qiu'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.0'
+release = '2.0.0b1'
 
 
 # -- General configuration ---------------------------------------------------
