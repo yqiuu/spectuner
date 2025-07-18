@@ -210,6 +210,7 @@ class Identification:
             specie_list, params, T_single_dict, use_f_dice
         )
         param_dict = self.derive_param_dict(specie_list, params)
+        # Only inlude the species that have at least one peak.
         id_set = set()
         id_set.update(self.derive_mol_set(line_table.id))
         id_set.update(self.derive_mol_set(line_table_fp.id))
