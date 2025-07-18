@@ -464,11 +464,14 @@ class SpectralLineDB(ABC):
 
 
 class SQLSpectralLineDB(SpectralLineDB):
-    def __init__(self, fname, cache=False):
+    def __init__(self, fname, need_qn=False, cache=False):
         super().__init__(cache)
         if not Path(fname).is_file():
             raise ValueError(f"Wrong path of the spectroscopic database: {fname}.")
         self._fname = fname
+        self._need_qn = need_qn
+        if self._need_qn:
+            self._cols = "freq", "A_ul", "E_low", "g_u", "qn_low", "qn_up"
         # load x_T
         conn = sqlite3.connect(self._fname)
         cursor = conn.cursor()
@@ -506,14 +509,23 @@ class SQLSpectralLineDB(SpectralLineDB):
         conn = sqlite3.connect(self._fname)
         cursor = conn.cursor()
 
-        query = "select T_Name, T_Frequency, T_EinsteinA, T_EnergyLower, "\
-            "T_UpperStateDegeneracy from transitions where T_Name = ?"
-        sl_dict = {"freq": [], "A_ul": [], "E_low": [], "g_u": []}
+        cols = [
+            "T_Name", "T_Frequency", "T_EinsteinA", "T_EnergyLower",
+            "T_UpperStateDegeneracy"
+        ]
+        if self._need_qn:
+            cols.extend(["T_LowerStateQuantumNumbers", "T_UpperStateQuantumNumbers"])
+        sl_dict = {key: [] for key in self._cols}
+
+        query = "select {} from transitions where T_Name = ?".format(", ".join(cols))
         for line in cursor.execute(query, (key,)):
             sl_dict["freq"].append(line[1])
             sl_dict["A_ul"].append(line[2])
             sl_dict["E_low"].append(line[3]*1.438769) # Convert cm^-1 to K
             sl_dict["g_u"].append(line[4])
+            if self._need_qn:
+                sl_dict["qn_low"].append(line[5])
+                sl_dict["qn_up"].append(line[6])
 
         if len(sl_dict["freq"]) == 0:
             raise KeyError(f"Fail to find {key}.")
