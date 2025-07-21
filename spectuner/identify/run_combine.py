@@ -8,7 +8,7 @@ import numpy as np
 from tqdm import tqdm
 
 from ..optimize import optimize, optimize_all, print_fitting, join_specie_names
-from ..ai import InferenceModel
+from .. import ai
 from ..config import append_exclude_info
 from ..utils import (
     load_result_list, load_result_combine, save_fitting_result,
@@ -87,7 +87,7 @@ def combine_greedy(pack_list, pack_base, config, sl_db=None):
     if config["inference"]["ckpt"] is None:
         engine = slm_factory
     else:
-        engine = InferenceModel.from_config(config, sl_db=sl_db)
+        engine = ai.InferenceModel.from_config(config, sl_db=sl_db)
     obs_info = config["obs_info"]
     idn = Identification(slm_factory, obs_info)
     freq_data = get_freq_data(load_preprocess(obs_info))
@@ -205,7 +205,7 @@ def combine_greedy(pack_list, pack_base, config, sl_db=None):
                     "nfev": 0,
                 }
 
-    if isinstance(engine, InferenceModel):
+    if isinstance(engine, ai.InferenceModel):
         entries = sl_db.query_transitions(freq_data)
         trans_counts = Counter([name for name, _ in entries])
     else:
