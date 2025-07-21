@@ -10,7 +10,7 @@ import spectuner
     {"is_shared": False, "is_log": True, "special": "eta"},
 ])
 def test_derive_recover(theta_info):
-    params_info = {
+    param_info = {
         "theta": theta_info,
         "T_ex": {"is_shared": True, "is_log": False},
         "N_tot": {"is_shared": True, "is_log": True},
@@ -25,7 +25,7 @@ def test_derive_recover(theta_info):
         "v_offset": [-12., 12.],
     }
     for key, bound in bounds_info.items():
-        params_info[key]["bound"] = bound
+        param_info[key]["bound"] = bound
     specie_list = [
         {"id": 0, "root": None, "species": ["A", "B"]},
         {"id": 1, "root": None, "species": ["C", "D", "E"]},
@@ -36,7 +36,7 @@ def test_derive_recover(theta_info):
         {"beam_info": (5./3600, 1.2/3600)},
     ]
 
-    param_mgr = spectuner.ParameterManager(specie_list, params_info, obs_info)
+    param_mgr = spectuner.ParameterManager(specie_list, param_info, obs_info)
     rstate = np.random.RandomState(825)
     lb, ub = param_mgr.derive_bounds().T
     params = lb + (ub - lb)*rstate.rand(len(ub))
