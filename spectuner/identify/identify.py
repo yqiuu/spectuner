@@ -220,8 +220,13 @@ class Identification:
         name_set.update(self.derive_mol_set(line_table_fp.name))
         specie_data = self.derive_specie_data(specie_list, param_dict, id_set, name_set)
         return IdentResult(
-            specie_data, line_table, line_table_fp, T_single_dict,
-            self._peak_mgr.freq_data
+            specie_data=specie_data,
+            line_table=line_table,
+            line_table_fp=line_table_fp,
+            T_single_dict=T_single_dict,
+            freq_data=self._peak_mgr.freq_data,
+            specie_list=specie_list,
+            x=params,
         )
 
     def derive_specie_data(self, specie_list, param_dict, id_set, mol_set):
@@ -517,12 +522,16 @@ class IdentResult:
             but not in the observed spectrum.
         T_single_dict: Dictionary that stores the predicted spectra for each
             species.
+        specie_list: Species information.
+        x: Best fitting parameters.
     """
     specie_data: dict
     line_table: LineTable
     line_table_fp: LineTable
     T_single_dict: dict
     freq_data: list
+    specie_list: list
+    x: np.ndarray
 
     def __post_init__(self):
         self._add_score_data()
@@ -696,6 +705,8 @@ class IdentResult:
             line_table_fp=line_table_fp_new,
             T_single_dict=T_single_dict_new,
             freq_data=self.freq_data,
+            specie_list=[],
+            x=np.zeros(1)
         )
 
     def filter_name_list(self, target_set, name_list):
@@ -871,10 +882,12 @@ class IdentResult:
     def save_hdf(self, fp):
         save_dict = {
             "T_single_dict": self.T_single_dict,
-            "freq_data": self.freq_data
+            "freq_data": self.freq_data,
+            "x": self.x,
         }
         hdf_save_dict(fp, save_dict)
         fp.create_dataset("specie_data", data=json.dumps(self.specie_data))
+        fp.create_dataset("specie_list", data=json.dumps(self.specie_list))
         self.line_table.save_hdf(fp.create_group("line_table"))
         self.line_table_fp.save_hdf(fp.create_group("line_table_fp"))
 
@@ -887,6 +900,7 @@ class IdentResult:
         )
         load_dict["specie_data"] = {int(key): data for key, data in
                                     json.loads(fp["specie_data"][()]).items()}
+        load_dict["specie_list"] = json.loads(fp["specie_list"][()])
         load_dict["line_table"] = LineTable.load_hdf(fp["line_table"])
         load_dict["line_table_fp"] = LineTable.load_hdf(fp["line_table_fp"])
 
