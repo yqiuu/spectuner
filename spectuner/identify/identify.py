@@ -15,12 +15,13 @@ from ..slm_factory import (
     combine_specie_lists, sum_T_single_data, compute_T_single_data,
     SpectralLineModelFactory, SpectralLineDB
 )
-from ..sl_model import SpectralLineDB
+from ..sl_model import SpectralLineDB, ParameterManager
 from ..peaks import create_spans, compute_peak_norms, compute_shift
 from ..utils import (
     load_result_list, load_fitting_result, load_result_combine,
     hdf_save_dict, hdf_load_dict, derive_specie_save_name
 )
+from ..config import load_default_config
 
 
 def identify(config, target, mode=None, sl_db=None):
@@ -837,6 +838,35 @@ class IdentResult:
         sl_dict["freq"] = compute_shift(sl_dict["freq"], -v_offset)
         sl_dict.pop("segment", None)
         return sl_dict
+
+    def compute_tau_max(self,
+                        sl_db: SpectralLineDB,
+                        key: int,
+                        name: str) -> np.ndarray:
+        """Compute the maximum optical depth for each transition.
+
+        Args:
+            sl_db: Spectral line database.
+            key: Molecular ID.
+            name: Molecular name.
+
+        Returns:
+            Maximum optical depth.
+        """
+        config = load_default_config()
+        for freq in self.freq_data:
+            # We do not need the observed intensity
+            spec = np.vstack([freq, freq]).T
+            config.append_spectral_window(spec, 1., 0.)
+        for p_name in ParameterManager.param_names:
+            config.set_param_info(p_name, is_log=False, is_shared=False, bound=None)
+        slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
+        specie_list = [{"species": [name]}]
+        sl_model = slm_factory.create_sl_model(config["obs_info"], specie_list)
+        sub_dict = self.specie_data[key][name]
+        params = np.array([sub_dict[name] for name in ParameterManager.param_names])
+        tau_max = sl_model.compute_tau_max(params)
+        return tau_max[0]
 
     def save_hdf(self, fp):
         save_dict = {
