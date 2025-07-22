@@ -11,7 +11,7 @@ from .. import ai
 from ..optimize import optimize, optimize_all, print_fitting, join_specie_names
 from ..config import append_exclude_info
 from ..utils import (
-    load_result_list, load_result_combine, save_fitting_result,
+    load_result_list, save_fitting_result,
     derive_specie_save_name, create_process_pool
 )
 from ..preprocess import load_preprocess, get_freq_data
@@ -88,8 +88,10 @@ def combine_greedy(pack_list, pack_base, config, sl_db=None):
     slm_factory = SpectralLineModelFactory(config, sl_db=sl_db)
     if config["inference"]["ckpt"] is None:
         engine = slm_factory
+        use_ai = False
     else:
         engine = ai.InferenceModel.from_config(config, sl_db=sl_db)
+        use_ai = True
     obs_info = config["obs_info"]
     idn = Identification(slm_factory, obs_info)
     freq_data = get_freq_data(load_preprocess(obs_info))
@@ -207,7 +209,7 @@ def combine_greedy(pack_list, pack_base, config, sl_db=None):
                     "nfev": 0,
                 }
 
-    if isinstance(engine, ai.InferenceModel):
+    if use_ai:
         entries = sl_db.query_transitions(freq_data)
         trans_counts = Counter([name for name, _ in entries])
     else:
