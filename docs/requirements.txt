@@ -3,7 +3,11 @@ sphinx_rtd_theme
 nbsphinx>=0.9.0
 ipython>=8.10.0
 astropy>=6.1.0
+h5py>=3.11
 numpy>=1.17
-scipy>=1.12
-matplotlib>=3.8
 numba>=0.60
+scipy>=1.12
+pandas>=2.0
+matplotlib>=3.7
+swing-opt>=0.1.2
+tqdm>=4.65
