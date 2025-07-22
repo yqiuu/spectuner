@@ -10,8 +10,8 @@ from dataclasses import dataclass, field, asdict
 import h5py
 import numpy as np
 import pandas as pd
-import torch
 
+from .. import ai
 from ..slm_factory import (
     combine_specie_lists, sum_T_single_data, compute_T_single_data,
     SpectralLineModelFactory, SpectralLineDB
@@ -23,6 +23,7 @@ from ..utils import (
     hdf_save_dict, hdf_load_dict, derive_specie_save_name
 )
 from ..config import load_default_config
+
 
 
 def identify(config, target, mode=None, sl_db=None):
@@ -38,7 +39,7 @@ def identify(config, target, mode=None, sl_db=None):
     """
     if config["inference"]["ckpt"] is not None:
         # TODO: Allow to use different parameterization
-        ckpt = torch.load(
+        ckpt = ai.torch.load(
             config["inference"]["ckpt"],
             map_location="cpu",
             weights_only=True
