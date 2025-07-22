@@ -108,15 +108,18 @@ def iter_config_names():
     return zip(keys, file_names)
 
 
-def append_exclude_info(config, freqs_exclude, exlude_list):
+def append_exclude_info(config, freqs_exclude, exclude_list):
     config = deepcopy(config)
     if config["peak_manager"]["freqs_exclude"] is None:
         config["peak_manager"]["freqs_exclude"] = np.zeros(0)
     config["peak_manager"]["freqs_exclude"] \
         = np.append(config["peak_manager"]["freqs_exclude"], freqs_exclude)
+    if not config["prev"]["exclude_identified"]:
+        return config
+
     if config["species"]["exclude_list"] is None:
         config["species"]["exclude_list"] = []
-    config["species"]["exclude_list"].extend(exlude_list)
+    config["species"]["exclude_list"].extend(exclude_list)
     return config
 
 
@@ -323,6 +326,18 @@ class Config(dict):
         config_modify["exclude_id_list"] = exclude_id_list
         config_modify["exclude_name_list"] = exclude_name_list
         config_modify["include_id_list"] = include_id_list
+
+    def set_previous_result(self, fname: str, exclude_identified: bool=True):
+        """Set previous identification result.
+
+        Args:
+            fname: Path to the previous identification result.
+            exclude_identified: Whether to exclude the identified species in the
+                previous result.
+        """
+        config_prev = self["prev"]
+        config_prev["fname"] = fname
+        config_prev["exclude_identified"] = exclude_identified
 
     def set_pixel_by_pixel_fitting(self,
                                    species: list,

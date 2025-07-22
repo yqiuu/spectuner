@@ -6,6 +6,9 @@ obs_info: null
 #    need_cmb: True
 #    noise: 1.
 fname_base: null
+prev:
+  fname: null
+  exclude_identified: True
 sl_model:
   fname_db: ""
 param_info:

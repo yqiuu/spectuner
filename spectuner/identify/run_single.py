@@ -26,8 +26,8 @@ def run_individual_line_id(config, result_dir, need_identify=True, sl_db=None):
         result_dir (str): Directory to save the results.
         need_identify (bool): If ``True``, peform the identification.
     """
-    fname_base = config.get("fname_base", None)
-    base_props = prepare_base_props(fname_base, config)
+    fname_prev = config["prev"]["fname"]
+    base_props = prepare_base_props(fname_prev, config)
     config = append_exclude_info(
         config, base_props["freqs_exclude"], base_props["exclude_list"]
     )

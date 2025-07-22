@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 from typing import Optional, Literal
 from copy import deepcopy
@@ -31,7 +32,7 @@ def identify(config, target, mode=None, sl_db=None):
         config (dict): Config.
         target (str): Directory that saves fitting results.
         mode (str):
-            - ``single``: Use ``fname_base`` given in in the config as base
+            - ``single``: Use ``fname_prev`` given in in the config as base
             data.
             - ``combine``: Use the combined fitting results as base data.
     """
@@ -62,11 +63,11 @@ def identify(config, target, mode=None, sl_db=None):
         raise ValueError(f"Unknown target: {target}.")
 
     if mode == "single":
-        fname_base = config.get("fname_base", None)
-        if fname_base is None:
+        fname_prev = config["prev"]["fname"]
+        if fname_prev is None:
             base_data = None
         else:
-            base_data = load_result_combine(fname_base)
+            base_data = prepare_previous_fitting_dict(fname_prev)
     elif mode == "combine":
         base_data = load_result_combine(fname)
 
@@ -131,16 +132,13 @@ def identify_with_base(idn, pred_data_list, base_data, use_f_dice):
     return res_dict
 
 
-def prepare_base_props(fname, config):
+def prepare_base_props(fname, config) -> dict:
     if fname is not None:
-        fname = Path(fname)
-        fname = fname.with_name(f"identify_{fname.name}")
-        with h5py.File(fname) as fp:
-            res = IdentResult.load_hdf(fp["combine"])
+        res = load_previous_ident_result(fname)
         T_base_data = res.get_T_pred()
         freqs_exclude = res.get_identified_lines()
         spans_include = create_spans(
-            res.get_unknown_lines(), *config["opt"]["bounds"]["v_LSR"]
+            res.get_unknown_lines(), *config["param_info"]["v_offset"]["bound"]
         )
         exclude_list = derive_exclude_list(res)
 
@@ -164,11 +162,31 @@ def prepare_base_props(fname, config):
     }
 
 
+def prepare_previous_fitting_dict(fname: str) -> dict:
+    res = load_previous_ident_result(fname)
+    return {
+        "specie": res.specie_list,
+        "freq": res.freq_data,
+        "x": res.x,
+        "T_pred": res.get_T_pred(),
+    }
+
+
+def load_previous_ident_result(fname: str) -> IdentResult:
+    with h5py.File(fname) as fp:
+        if "combine" in fp:
+            res = IdentResult.load_hdf(fp["combine"])
+        else:
+            res = IdentResult.load_hdf(fp)
+    return res
+
+
 def derive_exclude_list(res):
     exclude_set = set()
     for sub_dict in res.specie_data.values():
         for key in sub_dict:
-            exclude_set.add(key.split(";")[0])
+            # Exclude all possible versions
+            exclude_set.add(";".join(key.split(";"))[:-1])
     return list(exclude_set)
 
 

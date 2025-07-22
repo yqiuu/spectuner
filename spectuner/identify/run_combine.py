@@ -7,8 +7,8 @@ import h5py
 import numpy as np
 from tqdm import tqdm
 
-from ..optimize import optimize, optimize_all, print_fitting, join_specie_names
 from .. import ai
+from ..optimize import optimize, optimize_all, print_fitting, join_specie_names
 from ..config import append_exclude_info
 from ..utils import (
     load_result_list, load_result_combine, save_fitting_result,
@@ -23,7 +23,9 @@ from ..peaks import (
     derive_peak_params, derive_peaks_multi,
     derive_intersections, derive_prominence
 )
-from .identify import identify, prepare_base_props, Identification
+from .identify import (
+    identify, prepare_base_props, prepare_previous_fitting_dict, Identification
+)
 
 
 __all__ = ["run_combining_line_id"]
@@ -54,13 +56,13 @@ def run_combining_line_id(config, result_dir, need_identify=True, sl_db=None):
     for pred_data in pred_data_list:
         pack_list.append(prepare_properties(pred_data, prominence, rel_height))
 
-    fname_base = config.get("fname_base", None)
-    if fname_base is not None:
-        base_data = load_result_combine(fname_base)
-        base_props = prepare_base_props(fname_base, config)
+    fname_prev = config["prev"]["fname"]
+    if fname_prev is not None:
+        base_props = prepare_base_props(fname_prev, config)
         config_ = append_exclude_info(
             config, base_props["freqs_exclude"], base_props["exclude_list"]
         )
+        base_data = prepare_previous_fitting_dict(fname_prev)
         pack_base = prepare_properties(base_data, prominence, rel_height)
     else:
         config_ = config
