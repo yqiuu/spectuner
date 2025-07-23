@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 from . import ai
 from .version import __version__
-from .config import Config
+from .config import load_config, Config
 from .sl_model import (
     create_spectral_line_db,
     const_factor_mu_sigma,
@@ -965,6 +965,17 @@ class HDFCubeManager:
         with h5py.File(self._fname, "r") as fp:
             count = np.array(fp["count"], dtype="f4")
         return to_dense_matrix(count, self._indices, self._shape)
+
+    def load_config(self, fname: str) -> Config:
+        """Load the config from a fitting result.
+
+        Args:
+            fname: Path to the fitting result.
+
+        Returns:
+            Loaded ``Config`` instance.
+        """
+        return load_config(fname)
 
     def load_pred_data(self, fname: str, target: str) -> np.ndarray:
         """Load a map in the fitting result.

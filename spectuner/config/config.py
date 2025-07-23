@@ -2,11 +2,13 @@ from __future__ import annotations
 import yaml
 import shutil
 import pickle
+import json
 from typing import Optional, Literal, Tuple
 from pprint import pformat
 from copy import deepcopy
 from pathlib import Path
 
+import h5py
 import numpy as np
 
 from ..sl_model import ParameterManager
@@ -46,15 +48,20 @@ def load_config(fname: str) -> Config:
     """Load the config.
 
     Args:
-        fname: Path to the config file. If this is a directory, it will load
-        the config defined by YAML files.
+        fname: Path to the config file. It can be a pickle file stored using
+            ``spectuner.save_config`` or a HDF file obtained from pixel-level
+            fitting. In addition, if this is a directory, it will load
+            the config defined by the YAML files.
 
     Returns:
-        Loaded config.
+        Loaded ``Config`` instance.
     """
     fname = Path(fname)
     if fname.is_file():
-        config = pickle.load(open(fname, "rb"))
+        if h5py.is_hdf5(fname):
+            config = json.loads(h5py.File(fname).attrs["config"])
+        else:
+            config = pickle.load(open(fname, "rb"))
     elif fname.is_dir():
         config = yaml.safe_load(open(fname/"config.yml"))
         for key, name in iter_config_names():
