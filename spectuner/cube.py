@@ -18,6 +18,7 @@ from astropy.wcs import WCS
 from tqdm import tqdm
 
 from . import ai
+from .version import __version__
 from .sl_model import (
     create_spectral_line_db,
     const_factor_mu_sigma,
@@ -1043,11 +1044,13 @@ class HDFCubeManager:
         header = fits.Header(header)
         header["CRVAL3"] = freqs[0]
         header["CDELT3"] = (freqs[-1] - freqs[0])/(len(freqs) - 1)
+        header["ORIGIN"] = f"Spectuner {__version__}"
         return header
 
     def _derive_header_scalar(self, i_segment):
         header = load_cube_header(self._fname, i_segment, "continuum")
         header = fits.Header(header)
+        header["ORIGIN"] = f"Spectuner {__version__}"
         return header
 
 
