@@ -200,7 +200,9 @@ def fit_cube_worker(fname_cube: str,
     return postprocess(fitting_model, x0)
 
 
-def create_obs_info_from_cube(fname: str, idx_pixel:int , misc_data: list):
+def create_obs_info_from_cube(fname: str,
+                              idx_pixel:int ,
+                              misc_data: Optional[list]=None):
     T_obs_data = []
     T_bg_data = []
     with h5py.File(fname) as fp:
@@ -208,7 +210,10 @@ def create_obs_info_from_cube(fname: str, idx_pixel:int , misc_data: list):
             grp = fp["cube"][str(i_segment)]
             T_obs_data.append(np.array(grp["T_obs"][idx_pixel]))
             T_bg_data.append(np.array(grp["T_bg"][idx_pixel]))
-    freq_data, noise_data, beam_data = misc_data
+    if misc_data is None:
+        freq_data, noise_data, beam_data = load_misc_data(fname)
+    else:
+        freq_data, noise_data, beam_data = misc_data
 
     obs_info = []
     for i_segment, freq in enumerate(freq_data):
