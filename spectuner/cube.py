@@ -196,7 +196,8 @@ def fit_cube_worker(fname_cube: str,
 
 def create_obs_info_from_cube(fname: str,
                               idx_pixel:int ,
-                              misc_data: Optional[list]=None):
+                              misc_data: Optional[list]=None,
+                              clip: bool=True):
     T_obs_data = []
     T_bg_data = []
     with h5py.File(fname) as fp:
@@ -212,7 +213,7 @@ def create_obs_info_from_cube(fname: str,
     obs_info = []
     for i_segment, freq in enumerate(freq_data):
         spec = np.vstack([freq, T_obs_data[i_segment]]).T
-        spec = preprocess_spectrum(spec)
+        spec = preprocess_spectrum(spec, clip=clip)
         obs_info.append({
             "spec": spec,
             "beam_info": beam_data[i_segment],
