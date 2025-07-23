@@ -75,3 +75,4 @@ files.
    api/config
    api/identify
    api/spectral_plot
+   api/cube

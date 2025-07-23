@@ -19,10 +19,11 @@ from tqdm import tqdm
 
 from . import ai
 from .version import __version__
+from .config import Config
 from .sl_model import (
     create_spectral_line_db,
     const_factor_mu_sigma,
-    SQLSpectralLineDB
+    SpectralLineDB
 )
 from .peaks import check_overlap
 from .slm_factory import SpectralLineModelFactory
@@ -34,26 +35,18 @@ PARAM_NAMES = ("theta", "T_ex", "N_tot", "delta_v", "v_offset")
 PARAM_UNITS = ("arcsec", "K", "cm-2", "km/s", "km/s")
 
 
-def fit_pixel_by_pixel(config: dict,
+def fit_pixel_by_pixel(config: Config,
                        fname_cube: str,
                        save_name: str,
-                       sl_db: Optional[SQLSpectralLineDB]=None):
+                       sl_db: Optional[SpectralLineDB]=None):
     """Fit the spectra of a cube.
 
     Args:
-        config: The following config is required:
-
-            - Set sl_model/fname_db to the path of the database.
-            - Set bound_info.
-            - Set species/species for species to be fitted.
-            - Set species/combine_iso and species/combine_state to False.
-            - Set optimizer/ for optimization configuration.
-            - Set inference/ for AI model configuration.
-
+        config: ``Config`` instance.
         fname_cube: Path to the cube data.
-        save_name: Path to the output file.
-        sl_db: Input spectroscopic database. If ``None``, load the one specified
-            in sl_model/fname_db.
+        save_name: Path to save the output file.
+        sl_db: Spectral line database. If this is provided, the code will use
+            this database instead of the one defined in the config.
     """
     if sl_db is None:
         sl_db = create_spectral_line_db(config["sl_model"]["fname_db"])
@@ -499,7 +492,7 @@ class CubePipeline:
         3. Estimate the plateau fraction using by smoothing spectrum, and
             remove the pixel if the plateau fraction is above a threshold.
 
-    Args:
+    Attributes:
         maxiters: Maximum number of iterations used in ``sigma_clipped_stats``.
         n_estimate: Number of pixels to estimate the RMS noise.
         atol_factor: Absolute tolerance factor to remove plateau.
@@ -528,33 +521,52 @@ class CubePipeline:
         """Run the pipeline.
 
         Args:
-            file_list: A list of dictionaries to specify the files of each
-                spectral window, e.g.
-                [
-                    {
-                        "continuum": PATH_TO_CONTIUUM_FILE_1,
-                        "line": PATH_TO_LINE_FILE_1,
-                    },
-                    {
-                        "continuum": PATH_TO_CONTIUUM_FILE_2,
-                        "line": PATH_TO_LINE_FILE_2,
-                    },
-                ]
-                The ``continumm`` key is optional. If not specified, the
-                continuum will be set to zero.
+            file_list: A list of ``CubeItem`` instances to specify the
+                information of each spectral window. The following arguments
+                can be specified:
+
+                - ``line``: Path to the line cube file.
+                - ``continuum``: Path to the continuum cube file. If not given,
+                  the continuum will be set to zero. Defaults to None.
+                - ``window``: A list of ``(start, end)`` pairs to specify the
+                  frequency range of sub-windows in MHz. Defaults to None.
+                - ``mask``: A list of ``(start, end)`` pairs to specify the
+                  frequency range to be masked in MHz. Defaults to None.
+                - ``header``: A dict to specify the header attributes.
+
+                For example:
+
+                .. code-block:: python
+
+                    files_list = [
+                        CubeItem(
+                            continuum="PATH_TO_CONTIUUM_FILE_1",
+                            line="PATH_TO_LINE_FILE_1",
+                            window=[(200000., 200500.)]
+                        ),
+                        CubeItem(
+                            continuum="PATH_TO_CONTIUUM_FILE_2",
+                            line="PATH_TO_LINE_FILE_2",
+                        ),
+                    ]
+
             save_name: Saving name of the output HDF file.
             fname_mask: Path to a mask file. The file should have a 2D array.
                 The masked pixels should be set to NaN.
             header_lookup: A dictionary to specify the aliases of some header
                 attributes. Below is the default header lookup:
-                {
-                    "freq_start": "CRVAL3",
-                    "dfreq": "CDELT3",
-                    "n_freq": "NAXIS3",
-                    "i_freq": "CRPIX3",
-                    "BMAJ": "BMAJ",
-                    "BMIN": "BMIN",
-                }
+
+                .. code-block:: python
+
+                    {
+                        "freq_start": "CRVAL3",
+                        "dfreq": "CDELT3",
+                        "n_freq": "NAXIS3",
+                        "i_freq": "CRPIX3",
+                        "BMAJ": "BMAJ",
+                        "BMIN": "BMIN",
+                    }
+
                 Change any attributes if necessary.
         """
         header_list = self.prepare_header_list(file_list, header_lookup)
@@ -788,7 +800,7 @@ class CubePipeline:
             header (object): FITS header.
 
         Returns:
-            np.ndarray: Frequency data (MHz).
+            Frequency data in MHz.
         """
         dfreq = header["dfreq"]
         freq_start = header["freq_start"] + (1 - header["i_freq"])*dfreq
@@ -931,6 +943,12 @@ def to_kelvin(J_obs, freqs, bmaj, bmin):
 
 
 class HDFCubeManager:
+    """Interface to access HDF cube files.
+
+    Args:
+        fname: Path to the HDF cube file of the observations, which is
+            obtained using ``CubePipline``.
+    """
     def __init__(self, fname: str):
         self._fname = fname
         self._freq_data = load_misc_data(self._fname)[0]
@@ -938,13 +956,28 @@ class HDFCubeManager:
             self._indices = np.array(fp["index"])
             self._shape = fp.attrs["n_row"], fp.attrs["n_col"]
 
-    def load_count_map(self):
-        """Load the map which shows the number of peaks in each pixel."""
+    def load_count_map(self) -> np.ndarray:
+        """Load the map which shows the number of peaks in each pixel.
+
+        Returns:
+            The map of number counts.
+        """
         with h5py.File(self._fname, "r") as fp:
             count = np.array(fp["count"], dtype="f4")
         return to_dense_matrix(count, self._indices, self._shape)
 
-    def load_pred_data(self, fname: str, target: str):
+    def load_pred_data(self, fname: str, target: str) -> np.ndarray:
+        """Load a map in the fitting result.
+
+        Args:
+            fname: Path to the fitting result.
+            target: Dataset Name. May be an absolute or relative path. Use
+                ``h5ls`` or ``spectuner.print_h5_structure`` to check avilable
+                data.
+
+        Returns
+            The target map.
+        """
         with h5py.File(fname, "r") as fp:
             data = np.array(fp[target])
         return to_dense_matrix(data, self._indices, self._shape)
@@ -952,7 +985,15 @@ class HDFCubeManager:
     def obs_data_to_fits(self,
                          save_dir: str,
                          add_T_bg: bool=False,
-                         overwrite=False):
+                         overwrite: bool=False):
+        """Save the observation data to FITS files.
+
+        Args:
+            save_dir: Directory to save the FITS files.
+            add_T_bg: Whether to add the background temperature to the
+                observed spectrum.
+            overwrite: Whether to overwrite the existing files.
+        """
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         units = load_cube_units(self._fname)
@@ -988,6 +1029,15 @@ class HDFCubeManager:
                           save_dir: str,
                           add_T_bg: bool=False,
                           overwrite=False):
+        """Save a fitting result to FITS files.
+
+        Args:
+            fname: Path to the fitting result.
+            save_dir: Directory to save the FITS files.
+            add_T_bg: Whether to add the background temperature to the
+                observed spectrum.
+            overwrite: Whether to overwrite the existing files.
+        """
         units = load_cube_units(fname)
         with h5py.File(fname) as fp:
             for name, grp in fp.items():
