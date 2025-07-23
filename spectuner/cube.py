@@ -674,22 +674,16 @@ class CubePipeline:
             beam_data.append(beam_info)
 
             n_sub = 1
-            if "window" in item and "mask" in item:
-                raise ValueError("Can only specify either window or mask.")
-            if "window" in item:
-                windows = check_overlap(item["window"])
-                if windows is None:
-                    raise ValueError("Windows have overlaps.")
-                windows = [[shift_factor*x[0], shift_factor*x[1]] for x in windows]
+            if item.window is not None:
+                windows = [[shift_factor*x[0], shift_factor*x[1]]
+                           for x in item.window]
                 window_data.append(windows)
                 n_sub = len(windows)
             else:
                 window_data.append(None)
-            if "mask" in item:
-                masks = check_overlap(item["mask"])
-                if masks is None:
-                    raise ValueError("Masks have overlaps.")
-                masks = [[shift_factor*x[0], shift_factor*x[1]] for x in masks]
+            if item.mask is not None:
+                masks = [[shift_factor*x[0], shift_factor*x[1]]
+                         for x in item.mask]
                 mask_data.append(masks)
                 n_sub = len(masks) + 1
             else:
