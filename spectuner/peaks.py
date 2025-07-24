@@ -5,10 +5,12 @@ from bisect import bisect_left, bisect_right
 
 import numpy as np
 from scipy import signal
+from numba import jit
 
 from .preprocess import load_preprocess
 
 
+@jit(cache=True)
 def derive_intersections(spans_a, spans_b):
     inds_a = []
     inds_b = []

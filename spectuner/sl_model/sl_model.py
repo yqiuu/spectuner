@@ -225,8 +225,8 @@ def prepare_fine_spectra(prop_list, bounds, params,
 
 
 def prepare_effective_spectra(freq_list, freq_list_fine, spec_list_fine):
-    spans_tgt = [(freqs[0], freqs[-1]) for freqs in freq_list]
-    spans_fine = [(freqs[0], freqs[-1]) for freqs in freq_list_fine]
+    spans_tgt = np.array([(freqs[0], freqs[-1]) for freqs in freq_list])
+    spans_fine = np.array([(freqs[0], freqs[-1]) for freqs in freq_list_fine])
     spans_inter, inds_tgt, inds_fine = derive_intersections(spans_tgt, spans_fine)
 
     slice_list = []
