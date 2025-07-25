@@ -11,7 +11,7 @@ from .preprocess import load_preprocess
 
 
 @jit(cache=True)
-def derive_intersections(spans_a, spans_b):
+def _derive_intersections_jit(spans_a, spans_b):
     inds_a = []
     inds_b = []
     spans_ret = []
@@ -31,10 +31,14 @@ def derive_intersections(spans_a, spans_b):
         else:
             i_b += 1
 
-    inds_a = np.array(inds_a)
-    inds_b = np.array(inds_b)
-    spans_ret = np.array(spans_ret)
+    return spans_ret, inds_a, inds_b
 
+
+def derive_intersections(spans_a, spans_b):
+    spans_ret, inds_a, inds_b = _derive_intersections_jit(spans_a, spans_b)
+    inds_a = np.array(inds_a, dtype=int)
+    inds_b = np.array(inds_b, dtype=int)
+    spans_ret = np.array(spans_ret)
     return spans_ret, inds_a, inds_b
 
 
@@ -341,6 +345,7 @@ def linear_deacy(x, x_left, x_right, side, height):
 class PeakManager:
     def __init__(self, obs_data, prominence, rel_height, T_back=0.,
                  T_base_data=None, pfactor=None, freqs_exclude=None):
+        obs_data = [spec.astype("f8") for spec in obs_data]
         height_list, prom_list = derive_peak_params(prominence, T_back, len(obs_data))
         self.freq_data, T_obs_data, self.spans_obs_data \
             = derive_peaks_obs_data(obs_data, height_list, prom_list, rel_height, freqs_exclude)
