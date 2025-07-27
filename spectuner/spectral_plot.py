@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator, ScalarFormatter
+from matplotlib.ticker import MaxNLocator, AutoMinorLocator, ScalarFormatter
 
 from .config import Config
 from .preprocess import load_preprocess, get_freq_data, get_T_data
@@ -186,6 +186,7 @@ class SpectralPlot:
             the same as ``freq_data``.
         width: Figure width.
         height: Figure height of each row.
+        n_minor_tick: Number of minor ticks. Set to 0 to disable minor ticks.
         axes: Axes to plot. If ``None``, create a new figure.
     """
     def __init__(self,
@@ -193,6 +194,7 @@ class SpectralPlot:
                  freq_per_row: float=1000.,
                  width: float=20.,
                  height: float=3.,
+                 n_minor_tick: int=10,
                  axes: Optional[np.ndarray]=None):
         bounds = self._derive_bounds(freq_data, freq_per_row)
         n_axe = len(bounds)
@@ -204,6 +206,8 @@ class SpectralPlot:
             fig = None
         for i_ax, ax in enumerate(axes):
             ax.set_xlim(*bounds[i_ax])
+            if n_minor_tick > 0:
+                ax.xaxis.set_minor_locator(AutoMinorLocator(n_minor_tick))
 
         self._fig = fig
         self._axes = axes
@@ -260,6 +264,7 @@ class SpectralPlot:
                     freq_per_row: float=1000.,
                     width: float=20.,
                     height: float=3.,
+                    n_minor_tick: int=10,
                     axes:np.ndarray=None,
                     color: str="k",
                     **kwargs):
@@ -271,6 +276,8 @@ class SpectralPlot:
                 be the same as defined in ``config``.
             width: Figure width.
             height: Figure height of each row.
+            n_minor_tick: Number of minor ticks. Set to 0 to disable minor
+                ticks.
             axes: Axes to plot. If ``None``, create a new figure.
             color: Color of the spectrum defined in ``config``.
             **kwargs: Other arguments passed to ``plt.plot`` to plot the
@@ -283,6 +290,7 @@ class SpectralPlot:
             freq_per_row=freq_per_row,
             width=width,
             height=height,
+            n_minor_tick=n_minor_tick,
             axes=axes,
         )
         plot.plot_spec(freq_data, get_T_data(obs_data), color=color, **kwargs)
