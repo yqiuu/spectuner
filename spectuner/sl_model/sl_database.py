@@ -418,6 +418,40 @@ class SpectralLineDB(ABC):
             data.extend(list(zip(names[idx_b:idx_e], freqs[idx_b:idx_e])))
         return data
 
+    def query_transitions_with_props(self, freq_data: list) -> pd.DataFrame:
+        """Query transitions with properties.
+
+        Args:
+            freq_data (list): A list of ``(freq_min, freq_max)`` to specify
+                the frequency range.
+
+        Returns:
+            A pandas DataFrame with the following columns:
+
+            - 'name': Molecular entry name.
+            - 'freq': Transition frequency in MHz.
+            - 'A_ul': Einstein A cofficient in s^-1.
+            - 'E_low': Enerygy of the lower state in K.
+            - 'E_up': Enerygy of the upper state in K.
+            - 'g_u': Upper state degeneracy.
+        """
+        data = self.query_transitions(freq_data)
+        species = set(name for name, _ in data)
+        sl_dict = defaultdict(list)
+        for name in species:
+            sl_dict_sub = self.query_sl_dict(name, freq_data)
+            sl_dict["name"].extend([name]*len(sl_dict_sub["freq"]))
+            for key in sl_dict_sub:
+                if key in ("segment", "x_T", "Q_T"):
+                    continue
+                sl_dict[key].extend(list(sl_dict_sub[key]))
+
+        df = pd.DataFrame.from_dict(sl_dict)
+        col = df.pop("E_up")
+        idx = list(df.columns).index("E_low") + 1
+        df.insert(idx, "E_up", col)
+        return df
+
     @abstractmethod
     def load_all_transitions(self):
         """Load all transitions.
