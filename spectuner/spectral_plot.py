@@ -255,7 +255,7 @@ class SpectralPlot:
                 break
             idx += 1
         else:
-            raise ValueError
+            idx = None
         return idx
 
     @classmethod
@@ -496,8 +496,9 @@ class SpectralPlot:
         for freq_c, names in zip(freqs, name_list):
             if names is None or (key is not None and key not in names):
                 continue
-
             idx_ax = self._get_axe_idx(freq_c)
+            if idx_ax is None:
+                continue
             ax = self.axes[idx_ax]
             y_min, y_max = self.get_ylim(ax)
             c = color if len(names) == 1 else color_blen
@@ -535,6 +536,8 @@ class SpectralPlot:
         """
         for freq_c in freqs:
             idx_ax = self._get_axe_idx(freq_c)
+            if idx_ax is None:
+                continue
             ax = self.axes[idx_ax]
             y_min, y_max = self.get_ylim(ax)
             ax.vlines(freq_c, y_min, y_max, **kwargs)
