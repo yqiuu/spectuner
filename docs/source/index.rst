@@ -63,6 +63,7 @@ files.
    :maxdepth: 1
    :caption: User guide
 
+   guide/sl_model
    guide/identification_results
 
 .. toctree::
