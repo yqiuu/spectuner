@@ -9,4 +9,5 @@ from .config import *
 from .spectral_plot import *
 from .cube import *
 from .utils import *
+from .peaks import assign_values_to_intervals
 from .version import __version__
