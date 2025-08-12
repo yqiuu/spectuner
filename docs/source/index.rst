@@ -58,6 +58,7 @@ files.
    :caption: Tutorials:
 
    notebooks/line_identification
+   notebooks/line_identification_2
 
 .. toctree::
    :maxdepth: 1
