@@ -51,8 +51,8 @@ The following properties should be loaded from a spectroscopic database:
 - :math:`Q(T_\text{ex})`: Partition function.
 
 Furthermore, the code takes into the instrumental resolution effect according
-to Möller et al. 2017. The following integral is applied to computing the output
-model spectrum:
+to Möller et al. (2017). The following integral is applied to computing the
+output model spectrum:
 
 .. math::
     J'(\nu) = \frac{1}{\Delta \nu_\text{c}} \int^{\nu + \Delta \nu_\text{c}/2}_{\nu - \Delta \nu_\text{c}/2} J(\nu') \, d\nu',
