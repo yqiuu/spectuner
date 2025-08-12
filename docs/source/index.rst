@@ -66,6 +66,7 @@ files.
 
    guide/sl_model
    guide/identification_results
+   guide/citing
 
 .. toctree::
    :maxdepth: 1
