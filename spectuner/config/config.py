@@ -177,7 +177,9 @@ class Config(dict):
         Args:
             fname_db: Path to the spectroscopic database.
         """
-        self["sl_model"]["fname_db"] = fname_db
+        # Derive absolute path
+        fname_db_ = str(Path(fname_db).resolve())
+        self["sl_model"]["fname_db"] = fname_db_
 
     def set_n_process(self, n_process: int):
         """Set the number of processes for the multiprocessing pool.
