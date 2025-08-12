@@ -13,6 +13,9 @@ from .identify import IdentResult
 class PeakPlot:
     """Multi-window plot for visualizing the spectrum.
 
+    This class make sub-plots around the given frequencies and automatically
+    merge overlapping windows.
+
     Args:
         freqs: Cenetral frequencies for each window.
         delta_v: Velocity width in km/s of each window. Windows with overlaps
@@ -66,14 +69,17 @@ class PeakPlot:
 
     @property
     def fig(self):
+        """Figure."""
         return self._fig
 
     @property
     def axes(self):
+        """Axes."""
         return self._axes
 
     @property
     def bounds(self):
+        """X-limits of each plot."""
         return self._bounds
 
     def plot_spec_from_config(self,
@@ -83,7 +89,16 @@ class PeakPlot:
                               y_top_min: float=0.,
                               color="k",
                               **kwargs):
-        """Plot the spectrum defined in the config dict."""
+        """Plot the spectrum defined in the config dict.
+
+        Args:
+            config: Config dict.
+            step_plot: Whether to use ``plt.step`` instead of ``plt.plot``.
+            ylim_factor: Factor to multiply the maximum value of the spectrum
+                to set the y-axis limit.
+            y_top_min: Minimum value of the y-axis limit.
+            **kwargs: Keyword arguments passed to ``plt.plot`` or ``plt.step``.
+        """
         obs_data = load_preprocess(config["obs_info"], clip=False)
         freq_data = get_freq_data(obs_data)
         T_data = get_T_data(obs_data)
@@ -103,7 +118,17 @@ class PeakPlot:
                   ylim_factor: Optional[float]=None,
                   y_top_min: float=0.,
                   **kwargs):
-        """Plot a spectrum."""
+        """Plot a spectrum.
+
+        Args:
+            freq_data: List of 1D arrays that specifies the frequency values.
+            spec_data: List of 1D arrays that specifies the intensity values.
+            step_plot: Whether to use ``plt.step`` instead of ``plt.plot``.
+            ylim_factor: Factor to multiply the maximum value of the spectrum
+                to set the y-axis limit.
+            y_top_min: Minimum value of the y-axis limit.
+            **kwargs: Keyword arguments passed to ``plt.plot`` or ``plt.step``.
+        """
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
@@ -139,7 +164,12 @@ class PeakPlot:
                 ax.hlines(prom, x_min, x_max, "grey")
 
     def vlines(self, freqs: np.ndarray, **kwargs):
-        """Plot vertical lines."""
+        """Plot vertical lines.
+
+        Args:
+            freqs: Frequencies of the vertical lines.
+            **kwargs: Keyword arguments passed to ``plt.vlines``.
+        """
         kwargs_ = {"linestyle": "--", "color": "k"}
         kwargs_.update(kwargs)
         for i_a, ax in enumerate(self._axes.flat):
@@ -155,11 +185,19 @@ class PeakPlot:
 
     def vtexts(self,
                freqs: np.ndarray,
-               texts: list,
+               texts: np.ndarray,
                h_txt_offset: float=1.5e-2,
                v_txt_offset: float=.95,
                **kwargs):
-        """Plot vertical texts."""
+        """Plot vertical texts.
+
+        Args:
+            freqs: Frequencies to plot the texts.
+            texts: Texts to show.
+            h_txt_offset: Horizontal offset of the texts.
+            v_txt_offset: Vertical offset of the texts.
+            **kwargs: Keyword arguments passed to ``plt.text``.
+        """
         for i_a, ax in enumerate(self._axes.flat):
             if i_a >= self.n_plot:
                 continue
@@ -180,8 +218,8 @@ class SpectralPlot:
     """Multi-row plot for visualizing the spectrum of multiple spectral windows.
 
     Args:
-        freq_data: List of 1D array that specifies the frequency values for each
-            spectral window.
+        freq_data: List of 1D arrays that specifies the frequency values for
+            each spectral window.
         freq_per_row: Frequency range to show in each row. The unit should be
             the same as ``freq_data``.
         width: Figure width.
@@ -304,14 +342,17 @@ class SpectralPlot:
 
     @property
     def fig(self):
+        """Figure."""
         return self._fig
 
     @property
     def axes(self):
+        """Axes."""
         return self._axes
 
     @property
     def bounds(self):
+        """X-limits of each plot."""
         return self._bounds
 
     def plot_ident_result(self,
@@ -430,9 +471,9 @@ class SpectralPlot:
         """Plot a spectrum.
 
         Args:
-            freq_data: List of 1D array specifiyng the frequency of each
+            freq_data: List of 1D arrays specifiyng the frequency of each
                 spectral window.
-            spec_data: List of 1D array specifiyng the intensity of each
+            spec_data: List of 1D arrays specifiyng the intensity of each
                 spectral window.
             *args: Arguments passed to ``plt.plot``.
             color: Color of the spectrum.
