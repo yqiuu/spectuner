@@ -272,8 +272,8 @@ def match_spans(spans, freqs):
 
 def create_spans(freqs, v_min, v_max):
     """Create spans using minimum and maximum velocities."""
-    freqs_min = compute_shift(freqs, v_min)
-    freqs_max = compute_shift(freqs, v_max)
+    freqs_min = compute_shift(freqs, -v_max)
+    freqs_max = compute_shift(freqs, -v_min)
     return np.vstack([freqs_min, freqs_max]).T
 
 
