@@ -645,7 +645,7 @@ class CubePipeline:
                 desc="Checking invalid values...",
                 total=len(data_line)
             ):
-                cond = spec > factor_out*noise
+                cond = np.abs(spec) > factor_out*noise
                 num += np.count_nonzero(cond)
                 data_line[idx, cond] = data_continuum[idx]
             print("Fraction of outliers: {:.1f}% ({}/{})".format(
