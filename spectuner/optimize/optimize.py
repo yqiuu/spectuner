@@ -175,8 +175,9 @@ def create_optimizer(config: dict) -> Optimizer:
         cls_opt = ScipyOptimizer
 
     kwargs.update(pick_default_kwargs(cls_opt, config_opt))
-    # method is modified if it is 'auto', and therefore we need to update method
-    kwargs.update(method=method)
+    if config_opt["method"] == "auto":
+        # method is modified if it is 'auto', and therefore we need to update method
+        kwargs.update(method=method)
     return cls_opt(**kwargs)
 
 
