@@ -482,16 +482,16 @@ class CubePipeline:
     For each segment, the pipline does the following steps:
         1. Set any inf and nan values in the spectrum to the continuum.
         2. Estimate the global RMS noise of the spectrum by randomly selecting
-            several pixels and using sigma clipping.
+           several pixels and using sigma clipping.
         3. Set any outiler values (> 1e4*noise) to the continuum.
         4. Estimate the number of peaks in each spectrum.
 
     Secondly, the pipline removes bad fixels:
         1. Estimate the local RMS noise using the spectrum of one pixel.
         2. Count the number of peaks, and remove the pixel if the total number
-            of peaks of all segments is below a threshold.
+           of peaks of all segments is below a threshold.
         3. Estimate the plateau fraction using by smoothing spectrum, and
-            remove the pixel if the plateau fraction is above a threshold.
+           remove the pixel if the plateau fraction is above a threshold.
 
     Attributes:
         maxiters: Maximum number of iterations used in ``sigma_clipped_stats``.
