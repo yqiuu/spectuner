@@ -59,6 +59,7 @@ files.
 
    notebooks/line_identification
    notebooks/line_identification_2
+   pixel_fitting
 
 .. toctree::
    :maxdepth: 1
