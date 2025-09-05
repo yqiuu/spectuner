@@ -58,7 +58,7 @@ a neural network to provide initial guesses, which significantly improves the
 fitting process. To use the neural network, please download the weights file
 from `Hugging Face <https://huggingface.co/yqiuu/Spectuner-D1/tree/main>`__. We
 highly recommend using a GPU for inference; otherwise, please set
-`:code:device="cpu"`.
+:code:`device="cpu"`.
 
 .. code-block:: python
 
