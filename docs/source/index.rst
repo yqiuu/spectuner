@@ -32,7 +32,10 @@ If you want to use the AI module, you need to install
 
    pip install torch
 
-In addition, the code also requires the Cologne Database for Molecular
+Also, please download the neural network weights file from
+`Hugging Face <https://huggingface.co/yqiuu/Spectuner-D1/tree/main>`__.
+
+In addition, the code requires the Cologne Database for Molecular
 Spectroscopy (`CDMS <https://cdms.astro.uni-koeln.de/>`__) as input. You may
 download the database using the following command.
 

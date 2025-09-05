@@ -53,7 +53,12 @@ can only handle velocity offsets within the range of -12 km/s to +12 km/s.
 
 Performing the fitting
 ----------------------
-The code below demonstrates how to perform pixel-by-pixel fitting.
+The code below demonstrates how to perform pixel-by-pixel fitting. It can employ
+a neural network to provide initial guesses, which significantly improves the
+fitting process. To use the neural network, please download the weights file
+from `Hugging Face <https://huggingface.co/yqiuu/Spectuner-D1/tree/main>`__. We
+highly recommend using a GPU for inference; otherwise, please set
+`:code:device="cpu"`.
 
 .. code-block:: python
 
@@ -68,7 +73,7 @@ The code below demonstrates how to perform pixel-by-pixel fitting.
 
     # Set information for inference
     config.set_inference_model(
-        ckpt="path/to/the/checkpoint/file"
+        ckpt="path/to/the/network/weights/file"
         device="cuda:0",
         batch_size=64
     )
