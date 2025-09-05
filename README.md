@@ -17,7 +17,28 @@ Then, we can install the code from the repository.
 git clone https://github.com/yqiuu/spectuner.git
 cd spectuner
 pip install .
+
 ```
+
+If you want to use the AI module, you need to install
+[PyTorch](https://pytorch.org/).
+
+```
+pip install torch
+```
+
+Also, please download the neural network weights file from
+[Hugging Face](https://huggingface.co/yqiuu/Spectuner-D1/tree/main).
+
+In addition, the code requires the Cologne Database for Molecular
+Spectroscopy ([CDMS](https://cdms.astro.uni-koeln.de/)) as input. You may
+download the database using the following command.
+
+```
+wget https://cdms.astro.uni-koeln.de/static/cdms/download/official/cdms_sqlite__official-version__2024-01-01.db.gz
+```
+
+
 
 ## Documentation
 Read the docs at this [link](https://spectuner.readthedocs.io/en/latest/index.html).
