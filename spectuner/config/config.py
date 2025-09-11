@@ -231,7 +231,7 @@ class Config(dict):
     def set_param_info(self,
                        param_name: Literal["theta", "T_ex", "N_tot", "delta_v", "v_offset"],
                        is_log: bool,
-                       bound: Tuple[float, float],
+                       bound: Optional[Tuple[float, float]]=None,
                        is_shared: bool=False,
                        special: Optional[str]=None):
         r"""Update the settings of a parameter.
