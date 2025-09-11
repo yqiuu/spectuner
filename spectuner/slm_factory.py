@@ -15,6 +15,7 @@ from .sl_model import (
     ParameterManager,
 )
 from .peaks import PeakManager
+from .config import Config
 from .utils import pick_default_kwargs
 
 
@@ -114,45 +115,15 @@ def jit_fitting_model(model):
 
 
 class SpectralLineModelFactory:
-    """Spectral line model factory.
+    """Factory class to create objects related to spectral line models.
 
     Args:
-        config: Must have the following structure:
-
-            sl_model:
-                fname_db: str # Path to the spectroscopic database
-                trunc: float
-                eps_grid: float
-                params: dict
-                    theta:
-                        is_log: bool
-                        is_shared: bool
-                        special: str
-                    T_ex:
-                        is_log: bool
-                        is_shared: bool
-                    N_tot:
-                        is_log: bool
-                        is_shared: bool
-                    delta_v:
-                        is_log: bool
-                        is_shared: bool
-                    v_LSR:
-                        is_log: bool
-                        is_shared: bool
-            peak_manager:
-                noise_factor: float
-                rel_height: float
-                freqs_exclude:
-            bound_info: dict # Only used to create fitting models
-                - theta: list (lower, upper)
-                - T_ex: list (lower, upper)
-                - N_tot: list (lower, upper)
-                - delta_v: list (lower, upper)
-                - v_LSR: list (lower, upper)
+        config: ``Config`` instance.
+        sl_db: Spectral line database. If this is provided, the code will use
+            this database instead of the one defined in the config.
     """
     def __init__(self,
-                 config: dict,
+                 config: Config,
                  sl_db: Optional[SpectralLineDB]=None) -> None:
         self._config = config
         if sl_db is None:
@@ -161,6 +132,14 @@ class SpectralLineModelFactory:
             self._sl_db = sl_db
 
     def create_parameter_mgr(self, specie_list: list, obs_info: list):
+        """Create a parameter manager.
+
+        This uses ``param_info`` in the config.
+
+        Args:
+            specie_list: List of species.
+            obs_info: List of information of each spectral window.
+        """
         param_info = self._config["param_info"]
         return ParameterManager(specie_list, param_info, obs_info)
 
@@ -168,6 +147,17 @@ class SpectralLineModelFactory:
                         obs_info: list,
                         specie_list: list,
                         sl_dict_list: Optional[list]=None) -> SpectralLineModel:
+        """Create a callable for computing model spectra.
+
+        This uses ``param_info`` and ``sl_model`` in the config.
+
+        Args:
+            obs_info: List of information of each spectral window.
+            specie_list: List of species.
+            sl_dict_list: List of molecular transition properties. If this is
+                provided, the code will use this list instead of querying the
+                database.
+        """
         # Create sl_model
         obs_data = load_preprocess(obs_info)
         freq_data = get_freq_data(obs_data)
@@ -194,6 +184,13 @@ class SpectralLineModelFactory:
     def create_peak_mgr(self,
                         obs_info: list,
                         T_base_data: Optional[list]=None) -> PeakManager:
+        """Create a peak manager.
+
+        This uses ``peak_manager`` in the config.
+
+        Args:
+            obs_info: List of information of each spectral window.
+        """
         obs_data = load_preprocess(obs_info)
         if "noise_factor" in self._config["peak_manager"]:
             noise_factor = self._config["peak_manager"]["noise_factor"]
@@ -214,6 +211,25 @@ class SpectralLineModelFactory:
                              loss_fn: Literal["pm", "chi2", "chi2_ls"]="pm",
                              sl_dict_list: Optional[list]=None,
                              T_base_data: Optional[list]=None) -> FittingModel:
+        """Create a callable for fitting.
+
+        This uses ``param_info``, ``sl_model`` and ``peak_manager`` in the
+        config.
+
+        Args:
+            obs_info: List of information of each spectral window.
+            specie_list: List of species.
+            loss_fn: Loss function for fitting.
+
+                - ``'pm'``: Peak matching.
+                - ``'chi2'``: Chi-square.
+                - ``'chi2_ls'``: This should be used for fitting with
+                  ``scipy.optimize.least_squares``.
+
+            sl_dict_list: List of molecular transition properties. If this is
+                provided, the code will use this list instead of querying the
+                database.
+        """
         sl_model = self.create_sl_model(obs_info, specie_list, sl_dict_list)
         # TODO: allow to have different loss functions
         if loss_fn == "pm":
