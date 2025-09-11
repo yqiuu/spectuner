@@ -60,6 +60,7 @@ files.
    :maxdepth: 1
    :caption: Tutorials:
 
+   notebooks/generating_model_spectra
    notebooks/line_identification
    notebooks/line_identification_2
    pixel_fitting
@@ -77,6 +78,7 @@ files.
    :caption: API reference:
 
    api/config
+   api/slm_factory
    api/identify
    api/spectral_plot
    api/cube
