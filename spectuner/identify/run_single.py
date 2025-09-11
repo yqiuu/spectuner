@@ -15,7 +15,7 @@ from ..utils import (
 from .identify import prepare_base_props, identify
 
 
-__all__ = ["run_individual_line_id", "create_specie_list"]
+__all__ = ["run_individual_line_id"]
 
 
 def run_individual_line_id(config, result_dir, need_identify=True, sl_db=None):
