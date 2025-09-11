@@ -178,6 +178,29 @@ class Config(dict):
                              " asceding of frequency.")
         self["obs_info"].append(item)
 
+    def append_spectral_window_simple(self,
+                                      freq: np.ndarray,
+                                      beam_info: float | tuple,
+                                      T_bg: float=0.,
+                                      need_cmb: bool=True):
+        """Add a spectral window to ``obs_info``.
+
+        This may be used for generating model spectra. For any fitting-related
+        tasks, please use ``append_spectral_window`` instead.
+
+        Args:
+            freq: Frequency grid in MHz.
+            beam_info: For single disk telescopes, this should
+                be a float indicating the telescope diameter in meter. For
+                interferometers, this should be (``BMAJ``, ``BMIN``) indicating
+                the beam size in degree.
+            T_bg: Background temperature in K.
+            need_cmb: If ``true``, additionally add 2.726 K to the background
+                temperature.
+        """
+        spec = np.vstack([freq, np.zeros_like(freq)]).T
+        self.append_spectral_window(spec, beam_info, 0., T_bg, need_cmb)
+
     def set_fname_db(self, fname_db: str):
         """Set the path to the spectroscopic database.
 
