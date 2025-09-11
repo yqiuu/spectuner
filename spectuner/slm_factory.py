@@ -242,6 +242,13 @@ class SpectralLineModelFactory:
             loss_fn = ChiSquare(obs_data, T_base_data, use_ls=True)
         else:
             raise ValueError(f"Unknown fitting loss {loss_fn}.")
+        # Validate bounds
+        fails = []
+        for name, item in self._config["param_info"].items():
+            if item["bound"] is None:
+                fails.append(name)
+        if len(fails) > 0:
+            raise ValueError(f"Set the bounds for {fails}")
         bounds = sl_model.param_mgr.derive_bounds()
         return FittingModel(obs_info, sl_model, loss_fn, bounds)
 
