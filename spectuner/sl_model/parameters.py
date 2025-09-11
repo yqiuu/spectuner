@@ -11,7 +11,7 @@ def create_specie_list(*species):
     line model.
 
     Args:
-        species: Species names.
+        *species: Species names.
     """
     return [{"root": species[0], "species": species}]
 

@@ -221,9 +221,9 @@ class SpectralLineModelFactory:
             specie_list: List of species.
             loss_fn: Loss function for fitting.
 
-                - ``'pm'``: Peak matching.
-                - ``'chi2'``: Chi-square.
-                - ``'chi2_ls'``: This should be used for fitting with
+                - ``"pm"``: Peak matching.
+                - ``"chi2"``: Chi-square.
+                - ``"chi2_ls"``: This should be used for fitting with
                   ``scipy.optimize.least_squares``.
 
             sl_dict_list: List of molecular transition properties. If this is

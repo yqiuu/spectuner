@@ -379,6 +379,11 @@ class Config(dict):
 
         Args:
             species: List of species to fit. The species will be fit jointly.
+            loss_fn: Loss function for fitting.
+
+                - ``"pm"``: Peak matching.
+                - ``"chi2"``: Chi-square.
+
             need_spectra: Whether to save the best-fitting model spectrum.
         """
         self["cube"]["species"] = species
@@ -395,7 +400,7 @@ class Config(dict):
         Args:
             ckpt: Path to the checkpoint file.
             device: Device to use. Set ``device="cpu"`` if no GPU is available.
-                Defaults to "cuda:0".
+                Defaults to ``"cuda:0"``.
             batch_size: Batch size of inference. Reduce this number if GPU
                 memory is not enough. Defaults to 64.
             num_workers: Number of workers for the data loader.
