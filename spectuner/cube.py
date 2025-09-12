@@ -25,7 +25,7 @@ from .sl_model import (
     const_factor_mu_sigma,
     SpectralLineDB
 )
-from .peaks import check_overlap
+from .peaks import check_overlap, compute_shift
 from .slm_factory import SpectralLineModelFactory
 from .optimize import create_optimizer, Optimizer
 from .preprocess import preprocess_spectrum
@@ -1029,7 +1029,7 @@ class HDFCubeManager:
             if add_T_bg:
                 T_obs += T_bg
             T_obs = T_obs.astype("f4")
-            header_line = self._derive_header_line(i_segment)
+            header_line = self._derive_header_line(i_segment, add_v_LSR=False)
             header_line["BUNIT"] = units["intensity"]
             header_line["CUNIT3"] = units["frequency"]
             hdu = fits.PrimaryHDU(T_obs, header=header_line)
@@ -1039,6 +1039,7 @@ class HDFCubeManager:
     def pred_data_to_fits(self,
                           fname: str,
                           save_dir: str,
+                          add_v_LSR: bool=True,
                           add_T_bg: bool=False,
                           overwrite=False):
         """Save a fitting result to FITS files.
@@ -1046,6 +1047,8 @@ class HDFCubeManager:
         Args:
             fname: Path to the fitting result.
             save_dir: Directory to save the FITS files.
+            add_v_LSR: Whether to add the LSR velocity to the predicted spectra
+                to match the observation.
             add_T_bg: Whether to add the background temperature to the
                 observed spectrum.
             overwrite: Whether to overwrite the existing files.
@@ -1058,11 +1061,13 @@ class HDFCubeManager:
                     grp=grp,
                     units=units,
                     save_dir=save_dir,
+                    add_v_LSR=add_v_LSR,
                     add_T_bg=add_T_bg,
                     overwrite=overwrite
                 )
 
-    def _save_pred_data(self, name, grp, units, save_dir, add_T_bg, overwrite):
+    def _save_pred_data(self, name, grp, units, save_dir,
+                        add_v_LSR, add_T_bg, overwrite):
         save_dir = Path(save_dir)/name
         save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1093,15 +1098,18 @@ class HDFCubeManager:
                     T_bg = np.array(fp[f"cube/{i_segment}/T_bg"])
                 T_bg = to_dense_matrix(T_bg, self._indices, self._shape)
                 T_pred += T_bg
-            header_line = self._derive_header_line(i_segment)
+            header_line = self._derive_header_line(i_segment, add_v_LSR)
             header_line["BUNIT"] = units["intensity"]
             header_line["CUNIT3"] = units["frequency"]
             hdu = fits.PrimaryHDU(T_pred, header=header_line)
             save_name = save_dir/f"{i_segment}_line.fits"
             hdu.writeto(save_name, overwrite=overwrite)
 
-    def _derive_header_line(self, i_segment):
+    def _derive_header_line(self, i_segment, add_v_LSR):
         freqs = self._freq_data[i_segment]
+        if add_v_LSR:
+            v_LSR = h5py.File(self._fname).attrs["v_LSR"]
+            freqs = compute_shift(freqs, -v_LSR)
         header = load_cube_header(self._fname, i_segment, "line")
         header = fits.Header(header)
         header["CRVAL3"] = freqs[0]
