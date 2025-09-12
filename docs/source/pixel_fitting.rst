@@ -53,12 +53,13 @@ can only handle velocity offsets within the range of -12 km/s to +12 km/s.
 
 Performing the fitting
 ----------------------
-The code below demonstrates how to perform pixel-by-pixel fitting. It can employ
+The code below demonstrates how to perform pixel-by-pixel fitting. We can employ
 a neural network to provide initial guesses, which significantly improves the
 fitting process. To use the neural network, please download the weights file
 from `Hugging Face <https://huggingface.co/yqiuu/Spectuner-D1/tree/main>`__. We
 highly recommend using a GPU for inference; otherwise, please set
-:code:`device="cpu"`.
+:code:`device="cpu"`. The example below fits the spectra of CH3OH. Update
+:code:`species` to fit different species. Multiple species are supported.
 
 .. code-block:: python
 
@@ -90,18 +91,36 @@ highly recommend using a GPU for inference; otherwise, please set
     save_name = "XXX_results.h5" # Path to save the results
     spectuner.fit_pixel_by_pixel(config, fname_cube, save_name)
 
+We can use :code:`spectuner.print_h5_structure` to check the structure of the
+output file.
 
-Converting the fitting results to FITS files
---------------------------------------------
-This step is optional. The code allows us to convert the fitting results to FITS
-files, which can then be visulaized using `CARTA <https://cartavis.org/>`__.
+.. code-block:: python
+
+    spectuner.print_h5_structure(save_name)
+
+This may give the following output:
+
+.. code-block:: text
+
+    CH3OH;v=0;/
+    N_tot (shape: (XXX,), type: float32)
+    T_ex (shape: (XXX,), type: float32)
+    T_pred/
+        0 (shape: (XXX, XXXX), type: float32)
+        1 (shape: (XXX, XXXX), type: float32)
+    delta_v (shape: (XXX,), type: float32)
+    theta (shape: (XXX,), type: float32)
+    v_offset (shape: (XXX,), type: float32)
+    score/
+    fun (shape: (XXX,), type: float32)
+    nfev (shape: (XXX,), type: int32)
+
+We can access the fitting results using |HDFCubeManager|. Note that the
+initialization of |HDFCubeManager| requires the HDF file of the observed data.
 
 .. code-block:: python
 
     import spectuner
-
-    # Directory to save the FITS files
-    save_dir = "fits/"
 
     # HDF file created in preprocessing
     fname_cube = "XXX.h5"
@@ -109,7 +128,26 @@ files, which can then be visulaized using `CARTA <https://cartavis.org/>`__.
     # Path to the saved results
     fname_result = "XXX_result.h5"
 
-    # Convert
     cube_mgr = spectuner.HDFCubeManager(fname_cube)
-    cube_mgr.obs_data_to_fits(save_dir, overwrite=True)
-    cube_mgr.pred_data_to_fits(fname_result, save_dir, overwrite=True)
+    # Load the predicted excitation temperature
+    T_ex = cube_mgr.load_pred_data(fname, "CH3OH;v=0;/T_ex")
+    # Load the predicted spectra of the first spectral window
+    T_pred = cube_mgr.load_pred_data(fname, "CH3OH;v=0;/T_pred/0")
+
+
+Converting the fitting results to FITS files
+--------------------------------------------
+This step is optional. We may use |HDFCubeManager| to convert the fitting
+results to FITS files, which can then be visulaized using
+`CARTA <https://cartavis.org/>`__. Note that the LSR velocity is corrected for
+the predicted spectra. By setting :code:`add_v_LSR=True`, we add the LSR
+velocity to the predicted spectra so that the results are comparable with the
+observation.
+
+.. code-block:: python
+
+    # Directory to save the FITS files
+    save_dir = "fits/"
+
+    # Convert
+    cube_mgr.pred_data_to_fits(fname_result, save_dir, add_v_LSR=True, overwrite=True)
