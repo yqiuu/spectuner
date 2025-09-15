@@ -58,7 +58,16 @@ a neural network to provide initial guesses, which significantly improves the
 fitting process. To use the neural network, please download the weights file
 from `Hugging Face <https://huggingface.co/yqiuu/Spectuner-D1/tree/main>`__. We
 highly recommend using a GPU for inference; otherwise, please set
-:code:`device="cpu"`. The example below fits the spectra of CH3OH. Update
+:code:`device="cpu"`.
+
+There are two types of loss functions available for pixel-by-pixel fitting:
+
+#. :code:`"chi2"`: The :math:`\chi^2` loss function, which works well if line
+   blending is not significant.
+#. :code:`"pm"`: The peak matching loss function, which should be used if line
+   blending is significant.
+
+The example below fits the spectra of CH3OH. Update
 :code:`species` to fit different species. Multiple species are supported.
 
 .. code-block:: python
@@ -83,6 +92,7 @@ highly recommend using a GPU for inference; otherwise, please set
     species = ["CH3OH;v=0;"]
     config.set_pixel_by_pixel_fitting(
         species=species,
+        loss_fn="chi2",
         need_spectra=True
     )
 
