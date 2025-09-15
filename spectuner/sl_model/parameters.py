@@ -5,14 +5,15 @@ import numpy as np
 from .sl_model import derive_average_beam_size
 
 
-def create_specie_list(*species):
+def create_specie_list(species: str | list):
     """
     Create an object to determine the species associated with the spectral
     line model.
 
     Args:
-        *species: Species names.
+        species: Species names.
     """
+    species = np.ravel(species)
     return [{"root": species[0], "species": species}]
 
 
