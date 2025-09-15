@@ -56,9 +56,9 @@ Performing the fitting
 The code below demonstrates how to perform pixel-by-pixel fitting. We can employ
 a neural network to provide initial guesses, which significantly improves the
 fitting process. To use the neural network, please download the weights file
-from `Hugging Face <https://huggingface.co/yqiuu/Spectuner-D1/tree/main>`__. We
-highly recommend using a GPU for inference; otherwise, please set
-:code:`device="cpu"`.
+from `Hugging Face <https://huggingface.co/yqiuu/Spectuner-D1/tree/main>`__ and
+install `PyTorch <https://pytorch.org/>`__. We highly recommend using a GPU for
+inference; otherwise, please set :code:`device="cpu"`.
 
 There are two types of loss functions available for pixel-by-pixel fitting:
 
