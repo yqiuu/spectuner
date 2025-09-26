@@ -403,7 +403,7 @@ class SpectralLineDB(ABC):
         Returns:
             list: A list of tuples (``specie_name``, ``transition_frequecy`` [MHz]).
         """
-        names, freqs = self.load_all_transitions()
+        names, freqs = self.load_transitions(freq_data)
         inds = np.argsort(freqs)
         names = names[inds]
         freqs = freqs[inds]
@@ -453,11 +453,17 @@ class SpectralLineDB(ABC):
         return df
 
     @abstractmethod
-    def load_all_transitions(self):
+    def load_transitions(self, freq_data: Optional[list]=None) -> tuple:
         """Load all transitions.
 
+        Args:
+            freq_data (list): A list of arrays to specify the frequency ranges
+            to load the transitions. The code uses the ``min`` and ``max``
+            functions to find the minimum and maximum frequencies. If ``None``,
+            load all transitions.
+
         Returns:
-            tuple:  (names, freqs).
+            tuple: (names, freqs).
         """
 
     def query_sl_dict(self, key: str, freq_data: list, v_enlarge: float=0.) -> dict:
@@ -520,7 +526,7 @@ class SQLSpectralLineDB(SpectralLineDB):
         cursor.close()
         conn.close()
 
-    def load_all_transitions(self):
+    def load_transitions(self, freq_data: Optional[list]=None) -> tuple:
         try:
             return self._transitions
         except AttributeError:
@@ -529,6 +535,15 @@ class SQLSpectralLineDB(SpectralLineDB):
         conn = sqlite3.connect(self._fname)
         query = """select T_Name, T_Frequency from transitions where """\
             """T_name not like '%RRL%'"""
+        if freq_data is not None:
+            conds = []
+            for freqs in freq_data:
+                freq_min = np.min(freqs)
+                freq_max = np.max(freqs)
+                conds.append(
+                    f"(T_Frequency >= {freq_min} and T_Frequency <= {freq_max})"
+                )
+            query += " and {}".format(" or ".join(conds))
         df = pd.read_sql_query(query, conn)
         names = df['T_Name'].to_numpy()
         freqs = df['T_Frequency'].to_numpy()
