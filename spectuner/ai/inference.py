@@ -164,6 +164,9 @@ def collate_fn_padding(batch):
 def _create_param_info(config_ckpt):
     """Create param_info of the config in checkpoints."""
     # Ensure the order of the paramters is correct
+    if "param_info" in config_ckpt:
+        return config_ckpt["param_info"]
+
     param_names = ["theta", "T_ex", "N_tot", "delta_v", "v_offset"]
     bound_info = {}
     for key, values in zip(param_names, config_ckpt["nn"]["sampler"]["bounds"]):
