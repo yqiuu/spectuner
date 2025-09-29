@@ -4,6 +4,7 @@ from typing import Optional, Callable
 from pathlib import Path
 from copy import deepcopy
 from pprint import pformat
+import multiprocessing as mp
 
 import h5py
 import numpy as np
@@ -18,6 +19,7 @@ from .networks import create_parameter_estimator
 from .. import cube
 from ..sl_model import SpectralLineDB
 from ..slm_factory import SpectralLineModelFactory, ParameterManager
+from ..optimize import ModifiedArtificialBeeColony
 
 
 def predict_single_pixel(inf_model: InferenceModel,
@@ -151,6 +153,46 @@ def predict_cube(inf_model: InferenceModel,
     )
 
 
+def run_mabc_with_inference_model(opt: ModifiedArtificialBeeColony,
+                                  inf_model: InferenceModel,
+                                  obs_info: list,
+                                  species: list,
+                                  pool: Optional[mp.Pool]=None,
+                                  device: Optional[str]=None) -> dict:
+    """
+    Run the modified artificial bee colony optimization with initial positions
+    provided by the inference model.
+
+    Args:
+        opt: A MABC instance.
+        inf_model: Inference model.
+        obs_info: Observation information.
+        species (list): List of species.
+        pool: Multiprocessing pool. Defaults to None.
+        device: Device. Defaults to None.
+
+    Returns:
+        dict: Optimization result.
+    """
+    batch = []
+    for name in species:
+        embed_obs, embed_sl, *_ = inf_model.embedding_model(obs_info, name)
+        batch.append((embed_obs, embed_sl))
+    batch = [collate_fn_padding(batch)]
+    samps = inf_model.call_multi(
+        inputs=batch,
+        postprocess=DirectAccess(opt._n_swarm),
+        pool=pool,
+        device=device,
+    )
+    pos_init = np.stack(samps) # (n_specie, n_swarm, n_dim)
+    pos_init = np.swapaxes(pos_init, 0, 1)  # (n_swarm, n_specie, n_dim)
+    res = opt.run(
+        inf_model.slm_factory, obs_info, species, pos_init=pos_init, pool=pool
+    )
+    return res
+
+
 def collate_fn_padding(batch):
     embed_obs_batch = [torch.from_numpy(item[0]) for item in batch]
     embed_sl_batch = [torch.from_numpy(item[1]) for item in batch]
@@ -184,6 +226,14 @@ def _create_param_info(config_ckpt):
             raise ValueError(f"Fail to find {key} in the config file.")
         param_info[key]["bound"] = bound_info[key]
     return param_info
+
+
+class DirectAccess:
+    def __init__(self, n_draw: int):
+        self.n_draw = n_draw
+
+    def __call__(self, *args):
+        return args[0]
 
 
 class InferenceModel:
