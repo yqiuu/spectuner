@@ -919,7 +919,13 @@ class IdentResult:
         )
         load_dict["specie_data"] = {int(key): data for key, data in
                                     json.loads(fp["specie_data"][()]).items()}
-        load_dict["specie_list"] = json.loads(fp["specie_list"][()])
+        # For some old versions, specie_list and x are not stored.
+        if "specie_list" in fp:
+            load_dict["specie_list"] = json.loads(fp["specie_list"][()])
+        else:
+            load_dict["specie_list"] = None
+        if "x" not in load_dict:
+            load_dict["x"] = None
         load_dict["line_table"] = LineTable.load_hdf(fp["line_table"])
         load_dict["line_table_fp"] = LineTable.load_hdf(fp["line_table_fp"])
 
