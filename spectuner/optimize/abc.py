@@ -44,6 +44,7 @@ class ModifiedArtificialBeeColony:
     """
     def __init__(self,
                  n_swarm: int=64,
+                 tour_size: int=5,
                  n_cycle_min: int=100,
                  n_cycle_max: int=1000,
                  n_cycle_dim: int=5,
@@ -53,6 +54,7 @@ class ModifiedArtificialBeeColony:
                  rstate: Optional[np.random.RandomState]=None,
                  chunk_size: int=2):
         self._n_swarm = n_swarm
+        self._tour_size = tour_size
         self._n_cycle_min = n_cycle_min
         self._n_cycle_max = n_cycle_max
         self._n_cycle_dim = n_cycle_dim
@@ -203,10 +205,7 @@ class ModifiedArtificialBeeColony:
         )
 
         funs = np.array([bee.fun for bee in bees])
-        fit = np.vectorize(
-            lambda x: 1./(1. + x) if x > 0. else 1. + abs(x))(funs)
-        fit /= np.sum(fit)
-        bee_inds = self._rstate.choice(self._n_swarm, self._n_swarm, True, fit)
+        bee_inds = self._tournament_selection(funs)
         self._bee_step(
             sl_model_dict=sl_model_dict,
             loss_fn=loss_fn,
@@ -315,6 +314,15 @@ class ModifiedArtificialBeeColony:
             bee.x_dict[mol_name] = pos_new
             bee.T_dict[mol_name] = T_data_new
 
+    def _tournament_selection(self, funs):
+        selected = []
+        for _ in range(self._n_swarm):
+            groups = self._rstate.choice(
+                self._n_swarm, self._tour_size, replace=False
+            )
+            i_best = min(groups, key=lambda i: funs[i])
+            selected.append(i_best)
+        return selected
 
 def _call_loss_fn(sl_model: Callable,
                   loss_fn: Callable,
