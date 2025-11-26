@@ -4,10 +4,6 @@
 Spectuner is a tool for automated spectral line analysis of instellar molecules.
 
 
-## Notice (15/07/25)
-This is a transitional version from 1.0 to 2.0. In a few months, we will release the pixel-by-pixel fitting functionality based on neural networks. Version 1.0 will no longer be maintained thereafter.
-
-
 ## Installation
 The code requires Python>=3.10. If you do not have Python installed, we
 recommend installing [Anaconda](https://www.anaconda.com/products/individual).
@@ -63,3 +59,4 @@ archivePrefix = {arXiv},
       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
 }
 ```
+
