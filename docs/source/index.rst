@@ -21,9 +21,7 @@ Then, we can install the code from the repository.
 
 .. code-block:: bash
 
-   git clone https://github.com/yqiuu/spectuner.git
-   cd spectuner
-   pip install .
+   pip install spectuner
 
 If you want to use the AI module, you need to install
 `PyTorch <https://pytorch.org/>`__.

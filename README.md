@@ -14,10 +14,7 @@ recommend installing [Anaconda](https://www.anaconda.com/products/individual).
 Then, we can install the code from the repository.
 
 ```
-git clone https://github.com/yqiuu/spectuner.git
-cd spectuner
-pip install .
-
+pip install spectuner
 ```
 
 If you want to use the AI module, you need to install
