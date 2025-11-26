@@ -36,12 +36,4 @@ setup(
             'ai/normalizations_v1.yml',
         ],
     },
-    entry_points={
-        'console_scripts': [
-            "spectuner-config=spectuner.scripts:exec_config",
-            "spectuner-run=spectuner.scripts:exec_fit",
-            "spectuner-modify=spectuner.scripts:exec_modify",
-            "spectuner-identify=spectuner.scripts:exec_identify",
-        ],
-    },
 )
